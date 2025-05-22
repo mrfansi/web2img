@@ -113,7 +113,37 @@ def create_app() -> FastAPI:
     # Add request logging middleware
     app.add_middleware(RequestLoggingMiddleware)
     
-    # Add exception handler for better error messages
+    # Import our custom error handling system
+    from app.core.errors import WebToImgError, get_error_response, classify_exception
+    
+    # Add exception handler for WebToImgError
+    @app.exception_handler(WebToImgError)
+    async def web2img_error_handler(request: Request, exc: WebToImgError):
+        # Get request ID if available
+        request_id = getattr(request.state, 'request_id', 'unknown')
+        
+        # Add request context to error
+        exc.context.update({
+            "request_id": request_id,
+            "method": request.method,
+            "url": str(request.url),
+            "client": request.client.host if request.client else None
+        })
+        
+        # Log the exception with structured data
+        logger.error(f"WebToImgError: {exc.message}", exc.context)
+        
+        # Create response
+        error_response = exc.to_dict()
+        error_response["request_id"] = request_id
+        
+        return JSONResponse(
+            status_code=exc.http_status,
+            content=error_response,
+            headers={"X-Request-ID": request_id}
+        )
+    
+    # Add exception handler for generic exceptions
     @app.exception_handler(Exception)
     async def generic_exception_handler(request: Request, exc: Exception):
         # Get request ID if available
@@ -129,13 +159,32 @@ def create_app() -> FastAPI:
             "error_details": str(exc)
         })
         
+        # Try to classify the exception
+        error_class = classify_exception(exc)
+        if error_class is not WebToImgError:
+            # Convert to a more specific error type
+            converted_error = error_class(
+                message="An error occurred while processing your request",
+                context={
+                    "request_id": request_id,
+                    "method": request.method,
+                    "path": str(request.url.path)
+                },
+                original_exception=exc
+            )
+            error_response = converted_error.to_dict()
+            status_code = converted_error.http_status
+        else:
+            # Use generic error response
+            error_response = get_error_response(exc)
+            status_code = 500
+        
+        # Add request ID
+        error_response["request_id"] = request_id
+        
         return JSONResponse(
-            status_code=500,
-            content={
-                "detail": f"Internal server error: {str(exc)}",
-                "error_type": type(exc).__name__,
-                "request_id": request_id
-            },
+            status_code=status_code,
+            content=error_response,
             headers={"X-Request-ID": request_id}
         )
     

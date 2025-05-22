@@ -317,7 +317,12 @@ class RetryManager:
                     {**context, "circuit_state": circuit_state}
                 )
                 
-                raise RuntimeError(f"Circuit breaker is open for {self.name}")
+                # Use our custom error class for better error messages
+                from app.core.errors import CircuitBreakerOpenError
+                raise CircuitBreakerOpenError(
+                    name=self.name,
+                    context={**context, "circuit_state": circuit_state}
+                )
             
             attempt_start = time.time()
             attempt_number = retry_count + 1  # 1-based for logging
@@ -410,7 +415,18 @@ class RetryManager:
             }
         )
         
-        raise RuntimeError(f"Operation failed after {retry_count} retries: {str(last_error)}") from last_error
+        # Use our custom error class for better error messages
+        from app.core.errors import MaxRetriesExceededError
+        raise MaxRetriesExceededError(
+            operation=operation_name,
+            retries=retry_count,
+            context={
+                **context,
+                "total_duration": total_duration,
+                "retries": retry_count
+            },
+            original_exception=last_error
+        )
     
     def get_stats(self) -> Dict[str, Any]:
         """Get retry statistics.

@@ -169,7 +169,7 @@ class BrowserPool:
             # If we've reached max size, wait for a browser to become available
             # Log the issue and update error stats
             self._stats["errors"] += 1
-            
+        
             # Wait a short time and try again - maybe a browser will be released
             # This is better than immediately failing
             for retry in range(3):
@@ -200,9 +200,17 @@ class BrowserPool:
                     self._stats["peak_usage"] = max(self._stats["peak_usage"], self._stats["current_usage"])
                     
                     return browser_data["browser"], browser_index
-            
-            # If we still don't have an available browser, return None
-            return None, None
+        
+            # If we still don't have an available browser, raise a detailed error
+            from app.core.errors import BrowserPoolExhaustedError
+            context = {
+                "pool_size": len(self._browsers),
+                "max_size": self._max_size,
+                "available": len(self._available_browsers),
+                "in_use": len(self._browsers) - len(self._available_browsers),
+                "stats": self.get_stats()
+            }
+            raise BrowserPoolExhaustedError(context=context)
     
     async def release_browser(self, browser_index: int, is_healthy: bool = True):
         """Return a browser to the pool or recycle it.

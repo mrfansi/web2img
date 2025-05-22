@@ -1,10 +1,19 @@
-from typing import Dict, List, Any, Optional
+from typing import Dict, Any
 
-from fastapi import APIRouter, HTTPException, status, Path, Query, BackgroundTasks
+from fastapi import APIRouter, HTTPException, Path, Query, BackgroundTasks
 from pydantic import ValidationError
 
 from app.schemas.batch import BatchScreenshotRequest, BatchScreenshotResponse, BatchJobStatusResponse
 from app.services.batch import batch_service
+from app.core.errors import (
+    WebToImgError, 
+    get_error_response, 
+    HTTP_200_OK,
+    HTTP_400_BAD_REQUEST,
+    HTTP_404_NOT_FOUND,
+    HTTP_202_ACCEPTED,
+    HTTP_500_INTERNAL_SERVER_ERROR
+)
 
 router = APIRouter(tags=["batch"])
 
@@ -12,7 +21,7 @@ router = APIRouter(tags=["batch"])
 @router.post(
     "/batch/screenshots",
     response_model=BatchJobStatusResponse,
-    status_code=status.HTTP_202_ACCEPTED,
+    status_code=HTTP_202_ACCEPTED,
     summary="Create a batch screenshot job",
     description="Submit multiple screenshot requests to be processed as a batch"
 )
@@ -45,20 +54,28 @@ async def create_batch_job(request: BatchScreenshotRequest) -> Dict[str, Any]:
         
     except ValidationError as e:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
+            status_code=HTTP_400_BAD_REQUEST,
             detail=f"Invalid request: {str(e)}"
         )
     except Exception as e:
+        # If it's already one of our custom errors, just re-raise it
+        if isinstance(e, WebToImgError):
+            raise
+        
+        # Otherwise, convert to an appropriate error response
+        error_dict = get_error_response(e)
+        
+        # Raise HTTPException with the detailed error information
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to create batch job: {str(e)}"
+            status_code=error_dict.get("http_status", HTTP_500_INTERNAL_SERVER_ERROR),
+            detail=error_dict
         )
 
 
 @router.get(
     "/batch/screenshots/{job_id}",
     response_model=BatchJobStatusResponse,
-    status_code=status.HTTP_200_OK,
+    status_code=HTTP_200_OK,
     summary="Get batch job status",
     description="Get the status of a batch screenshot job"
 )
@@ -74,29 +91,37 @@ async def get_batch_job_status(job_id: str = Path(..., description="Batch job ID
     """
     try:
         # Get the job status
-        status = await batch_service.get_job_status(job_id)
+        job_status = await batch_service.get_job_status(job_id)
         
-        if not status:
+        if not job_status:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
+                status_code=HTTP_404_NOT_FOUND,
                 detail=f"Batch job not found: {job_id}"
             )
         
-        return status
+        return job_status
         
     except HTTPException:
         raise
     except Exception as e:
+        # If it's already one of our custom errors, just re-raise it
+        if isinstance(e, WebToImgError):
+            raise
+        
+        # Otherwise, convert to an appropriate error response
+        error_dict = get_error_response(e)
+        
+        # Raise HTTPException with the detailed error information
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get batch job status: {str(e)}"
+            status_code=error_dict.get("http_status", HTTP_500_INTERNAL_SERVER_ERROR),
+            detail=error_dict
         )
 
 
 @router.get(
     "/batch/screenshots/{job_id}/results",
     response_model=BatchScreenshotResponse,
-    status_code=status.HTTP_200_OK,
+    status_code=HTTP_200_OK,
     summary="Get batch job results",
     description="Get the results of a batch screenshot job"
 )
@@ -116,14 +141,14 @@ async def get_batch_job_results(job_id: str = Path(..., description="Batch job I
         
         if not results:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
+                status_code=HTTP_404_NOT_FOUND,
                 detail=f"Batch job not found: {job_id}"
             )
         
         # Check if the job is still processing
         if results["status"] == "processing":
             raise HTTPException(
-                status_code=status.HTTP_202_ACCEPTED,
+                status_code=HTTP_202_ACCEPTED,
                 detail=f"Batch job is still processing: {job_id}"
             )
         
@@ -132,7 +157,15 @@ async def get_batch_job_results(job_id: str = Path(..., description="Batch job I
     except HTTPException:
         raise
     except Exception as e:
+        # If it's already one of our custom errors, just re-raise it
+        if isinstance(e, WebToImgError):
+            raise
+        
+        # Otherwise, convert to an appropriate error response
+        error_dict = get_error_response(e)
+        
+        # Raise HTTPException with the detailed error information
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get batch job results: {str(e)}"
+            status_code=error_dict.get("http_status", HTTP_500_INTERNAL_SERVER_ERROR),
+            detail=error_dict
         )

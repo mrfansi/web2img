@@ -131,7 +131,13 @@ class ScreenshotService:
         
         if browser is None or browser_index is None:
             # If we couldn't get a browser, raise an error
-            raise RuntimeError("Failed to get a browser from the pool")
+            # Note: This should not normally happen as BrowserPool.get_browser now raises BrowserPoolExhaustedError
+            # But we keep this as a fallback
+            from app.core.errors import BrowserPoolExhaustedError
+            raise BrowserPoolExhaustedError(context={
+                "width": width,
+                "height": height
+            })
         
         # Create a context for this browser
         context = await self._browser_pool.create_context(
@@ -146,7 +152,15 @@ class ScreenshotService:
         if context is None:
             # If context creation failed, release the browser and raise an error
             await self._browser_pool.release_browser(browser_index, is_healthy=False)
-            raise RuntimeError("Failed to create browser context")
+            from app.core.errors import BrowserError
+            raise BrowserError(
+                message="Failed to create browser context",
+                context={
+                    "browser_index": browser_index,
+                    "width": width,
+                    "height": height
+                }
+            )
         
         return context, browser_index
         
@@ -315,17 +329,33 @@ class ScreenshotService:
                     if is_complex and "timeout" in str(e).lower():
                         # Try with a simpler strategy
                         if page and not page.is_closed():
-                            # Try with domcontentloaded and longer timeout
-                            response = await page.goto(
-                                url, 
-                                wait_until="domcontentloaded",  # Simpler strategy
-                                timeout=page_timeout * 1.5  # 50% longer timeout
-                            )
-                            await asyncio.sleep(3)  # Wait longer after load
-                            return response
+                            try:
+                                # Try with domcontentloaded and longer timeout
+                                response = await page.goto(
+                                    url, 
+                                    wait_until="domcontentloaded",  # Simpler strategy
+                                    timeout=page_timeout * 1.5  # 50% longer timeout
+                                )
+                                await asyncio.sleep(3)  # Wait longer after load
+                                return response
+                            except Exception as inner_e:
+                                # Log the fallback attempt failure
+                                self.logger.warning(f"Fallback navigation strategy also failed for {url}", {
+                                    "url": url,
+                                    "error": str(inner_e),
+                                    "error_type": type(inner_e).__name__
+                                })
                     
                     # If we get here, the simpler strategy failed or wasn't attempted
-                    raise
+                    # Use our custom error class for better error messages
+                    from app.core.errors import NavigationError
+                    nav_context = {
+                        "url": url,
+                        "wait_until": wait_until,
+                        "timeout": page_timeout,
+                        "is_complex_site": is_complex
+                    }
+                    raise NavigationError(url=url, context=nav_context, original_exception=e)
                 except Exception as e:
                     # Check for closed context/browser issues
                     if "has been closed" in str(e):
@@ -424,7 +454,7 @@ class ScreenshotService:
             
             # Log error with structured data
             duration = time.time() - start_time
-            self.logger.error(f"Failed to capture screenshot for {url}", {
+            error_context = {
                 "url": url,
                 "width": width,
                 "height": height,
@@ -436,9 +466,13 @@ class ScreenshotService:
                 "is_complex_site": is_complex if 'is_complex' in locals() else None,
                 "is_visual_site": is_visual_site if 'is_visual_site' in locals() else None,
                 "browser_index": browser_index if 'browser_index' in locals() and browser_index is not None else -1
-            })
+            }
             
-            raise RuntimeError(f"Failed to capture screenshot: {str(e)}") from e
+            self.logger.error(f"Failed to capture screenshot for {url}", error_context)
+            
+            # Use our custom error class for better error messages
+            from app.core.errors import ScreenshotError
+            raise ScreenshotError(url=url, context=error_context, original_exception=e)
         finally:
             # Close page if still open
             if page and not page.is_closed():

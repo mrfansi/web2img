@@ -1,13 +1,19 @@
 import os
 from typing import Any, Optional
 
-from fastapi import APIRouter, HTTPException, status, Query
+from fastapi import APIRouter, HTTPException, Query
 
 from app.schemas.screenshot import ScreenshotRequest, ScreenshotResponse
 from app.services.screenshot import screenshot_service
 from app.services.storage import storage_service
 from app.services.imgproxy import imgproxy_service
 from app.services.cache import cache_service
+from app.core.errors import (
+    WebToImgError, 
+    get_error_response, 
+    HTTP_200_OK,
+    HTTP_500_INTERNAL_SERVER_ERROR
+)
 
 # Create a router for screenshot endpoints
 router = APIRouter(tags=["screenshots"])
@@ -16,7 +22,7 @@ router = APIRouter(tags=["screenshots"])
 @router.post(
     "/screenshot",
     response_model=ScreenshotResponse,
-    status_code=status.HTTP_200_OK,
+    status_code=HTTP_200_OK,
     summary="Capture website screenshot",
     description="""
     Capture a screenshot of a website, upload it to R2, and return a signed imgproxy URL.
@@ -140,10 +146,18 @@ async def capture_screenshot(
         # Return the response
         return ScreenshotResponse(url=imgproxy_url)
     except Exception as e:
-        # Handle errors
+        # If it's already one of our custom errors, just re-raise it
+        # FastAPI will use our custom exception handler
+        if isinstance(e, WebToImgError):
+            raise
+        
+        # Otherwise, convert to an appropriate error response
+        error_dict = get_error_response(e)
+        
+        # Raise HTTPException with the detailed error information
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to process screenshot: {str(e)}",
+            status_code=error_dict.get("http_status", HTTP_500_INTERNAL_SERVER_ERROR),
+            detail=error_dict,
         )
     finally:
         # Clean up the temporary file
