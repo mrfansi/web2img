@@ -9,6 +9,7 @@ from fastapi.responses import JSONResponse
 from app.api.screenshot import router as screenshot_router
 from app.api.health import router as health_router
 from app.api.cache import router as cache_router
+from app.api.batch import router as batch_router
 from app.core.config import settings
 from app.services.screenshot import screenshot_service
 from app.services.storage import storage_service
@@ -64,6 +65,10 @@ def create_app() -> FastAPI:
                 "description": "Operations for capturing and processing website screenshots"
             },
             {
+                "name": "batch",
+                "description": "Operations for batch processing of multiple screenshot requests"
+            },
+            {
                 "name": "health",
                 "description": "Operations for checking the health and status of the service"
             },
@@ -94,6 +99,7 @@ def create_app() -> FastAPI:
     
     # Include API routers
     app.include_router(screenshot_router, prefix=settings.api_prefix)
+    app.include_router(batch_router, prefix=settings.api_prefix)
     app.include_router(health_router, prefix=settings.api_prefix)
     app.include_router(cache_router, prefix=settings.api_prefix)
     

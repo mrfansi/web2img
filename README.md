@@ -51,7 +51,18 @@ IMGPROXY_SALT=your_imgproxy_salt
 PORT=8000
 WORKERS=4
 RELOAD=True
+
+# Cache Configuration
+CACHE_ENABLED=True
+CACHE_TTL_SECONDS=3600
+CACHE_MAX_ITEMS=100
 ```
+
+### Cache Configuration Options
+
+- `CACHE_ENABLED`: Enable or disable the caching system (default: `True`)
+- `CACHE_TTL_SECONDS`: Time-to-live for cache items in seconds (default: `3600` - 1 hour)
+- `CACHE_MAX_ITEMS`: Maximum number of items to store in the cache (default: `100`)
 
 ## Usage
 
@@ -109,11 +120,124 @@ Request body:
 }
 ```
 
+Query parameters:
+- `cache`: Whether to use cache (if available). Set to `false` to bypass cache and force a fresh screenshot. Default: `true`
+
 Response:
 
 ```json
 {
   "url": "https://cdn-proxy.viding.org/<signed_imgproxy_path>"
+}
+```
+
+#### Batch Screenshot Processing
+
+**POST /batch/screenshots**
+
+Submit multiple screenshot requests to be processed as a batch. The batch job will be processed asynchronously, and you can check the status of the job using the returned job ID.
+
+Request body:
+
+```json
+{
+  "items": [
+    {
+      "url": "https://example.com",
+      "width": 1280,
+      "height": 720,
+      "format": "png",
+      "id": "example-home"
+    },
+    {
+      "url": "https://example.com/about",
+      "width": 1280,
+      "height": 720,
+      "format": "png",
+      "id": "example-about"
+    }
+  ],
+  "config": {
+    "parallel": 3,
+    "timeout": 30,
+    "webhook": "https://api.example.com/callbacks/screenshots",
+    "webhook_auth": "Bearer token123",
+    "fail_fast": false,
+    "cache": true
+  }
+}
+```
+
+Configuration options:
+- `parallel`: Maximum number of screenshots to process in parallel (default: 3, max: 10)
+- `timeout`: Timeout in seconds for each screenshot (default: 30, max: 60)
+- `webhook`: Webhook URL to call when batch processing is complete
+- `webhook_auth`: Authorization header value for webhook
+- `fail_fast`: Whether to stop processing on first failure (default: false)
+- `cache`: Whether to use cache for screenshots (default: true)
+
+Response (Status 202 Accepted):
+
+```json
+{
+  "job_id": "batch-123456",
+  "status": "processing",
+  "total": 2,
+  "completed": 0,
+  "failed": 0,
+  "created_at": "2025-05-23T00:30:00Z",
+  "updated_at": "2025-05-23T00:30:00Z",
+  "estimated_completion": "2025-05-23T00:30:10Z"
+}
+```
+
+**GET /batch/screenshots/{job_id}**
+
+Get the status of a batch screenshot job.
+
+Response:
+
+```json
+{
+  "job_id": "batch-123456",
+  "status": "processing",
+  "total": 2,
+  "completed": 1,
+  "failed": 0,
+  "created_at": "2025-05-23T00:30:00Z",
+  "updated_at": "2025-05-23T00:30:02Z",
+  "estimated_completion": "2025-05-23T00:30:05Z"
+}
+```
+
+**GET /batch/screenshots/{job_id}/results**
+
+Get the results of a batch screenshot job.
+
+Response:
+
+```json
+{
+  "job_id": "batch-123456",
+  "status": "completed",
+  "total": 2,
+  "succeeded": 2,
+  "failed": 0,
+  "processing_time": 3.45,
+  "results": [
+    {
+      "id": "example-home",
+      "status": "success",
+      "url": "https://cdn-proxy.viding.org/signed_path/resize:fit:1280:720/format:png/base64_encoded_url",
+      "cached": true
+    },
+    {
+      "id": "example-about",
+      "status": "success",
+      "url": "https://cdn-proxy.viding.org/signed_path/resize:fit:1280:720/format:png/base64_encoded_url",
+      "cached": false
+    }
+  ]
 }
 ```
 
@@ -133,6 +257,12 @@ Response:
     "screenshot": "ok",
     "storage": "ok",
     "imgproxy": "ok",
+    "cache": {
+      "status": "ok",
+      "enabled": true,
+      "size": 42,
+      "hit_rate": 0.87
+    },
     "system": {
       "python": "3.12.8",
       "platform": "macOS-15.4.1-arm64-arm-64bit"
@@ -149,6 +279,22 @@ Possible status values:
 ## Performance
 
 The service is designed to handle high volumes of concurrent requests reliably. The following optimizations are in place:
+
+### Batch Processing
+- Efficient parallel processing of multiple screenshot requests
+- Configurable concurrency limits to optimize resource usage
+- Job management system with status tracking and results aggregation
+- Webhook notifications for asynchronous processing
+- Automatic job cleanup to prevent memory leaks
+- Integration with the caching system for maximum performance
+
+### Caching System
+- In-memory caching of screenshot results for frequently requested URLs
+- Configurable TTL (Time-To-Live) for cache items (default: 1 hour)
+- LRU (Least Recently Used) eviction policy when cache is full
+- Cache control parameters for bypassing cache when needed
+- Detailed cache statistics for monitoring performance
+- Cache management API for administrators
 
 ### Browser Instance Management
 - Browser context pooling for efficient resource reuse
@@ -174,7 +320,57 @@ The service is designed to handle high volumes of concurrent requests reliably. 
 - Efficient worker configuration for optimal concurrency
 - Proper resource sharing between worker processes
 
-### Load Testing
+### Cache Management API
+
+#### Get Cache Statistics
+
+**GET /cache/stats**
+
+Get statistics about the cache, including hit rate, size, and configuration.
+
+Response:
+
+```json
+{
+  "enabled": true,
+  "size": 42,
+  "max_size": 100,
+  "ttl": 3600,
+  "hits": 156,
+  "misses": 89,
+  "hit_rate": 0.637,
+  "cleanup_interval": 300
+}
+```
+
+#### Clear Cache
+
+**DELETE /cache**
+
+Clear all items from the cache.
+
+Response: 204 No Content
+
+#### Invalidate Cache for URL
+
+**DELETE /cache/url**
+
+Invalidate all cache entries for a specific URL.
+
+Query parameters:
+- `url`: URL to invalidate in the cache (required)
+
+Response:
+
+```json
+{
+  "invalidated": 3
+}
+```
+
+### Testing
+
+#### Load Testing
 
 A load testing script is included in the `tests` directory to verify performance:
 
@@ -187,6 +383,18 @@ The script supports the following options:
 - `--concurrency`: Number of concurrent requests (default: 10)
 - `--requests`: Total number of requests to make (default: 50)
 - `--output`: Optional JSON file to save detailed results
+
+#### Cache Testing
+
+A cache testing script is included to verify the caching system performance:
+
+```bash
+python tests/test_cache.py --iterations 3
+```
+
+The script supports the following options:
+- `--url`: API base URL (default: http://localhost:8000)
+- `--iterations`: Number of times to request each URL (default: 3)
 
 ## License
 

@@ -2,7 +2,7 @@ import asyncio
 import os
 import time
 import uuid
-from typing import Dict, Optional, List
+from typing import Dict, Optional, List, Any
 
 from playwright.async_api import async_playwright, Browser, BrowserContext, Page
 
@@ -192,6 +192,46 @@ class ScreenshotService:
             
         # Clean up temporary files
         self._cleanup_temp_files()
+
+
+# Helper function for batch processing
+async def capture_screenshot_with_options(url: str, width: int = 1280, height: int = 720, format: str = "png") -> Dict[str, Any]:
+    """Capture a screenshot with the given options and return the result as a dictionary.
+    
+    This is a helper function used by the batch processing service.
+    
+    Args:
+        url: The URL to capture
+        width: The viewport width
+        height: The viewport height
+        format: The image format (png, jpeg, webp)
+        
+    Returns:
+        Dictionary with the URL to the processed image
+    """
+    from app.services.storage import storage_service
+    from app.services.imgproxy import imgproxy_service
+    
+    # Capture the screenshot
+    filepath = await screenshot_service.capture_screenshot(url, width, height, format)
+    
+    try:
+        # Upload to R2
+        r2_key = await storage_service.upload_file(filepath)
+        
+        # Generate imgproxy URL
+        imgproxy_url = imgproxy_service.generate_url(
+            r2_key,
+            width=width,
+            height=height,
+            format=format
+        )
+        
+        return {"url": imgproxy_url}
+    finally:
+        # Clean up the temporary file
+        if os.path.exists(filepath):
+            os.unlink(filepath)
 
 
 # Create a singleton instance

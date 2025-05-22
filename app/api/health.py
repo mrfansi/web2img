@@ -9,6 +9,7 @@ from app.services.screenshot import screenshot_service
 from app.services.storage import storage_service
 from app.services.imgproxy import imgproxy_service
 from app.services.cache import cache_service
+from app.models.job import job_store
 from app.core.config import settings
 
 # Create a router for health check endpoints
@@ -44,7 +45,18 @@ router = APIRouter(tags=["health"])
                         "services": {
                             "screenshot": "ok",
                             "storage": "ok",
-                            "imgproxy": "ok"
+                            "imgproxy": "ok",
+                            "batch": {
+                                "status": "ok",
+                                "active_jobs": 2,
+                                "processing_jobs": 1
+                            },
+                            "cache": {
+                                "status": "ok",
+                                "enabled": True,
+                                "size": 42,
+                                "hit_rate": 0.87
+                            }
                         }
                     }
                 }
@@ -77,6 +89,19 @@ async def health_check() -> HealthResponse:
     # Check individual services
     services: Dict[str, Any] = {}
     overall_status = "ok"
+    
+    # Check batch processing service
+    try:
+        active_jobs = len(job_store.jobs)
+        processing_jobs = sum(1 for job in job_store.jobs.values() if job.status == "processing")
+        services["batch"] = {
+            "status": "ok",
+            "active_jobs": active_jobs,
+            "processing_jobs": processing_jobs
+        }
+    except Exception:
+        services["batch"] = {"status": "error"}
+        overall_status = "degraded"
     
     # Check cache service
     try:
