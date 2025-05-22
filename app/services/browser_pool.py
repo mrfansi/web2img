@@ -167,8 +167,41 @@ class BrowserPool:
                     return browser_data["browser"], browser_index
             
             # If we've reached max size, wait for a browser to become available
-            # This should rarely happen if pool is sized correctly
-            print("Browser pool exhausted, waiting for an available browser")
+            # Log the issue and update error stats
+            self._stats["errors"] += 1
+            
+            # Wait a short time and try again - maybe a browser will be released
+            # This is better than immediately failing
+            for retry in range(3):
+                # Update stats to indicate we're waiting
+                print(f"Browser pool exhausted, waiting for an available browser (attempt {retry+1}/3)")
+                
+                # Release the lock while waiting to allow other operations
+                self._lock.release()
+                
+                # Wait a bit
+                await asyncio.sleep(1)
+                
+                # Re-acquire the lock
+                await self._lock.acquire()
+                
+                # Check if a browser became available while we were waiting
+                if self._available_browsers:
+                    browser_index = self._available_browsers.pop(0)
+                    browser_data = self._browsers[browser_index]
+                    
+                    # Update metadata
+                    browser_data["last_used"] = time.time()
+                    browser_data["usage_count"] += 1
+                    
+                    # Update stats
+                    self._stats["reused"] += 1
+                    self._stats["current_usage"] = len(self._browsers) - len(self._available_browsers)
+                    self._stats["peak_usage"] = max(self._stats["peak_usage"], self._stats["current_usage"])
+                    
+                    return browser_data["browser"], browser_index
+            
+            # If we still don't have an available browser, return None
             return None, None
     
     async def release_browser(self, browser_index: int, is_healthy: bool = True):

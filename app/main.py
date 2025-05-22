@@ -1,10 +1,14 @@
 import os
+import logging
 from contextlib import asynccontextmanager
 from typing import List
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+
+from app.core.logging import logger
+from app.core.middleware import RequestLoggingMiddleware
 
 from app.api.screenshot import router as screenshot_router
 from app.api.health import router as health_router
@@ -22,18 +26,32 @@ async def lifespan(app: FastAPI):
     
     Handles startup and shutdown events.
     """
+    # Log application startup
+    logger.info("Starting web2img service", {
+        "settings": {
+            "cache_enabled": settings.cache_enabled,
+            "browser_pool_min_size": settings.browser_pool_min_size,
+            "browser_pool_max_size": settings.browser_pool_max_size,
+            "log_level": settings.log_level
+        }
+    })
+    
     # Startup: Ensure screenshot directory exists
     os.makedirs(settings.screenshot_dir, exist_ok=True)
+    logger.info(f"Screenshot directory created: {settings.screenshot_dir}")
     
     # Initialize browser pool
     await screenshot_service.startup()
+    logger.info("Browser pool initialized")
     
     yield
     
     # Shutdown: Clean up resources
+    logger.info("Shutting down web2img service")
     await screenshot_service.cleanup()
     await storage_service.cleanup()
     await cache_service.cleanup()
+    logger.info("All resources cleaned up, service stopped")
 
 
 def create_app() -> FastAPI:
@@ -92,12 +110,33 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
     
+    # Add request logging middleware
+    app.add_middleware(RequestLoggingMiddleware)
+    
     # Add exception handler for better error messages
     @app.exception_handler(Exception)
     async def generic_exception_handler(request: Request, exc: Exception):
+        # Get request ID if available
+        request_id = getattr(request.state, 'request_id', 'unknown')
+        
+        # Log the exception with structured data
+        logger.exception(f"Unhandled exception in request handler", {
+            "request_id": request_id,
+            "method": request.method,
+            "url": str(request.url),
+            "client": request.client.host if request.client else None,
+            "error_type": type(exc).__name__,
+            "error_details": str(exc)
+        })
+        
         return JSONResponse(
             status_code=500,
-            content={"detail": f"Internal server error: {str(exc)}"},
+            content={
+                "detail": f"Internal server error: {str(exc)}",
+                "error_type": type(exc).__name__,
+                "request_id": request_id
+            },
+            headers={"X-Request-ID": request_id}
         )
     
     # Include API routers

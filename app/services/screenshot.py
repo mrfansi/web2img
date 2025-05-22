@@ -5,6 +5,8 @@ import time
 import uuid
 from typing import Dict, List, Optional, Tuple, Any
 
+from app.core.logging import get_logger
+
 from playwright.async_api import async_playwright, Browser, BrowserContext, Page, TimeoutError as PlaywrightTimeoutError
 
 from app.core.config import settings
@@ -16,6 +18,9 @@ class ScreenshotService:
     """Service for capturing screenshots using Playwright."""
 
     def __init__(self):
+        # Initialize logger
+        self.logger = get_logger("screenshot_service")
+        
         # Initialize the browser pool with configuration from settings
         self._browser_pool = BrowserPool(
             min_size=settings.browser_pool_min_size,
@@ -96,7 +101,28 @@ class ScreenshotService:
 
     async def startup(self):
         """Initialize the browser pool."""
+        self.logger.info("Initializing screenshot service", {
+            "browser_pool_config": {
+                "min_size": settings.browser_pool_min_size,
+                "max_size": settings.browser_pool_max_size,
+                "idle_timeout": settings.browser_pool_idle_timeout,
+                "max_age": settings.browser_pool_max_age
+            },
+            "retry_config": {
+                "regular": {
+                    "max_retries": settings.max_retries_regular,
+                    "base_delay": settings.retry_base_delay,
+                    "max_delay": settings.retry_max_delay
+                },
+                "complex": {
+                    "max_retries": settings.max_retries_complex,
+                    "base_delay": settings.retry_base_delay,
+                    "max_delay": settings.retry_max_delay
+                }
+            }
+        })
         await self._browser_pool.initialize()
+        self.logger.info("Screenshot service initialized successfully")
 
     async def _get_context(self, width: int = 1280, height: int = 720):
         """Get a browser context from the pool."""
@@ -169,6 +195,21 @@ class ScreenshotService:
         filename = f"{uuid.uuid4()}.{format}"
         filepath = os.path.join(settings.screenshot_dir, filename)
         
+        # Create context for logging
+        context = {
+            "url": url,
+            "width": width,
+            "height": height,
+            "format": format,
+            "filepath": filepath,
+            "request_id": str(uuid.uuid4())  # Generate a unique ID for this request
+        }
+        
+        # Start timer for performance tracking
+        start_time = time.time()
+        
+        self.logger.info(f"Starting screenshot capture for {url}", context)
+        
         # Periodically clean up old temporary files
         current_time = time.time()
         if current_time - self._last_cleanup > 3600:  # 1 hour
@@ -200,7 +241,7 @@ class ScreenshotService:
             async def get_context_with_page():
                 nonlocal context, browser_index, page
                 context, browser_index = await self._get_context(width=width, height=height)
-                page = await context.new_page(timeout=settings.page_creation_timeout)
+                page = await context.new_page()
                 return page
             
             # Execute with retry
@@ -299,7 +340,7 @@ class ScreenshotService:
                         
                         # Get a new context and page
                         context, browser_index = await self._get_context(width=width, height=height)
-                        page = await context.new_page(timeout=settings.page_creation_timeout)
+                        page = await context.new_page()
                         
                         # Try navigation again
                         response = await page.goto(
@@ -359,11 +400,44 @@ class ScreenshotService:
                 context = None  # Prevent double return in finally block
                 browser_index = None  # Prevent double return in finally block
             
+            # Log successful screenshot capture
+            duration = time.time() - start_time
+            self.logger.info(f"Screenshot captured successfully for {url}", {
+                "url": url,
+                "width": width,
+                "height": height,
+                "format": format,
+                "filepath": filepath,
+                "duration": duration,
+                "is_complex_site": is_complex,
+                "is_visual_site": is_visual_site,
+                "navigation_strategy": wait_until,
+                "timeout_used": page_timeout,
+                "browser_index": browser_index if browser_index is not None else -1
+            })
+            
             return filepath
         except Exception as e:
             # Clean up any partially created file
             if os.path.exists(filepath):
                 os.unlink(filepath)
+            
+            # Log error with structured data
+            duration = time.time() - start_time
+            self.logger.error(f"Failed to capture screenshot for {url}", {
+                "url": url,
+                "width": width,
+                "height": height,
+                "format": format,
+                "filepath": filepath,
+                "duration": duration,
+                "error": str(e),
+                "error_type": type(e).__name__,
+                "is_complex_site": is_complex if 'is_complex' in locals() else None,
+                "is_visual_site": is_visual_site if 'is_visual_site' in locals() else None,
+                "browser_index": browser_index if 'browser_index' in locals() and browser_index is not None else -1
+            })
+            
             raise RuntimeError(f"Failed to capture screenshot: {str(e)}") from e
         finally:
             # Close page if still open
@@ -377,8 +451,13 @@ class ScreenshotService:
             if context and browser_index is not None:
                 await self._return_context(context, browser_index)
 
-    def _cleanup_temp_files(self):
-        """Clean up old temporary files."""
+    def _cleanup_temp_files(self) -> int:
+        """Clean up old temporary files.
+        
+        Returns:
+            Number of files removed
+        """
+        files_removed = 0
         try:
             # Get current time
             current_time = time.time()
@@ -392,17 +471,44 @@ class ScreenshotService:
                 if current_time - file_mod_time > 3600:  # 1 hour in seconds
                     # Remove the file
                     os.unlink(filepath)
+                    files_removed += 1
+            
+            if files_removed > 0:
+                self.logger.info(f"Removed {files_removed} old temporary files", {
+                    "files_removed": files_removed,
+                    "directory": settings.screenshot_dir,
+                    "age_threshold": "1 hour"
+                })
+            
+            return files_removed
         except Exception as e:
             # Log error but don't raise to avoid disrupting the main flow
-            print(f"Error cleaning up temporary files: {str(e)}")
+            self.logger.error(f"Error cleaning up temporary files: {str(e)}", {
+                "error": str(e),
+                "error_type": type(e).__name__,
+                "directory": settings.screenshot_dir
+            })
+            return files_removed
     
     async def cleanup(self):
         """Clean up resources."""
+        self.logger.info("Cleaning up screenshot service resources")
+        
         # Shutdown the browser pool
+        start_time = time.time()
         await self._browser_pool.shutdown()
+        browser_pool_shutdown_time = time.time() - start_time
         
         # Clean up temporary files
-        self._cleanup_temp_files()
+        temp_files_start = time.time()
+        files_removed = self._cleanup_temp_files()
+        temp_files_cleanup_time = time.time() - temp_files_start
+        
+        self.logger.info("Screenshot service resources cleaned up", {
+            "browser_pool_shutdown_time": browser_pool_shutdown_time,
+            "temp_files_cleanup_time": temp_files_cleanup_time,
+            "temp_files_removed": files_removed
+        })
         
     def get_pool_stats(self):
         """Get browser pool statistics."""

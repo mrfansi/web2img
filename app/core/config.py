@@ -91,9 +91,7 @@ class Settings(BaseModel):
     context_creation_timeout: int = Field(
         default_factory=lambda: int(os.getenv("CONTEXT_CREATION_TIMEOUT", "30000"))
     )
-    page_creation_timeout: int = Field(
-        default_factory=lambda: int(os.getenv("PAGE_CREATION_TIMEOUT", "30000"))
-    )
+
     screenshot_timeout: int = Field(
         default_factory=lambda: int(os.getenv("SCREENSHOT_TIMEOUT", "30000"))
     )
@@ -121,6 +119,20 @@ class Settings(BaseModel):
     )
     circuit_breaker_reset_time: int = Field(
         default_factory=lambda: int(os.getenv("CIRCUIT_BREAKER_RESET_TIME", "300"))
+    )
+    
+    # Logging Configuration
+    log_level: str = Field(
+        default_factory=lambda: os.getenv("LOG_LEVEL", "INFO")
+    )
+    log_format: str = Field(
+        default_factory=lambda: os.getenv("LOG_FORMAT", "json")
+    )
+    log_request_body: bool = Field(
+        default_factory=lambda: os.getenv("LOG_REQUEST_BODY", "False").lower() in ("true", "1", "t")
+    )
+    log_response_body: bool = Field(
+        default_factory=lambda: os.getenv("LOG_RESPONSE_BODY", "False").lower() in ("true", "1", "t")
     )
 
     class Config:
