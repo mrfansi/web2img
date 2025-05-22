@@ -24,8 +24,8 @@ class HealthResponse(BaseModel):
         }
     )
     
-    class Config:
-        schema_extra = {
+    model_config = {
+        "json_schema_extra": {
             "example": {
                 "status": "ok",
                 "version": "1.0.0",
@@ -36,3 +36,4 @@ class HealthResponse(BaseModel):
                 }
             }
         }
+    }

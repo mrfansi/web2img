@@ -107,8 +107,6 @@ class BatchService:
             try:
                 # Mark item as processing
                 item.start_processing()
-                
-                # Update job status
                 job.update()
                 
                 # Check cache first if enabled
@@ -126,36 +124,69 @@ class BatchService:
                     item.complete({"url": cached_url}, cached=True)
                     return item.id, True, None
                 
-                # Capture screenshot with timeout
-                try:
-                    result = await asyncio.wait_for(
-                        capture_screenshot_with_options(
-                            url=str(item.request_data.get("url")),
-                            width=item.request_data.get("width", 1280),
-                            height=item.request_data.get("height", 720),
-                            format=item.request_data.get("format", "png")
-                        ),
-                        timeout=timeout
-                    )
-                    
-                    # Store in cache if enabled
-                    if use_cache:
-                        await cache_service.set(
-                            url=str(item.request_data.get("url")),
-                            width=item.request_data.get("width", 1280),
-                            height=item.request_data.get("height", 720),
-                            format=item.request_data.get("format", "png"),
-                            imgproxy_url=result.get("url")
+                # Capture screenshot with retry logic
+                max_retries = 3
+                retry_count = 0
+                retry_delay = 1.0  # Initial delay in seconds
+                last_error = "Unknown error occurred"
+                
+                while retry_count < max_retries:
+                    try:
+                        # Attempt to capture screenshot with timeout
+                        result = await asyncio.wait_for(
+                            capture_screenshot_with_options(
+                                url=str(item.request_data.get("url")),
+                                width=item.request_data.get("width", 1280),
+                                height=item.request_data.get("height", 720),
+                                format=item.request_data.get("format", "png")
+                            ),
+                            timeout=timeout
                         )
-                    
-                    # Mark item as completed
-                    item.complete(result)
-                    return item.id, True, None
-                    
-                except asyncio.TimeoutError:
-                    error = f"Screenshot capture timed out after {timeout} seconds"
-                    item.fail(error)
-                    return item.id, False, error
+                        
+                        # Store in cache if enabled
+                        if use_cache:
+                            await cache_service.set(
+                                url=str(item.request_data.get("url")),
+                                width=item.request_data.get("width", 1280),
+                                height=item.request_data.get("height", 720),
+                                format=item.request_data.get("format", "png"),
+                                imgproxy_url=result.get("url")
+                            )
+                        
+                        # Mark item as completed
+                        item.complete(result)
+                        return item.id, True, None
+                        
+                    except asyncio.TimeoutError:
+                        last_error = f"Screenshot capture timed out after {timeout} seconds"
+                        logger.warning(f"Timeout for item {item.id} (attempt {retry_count+1}/{max_retries}): {last_error}")
+                        retry_count += 1
+                        if retry_count >= max_retries:
+                            break
+                        await asyncio.sleep(retry_delay)
+                        retry_delay *= 2  # Exponential backoff
+                        
+                    except Exception as e:
+                        # Check if this is a browser context error that we should retry
+                        error_str = str(e)
+                        if "has been closed" in error_str or "Target page, context or browser has been closed" in error_str:
+                            last_error = f"Browser context error: {error_str}"
+                            logger.warning(f"Browser context error for item {item.id} (attempt {retry_count+1}/{max_retries}): {error_str}")
+                            retry_count += 1
+                            if retry_count >= max_retries:
+                                break
+                            await asyncio.sleep(retry_delay)
+                            retry_delay *= 2  # Exponential backoff
+                        else:
+                            # Non-retryable error
+                            last_error = f"Error processing item: {error_str}"
+                            logger.exception(f"Error processing batch item {item.id}: {last_error}")
+                            item.fail(last_error)
+                            return item.id, False, last_error
+                
+                # If we've exhausted retries, fail the item
+                item.fail(last_error)
+                return item.id, False, last_error
                 
             except Exception as e:
                 error = f"Error processing item: {str(e)}"

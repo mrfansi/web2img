@@ -10,7 +10,7 @@ async def test_screenshot_api():
     print("Testing web2img API with a sample URL...")
     
     # API endpoint
-    url = "http://localhost:8000/api/v1/screenshot"
+    url = "http://localhost:8000/screenshot"
     
     # Test data
     payload = {

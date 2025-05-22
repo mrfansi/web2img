@@ -1,6 +1,6 @@
 from typing import Literal, Optional
 
-from pydantic import BaseModel, Field, HttpUrl, validator
+from pydantic import BaseModel, Field, HttpUrl, field_validator
 
 
 class ScreenshotRequest(BaseModel):
@@ -30,8 +30,8 @@ class ScreenshotRequest(BaseModel):
         example=720
     )
     
-    class Config:
-        schema_extra = {
+    model_config = {
+        "json_schema_extra": {
             "example": {
                 "url": "https://example.com",
                 "format": "png",
@@ -39,8 +39,9 @@ class ScreenshotRequest(BaseModel):
                 "height": 720
             }
         }
+    }
 
-    @validator("format")
+    @field_validator("format")
     def validate_format(cls, v):
         """Validate image format."""
         if v not in ["png", "jpeg", "webp"]:
@@ -56,9 +57,10 @@ class ScreenshotResponse(BaseModel):
         example="https://your-imgproxy-url.example.com/signed_path/resize:fit:1280:720/format:png/base64_encoded_url"
     )
     
-    class Config:
-        schema_extra = {
+    model_config = {
+        "json_schema_extra": {
             "example": {
                 "url": "https://your-imgproxy-url.example.com/signed_path/resize:fit:1280:720/format:png/base64_encoded_url"
             }
         }
+    }

@@ -64,8 +64,8 @@ class BatchScreenshotRequest(BaseModel):
         description="Batch processing configuration"
     )
     
-    class Config:
-        json_schema_extra = {
+    model_config = {
+        "json_schema_extra": {
             "example": {
                 "items": [
                     {
@@ -93,6 +93,7 @@ class BatchScreenshotRequest(BaseModel):
                 }
             }
         }
+    }
 
 
 class BatchItemResponse(BaseModel):
@@ -161,8 +162,8 @@ class BatchScreenshotResponse(BaseModel):
         description="List of results for each item in the batch"
     )
     
-    class Config:
-        json_schema_extra = {
+    model_config = {
+        "json_schema_extra": {
             "example": {
                 "job_id": "batch-123456",
                 "status": "completed",
@@ -186,6 +187,7 @@ class BatchScreenshotResponse(BaseModel):
                 ]
             }
         }
+    }
 
 
 class BatchJobStatusResponse(BaseModel):
@@ -231,8 +233,8 @@ class BatchJobStatusResponse(BaseModel):
         example="2025-05-23T00:30:05Z"
     )
     
-    class Config:
-        json_schema_extra = {
+    model_config = {
+        "json_schema_extra": {
             "example": {
                 "job_id": "batch-123456",
                 "status": "processing",
@@ -244,3 +246,4 @@ class BatchJobStatusResponse(BaseModel):
                 "estimated_completion": "2025-05-23T00:30:05Z"
             }
         }
+    }
