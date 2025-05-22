@@ -2,20 +2,13 @@ import os
 import pytest
 from fastapi.testclient import TestClient
 
-from app.main import app
-
-
-@pytest.fixture
-def client():
-    return TestClient(app)
-
 
 def test_screenshot_endpoint(client):
     """Test the screenshot endpoint with valid data."""
     # This test is mocked to avoid actual API calls
     # In a real test, you would use mocks for the services
     response = client.post(
-        "/api/v1/screenshot",
+        "/screenshot",
         json={
             "url": "https://example.com",
             "format": "png",
@@ -36,7 +29,7 @@ def test_screenshot_endpoint(client):
 def test_invalid_format(client):
     """Test the screenshot endpoint with an invalid format."""
     response = client.post(
-        "/api/v1/screenshot",
+        "/screenshot",
         json={
             "url": "https://example.com",
             "format": "invalid",  # Invalid format
@@ -51,7 +44,7 @@ def test_invalid_format(client):
 def test_invalid_dimensions(client):
     """Test the screenshot endpoint with invalid dimensions."""
     response = client.post(
-        "/api/v1/screenshot",
+        "/screenshot",
         json={
             "url": "https://example.com",
             "format": "png",

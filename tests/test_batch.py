@@ -130,7 +130,18 @@ def main():
         "https://google.com",
         "https://github.com",
         "https://microsoft.com",
-        "https://apple.com"
+        "https://apple.com",
+        "https://linkedin.com",
+        "https://amazon.com",
+        "https://facebook.com",
+        "https://twitter.com",
+        "https://instagram.com",
+        "https://youtube.com",
+        "https://whatsapp.com",
+        "https://tiktok.com",
+        "https://snapchat.com",
+        "https://viding.co",
+        "https://harisenin.com"
     ]
     
     # Run the test
