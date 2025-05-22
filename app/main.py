@@ -6,7 +6,8 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.api.endpoints import router as api_router
+from app.api.screenshot import router as screenshot_router
+from app.api.health import router as health_router
 from app.core.config import settings
 from app.services.screenshot import screenshot_service
 from app.services.storage import storage_service
@@ -32,9 +33,39 @@ def create_app() -> FastAPI:
     """Create and configure the FastAPI application."""
     app = FastAPI(
         title="web2img API",
-        description="API for capturing website screenshots and processing them with imgproxy",
+        description="""
+        # web2img API
+        
+        A high-performance API for capturing website screenshots, uploading them to Cloudflare R2, 
+        and generating signed imgproxy URLs for image transformations.
+        
+        ## Features
+        
+        * **Screenshot Capture**: Capture screenshots of websites using Playwright
+        * **Cloud Storage**: Upload screenshots to Cloudflare R2 storage
+        * **Image Transformations**: Generate signed imgproxy URLs for image processing
+        * **High Performance**: Handle concurrent requests with async processing
+        
+        ## Authentication
+        
+        This API does not currently require authentication.
+        """,
         version="1.0.0",
         lifespan=lifespan,
+        docs_url="/docs",
+        redoc_url="/redoc",
+        openapi_url="/openapi.json",
+        openapi_tags=[
+            {
+                "name": "screenshots",
+                "description": "Operations for capturing and processing website screenshots"
+            },
+            {
+                "name": "health",
+                "description": "Operations for checking the health and status of the service"
+            }
+        ],
+        swagger_ui_parameters={"defaultModelsExpandDepth": -1}
     )
     
     # Configure CORS
@@ -54,8 +85,9 @@ def create_app() -> FastAPI:
             content={"detail": f"Internal server error: {str(exc)}"},
         )
     
-    # Include API router
-    app.include_router(api_router, prefix=settings.api_prefix)
+    # Include API routers
+    app.include_router(screenshot_router, prefix=settings.api_prefix)
+    app.include_router(health_router, prefix=settings.api_prefix)
     
     return app
 

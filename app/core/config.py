@@ -43,7 +43,7 @@ class Settings(BaseModel):
     )
 
     # API settings
-    api_prefix: str = "/api/v1"
+    api_prefix: str = ""
     
     # Server settings
     workers: int = Field(
