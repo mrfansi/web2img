@@ -110,7 +110,7 @@ class BatchItemResponse(BaseModel):
     url: Optional[str] = Field(
         default=None,
         description="URL to the processed image (only present if status is success)",
-        example="https://imgproxy.example.com/signed_path/resize:fit:1280:720/format:png/base64_encoded_url"
+        example="https://your-imgproxy-url.example.com/signed_path/resize:fit:1280:720/format:png/base64_encoded_url"
     )
     error: Optional[str] = Field(
         default=None,
@@ -174,13 +174,13 @@ class BatchScreenshotResponse(BaseModel):
                     {
                         "id": "example-home",
                         "status": "success",
-                        "url": "https://imgproxy.example.com/signed_path/resize:fit:1280:720/format:png/base64_encoded_url",
+                        "url": "https://your-imgproxy-url.example.com/signed_path/resize:fit:1280:720/format:png/base64_encoded_url",
                         "cached": True
                     },
                     {
                         "id": "example-about",
                         "status": "success",
-                        "url": "https://imgproxy.example.com/signed_path/resize:fit:1280:720/format:png/base64_encoded_url",
+                        "url": "https://your-imgproxy-url.example.com/signed_path/resize:fit:1280:720/format:png/base64_encoded_url",
                         "cached": False
                     }
                 ]

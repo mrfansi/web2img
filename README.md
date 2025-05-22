@@ -43,7 +43,7 @@ R2_BUCKET=your_bucket_name
 R2_PUBLIC_URL=https://your-public-url.example.com
 
 # imgproxy Configuration
-IMGPROXY_BASE_URL=https://imgproxy.example.com
+IMGPROXY_BASE_URL=https://your-imgproxy-url.example.com
 IMGPROXY_KEY=your_imgproxy_key
 IMGPROXY_SALT=your_imgproxy_salt
 
@@ -128,7 +128,7 @@ Response:
 
 ```json
 {
-  "url": "https://imgproxy.example.com/<signed_imgproxy_path>"
+  "url": "https://your-imgproxy-url.example.com/<signed_imgproxy_path>"
 }
 ```
 
@@ -230,13 +230,13 @@ Response:
     {
       "id": "example-home",
       "status": "success",
-      "url": "https://imgproxy.example.com/signed_path/resize:fit:1280:720/format:png/base64_encoded_url",
+      "url": "https://your-imgproxy-url.example.com/signed_path/resize:fit:1280:720/format:png/base64_encoded_url",
       "cached": true
     },
     {
       "id": "example-about",
       "status": "success",
-      "url": "https://imgproxy.example.com/signed_path/resize:fit:1280:720/format:png/base64_encoded_url",
+      "url": "https://your-imgproxy-url.example.com/signed_path/resize:fit:1280:720/format:png/base64_encoded_url",
       "cached": false
     }
   ]

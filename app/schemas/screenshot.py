@@ -53,12 +53,12 @@ class ScreenshotResponse(BaseModel):
     url: str = Field(
         ..., 
         description="URL to the processed image",
-        example="https://imgproxy.example.com/signed_path/resize:fit:1280:720/format:png/base64_encoded_url"
+        example="https://your-imgproxy-url.example.com/signed_path/resize:fit:1280:720/format:png/base64_encoded_url"
     )
     
     class Config:
         schema_extra = {
             "example": {
-                "url": "https://imgproxy.example.com/signed_path/resize:fit:1280:720/format:png/base64_encoded_url"
+                "url": "https://your-imgproxy-url.example.com/signed_path/resize:fit:1280:720/format:png/base64_encoded_url"
             }
         }
