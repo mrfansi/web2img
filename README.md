@@ -56,6 +56,32 @@ RELOAD=True
 CACHE_ENABLED=True
 CACHE_TTL_SECONDS=3600
 CACHE_MAX_ITEMS=100
+
+# Browser Pool Configuration
+BROWSER_POOL_MIN_SIZE=2
+BROWSER_POOL_MAX_SIZE=10
+BROWSER_POOL_IDLE_TIMEOUT=300
+BROWSER_POOL_MAX_AGE=3600
+BROWSER_POOL_CLEANUP_INTERVAL=60
+
+# Timeout Configuration (in milliseconds)
+NAVIGATION_TIMEOUT_REGULAR=30000
+NAVIGATION_TIMEOUT_COMPLEX=60000
+BROWSER_LAUNCH_TIMEOUT=60000
+CONTEXT_CREATION_TIMEOUT=30000
+PAGE_CREATION_TIMEOUT=30000
+SCREENSHOT_TIMEOUT=30000
+
+# Retry Configuration
+MAX_RETRIES_REGULAR=3
+MAX_RETRIES_COMPLEX=5
+RETRY_BASE_DELAY=0.5
+RETRY_MAX_DELAY=10.0
+RETRY_JITTER=0.1
+
+# Circuit Breaker Configuration
+CIRCUIT_BREAKER_THRESHOLD=5
+CIRCUIT_BREAKER_RESET_TIME=300
 ```
 
 ### Cache Configuration Options
@@ -63,6 +89,36 @@ CACHE_MAX_ITEMS=100
 - `CACHE_ENABLED`: Enable or disable the caching system (default: `True`)
 - `CACHE_TTL_SECONDS`: Time-to-live for cache items in seconds (default: `3600` - 1 hour)
 - `CACHE_MAX_ITEMS`: Maximum number of items to store in the cache (default: `100`)
+
+### Browser Pool Configuration Options
+
+- `BROWSER_POOL_MIN_SIZE`: Minimum number of browser instances to keep in the pool (default: `2`)
+- `BROWSER_POOL_MAX_SIZE`: Maximum number of browser instances allowed in the pool (default: `10`)
+- `BROWSER_POOL_IDLE_TIMEOUT`: Time in seconds before idle browsers are cleaned up (default: `300` - 5 minutes)
+- `BROWSER_POOL_MAX_AGE`: Maximum age in seconds for a browser instance before recycling (default: `3600` - 1 hour)
+- `BROWSER_POOL_CLEANUP_INTERVAL`: Interval in seconds for running the cleanup task (default: `60` - 1 minute)
+
+### Timeout Configuration Options
+
+- `NAVIGATION_TIMEOUT_REGULAR`: Timeout in milliseconds for regular site navigation (default: `30000` - 30 seconds)
+- `NAVIGATION_TIMEOUT_COMPLEX`: Timeout in milliseconds for complex site navigation (default: `60000` - 60 seconds)
+- `BROWSER_LAUNCH_TIMEOUT`: Timeout in milliseconds for browser launch operations (default: `60000` - 60 seconds)
+- `CONTEXT_CREATION_TIMEOUT`: Timeout in milliseconds for browser context creation (default: `30000` - 30 seconds)
+- `PAGE_CREATION_TIMEOUT`: Timeout in milliseconds for page creation (default: `30000` - 30 seconds)
+- `SCREENSHOT_TIMEOUT`: Timeout in milliseconds for screenshot capture (default: `30000` - 30 seconds)
+
+### Retry Configuration Options
+
+- `MAX_RETRIES_REGULAR`: Maximum number of retry attempts for regular sites (default: `3`)
+- `MAX_RETRIES_COMPLEX`: Maximum number of retry attempts for complex sites (default: `5`)
+- `RETRY_BASE_DELAY`: Base delay in seconds between retries (default: `0.5`)
+- `RETRY_MAX_DELAY`: Maximum delay in seconds between retries (default: `10.0`)
+- `RETRY_JITTER`: Jitter factor (0-1) to add randomness to delay (default: `0.1`)
+
+### Circuit Breaker Configuration Options
+
+- `CIRCUIT_BREAKER_THRESHOLD`: Number of failures before opening the circuit (default: `5`)
+- `CIRCUIT_BREAKER_RESET_TIME`: Time in seconds before attempting to close the circuit (default: `300` - 5 minutes)
 
 ## Usage
 
@@ -315,8 +371,8 @@ The service is designed to handle high volumes of concurrent requests reliably. 
 
 - **Complex Site Detection**: Automatically detects complex websites that need special handling
 - **Adaptive Navigation Strategies**: Uses different navigation strategies based on site complexity
-  - Complex sites: Uses 'domcontentloaded' event with extended timeout (60s)
-  - Regular sites: Uses 'networkidle' event with standard timeout (30s)
+  - Complex sites: Uses 'domcontentloaded' event with extended timeout (configurable, default: 60s)
+  - Regular sites: Uses 'networkidle' event with standard timeout (configurable, default: 30s)
 - **Visual Content Handling**: Selectively loads images for websites where visual content is important
   - Visual content sites (e.g., Instagram, TikTok): Loads images but blocks audio/video
   - Complex sites (e.g., LinkedIn, YouTube): Blocks only media files
@@ -331,6 +387,29 @@ The service is designed to handle high volumes of concurrent requests reliably. 
 - Automatic retry logic with exponential backoff
 - Rate limiting detection and handling
 - Efficient connection cleanup
+
+### Browser Pool Management
+
+- Efficient reuse of browser instances through a managed pool
+- Automatic scaling of pool size based on demand (min/max configurable)
+- Intelligent browser recycling based on age and idle time
+- Background cleanup task to prevent resource leaks
+- Thread-safe implementation for concurrent access
+
+### Resilience Features
+
+- **Retry System**: Comprehensive retry system with exponential backoff and jitter
+  - Configurable retry attempts based on site complexity
+  - Progressive delay between retries to prevent overwhelming services
+  - Jitter to prevent retry storms in high-concurrency scenarios
+- **Circuit Breaker Pattern**: Prevents cascading failures during outages
+  - Automatically detects persistent failures and stops retry attempts
+  - Self-healing with half-open state to test recovery
+  - Configurable failure threshold and reset timing
+- **Timeout Management**: Granular timeout controls for different operations
+  - Navigation timeouts adjusted based on site complexity
+  - Separate timeouts for browser launch, context creation, and screenshot capture
+  - All timeouts configurable via environment variables
 
 ### Temporary File Management
 
