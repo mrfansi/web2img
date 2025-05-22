@@ -1,12 +1,13 @@
 import os
-from typing import Any
+from typing import Any, Optional
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, status, Query
 
 from app.schemas.screenshot import ScreenshotRequest, ScreenshotResponse
 from app.services.screenshot import screenshot_service
 from app.services.storage import storage_service
 from app.services.imgproxy import imgproxy_service
+from app.services.cache import cache_service
 
 # Create a router for screenshot endpoints
 router = APIRouter(tags=["screenshots"])
@@ -21,10 +22,17 @@ router = APIRouter(tags=["screenshots"])
     Capture a screenshot of a website, upload it to R2, and return a signed imgproxy URL.
     
     ## Process Flow
-    1. Captures a screenshot of the provided URL using Playwright
-    2. Uploads the screenshot to Cloudflare R2 storage
-    3. Generates a signed imgproxy URL for the image with the specified transformations
-    4. Returns the URL to the processed image
+    1. Checks if the screenshot is already cached
+    2. If cached, returns the cached URL immediately
+    3. Otherwise, captures a screenshot of the provided URL using Playwright
+    4. Uploads the screenshot to Cloudflare R2 storage
+    5. Generates a signed imgproxy URL for the image with the specified transformations
+    6. Caches the result for future requests
+    7. Returns the URL to the processed image
+    
+    ## Cache Control
+    - Use `cache=false` to bypass the cache and force a fresh screenshot
+    - Cache TTL is configurable via the CACHE_TTL_SECONDS environment variable (default: 1 hour)
     
     ## Notes
     - The URL must be a valid HTTP or HTTPS URL
@@ -65,11 +73,15 @@ router = APIRouter(tags=["screenshots"])
         }
     },
 )
-async def capture_screenshot(request: ScreenshotRequest) -> Any:
+async def capture_screenshot(
+    request: ScreenshotRequest,
+    cache: bool = Query(True, description="Whether to use cache (if available)")
+) -> Any:
     """Capture a screenshot of a website.
     
     Args:
         request: Screenshot request parameters
+        cache: Whether to use cache (if available)
         
     Returns:
         URL to the processed image
@@ -77,6 +89,20 @@ async def capture_screenshot(request: ScreenshotRequest) -> Any:
     Raises:
         HTTPException: If screenshot capture or upload fails
     """
+    # Try to get from cache if enabled
+    if cache:
+        cached_url = await cache_service.get(
+            url=str(request.url),
+            width=request.width,
+            height=request.height,
+            format=request.format
+        )
+        
+        if cached_url:
+            # Return the cached URL
+            return ScreenshotResponse(url=cached_url)
+    
+    # Not in cache or cache disabled, proceed with capture
     screenshot_path = None
     try:
         # Capture the screenshot
@@ -100,6 +126,16 @@ async def capture_screenshot(request: ScreenshotRequest) -> Any:
             height=request.height,
             format=request.format,
         )
+        
+        # Store in cache if enabled
+        if cache:
+            await cache_service.set(
+                url=str(request.url),
+                width=request.width,
+                height=request.height,
+                format=request.format,
+                imgproxy_url=imgproxy_url
+            )
         
         # Return the response
         return ScreenshotResponse(url=imgproxy_url)

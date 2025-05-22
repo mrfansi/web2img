@@ -8,9 +8,11 @@ from fastapi.responses import JSONResponse
 
 from app.api.screenshot import router as screenshot_router
 from app.api.health import router as health_router
+from app.api.cache import router as cache_router
 from app.core.config import settings
 from app.services.screenshot import screenshot_service
 from app.services.storage import storage_service
+from app.services.cache import cache_service
 
 
 @asynccontextmanager
@@ -27,6 +29,7 @@ async def lifespan(app: FastAPI):
     # Shutdown: Clean up resources
     await screenshot_service.cleanup()
     await storage_service.cleanup()
+    await cache_service.cleanup()
 
 
 def create_app() -> FastAPI:
@@ -63,6 +66,10 @@ def create_app() -> FastAPI:
             {
                 "name": "health",
                 "description": "Operations for checking the health and status of the service"
+            },
+            {
+                "name": "cache",
+                "description": "Operations for managing the screenshot cache"
             }
         ],
         swagger_ui_parameters={"defaultModelsExpandDepth": -1}
@@ -88,6 +95,7 @@ def create_app() -> FastAPI:
     # Include API routers
     app.include_router(screenshot_router, prefix=settings.api_prefix)
     app.include_router(health_router, prefix=settings.api_prefix)
+    app.include_router(cache_router, prefix=settings.api_prefix)
     
     return app
 

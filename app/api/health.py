@@ -8,6 +8,7 @@ from app.schemas.health import HealthResponse
 from app.services.screenshot import screenshot_service
 from app.services.storage import storage_service
 from app.services.imgproxy import imgproxy_service
+from app.services.cache import cache_service
 from app.core.config import settings
 
 # Create a router for health check endpoints
@@ -76,6 +77,19 @@ async def health_check() -> HealthResponse:
     # Check individual services
     services: Dict[str, Any] = {}
     overall_status = "ok"
+    
+    # Check cache service
+    try:
+        cache_stats = cache_service.get_stats()
+        services["cache"] = {
+            "status": "ok",
+            "enabled": cache_stats["enabled"],
+            "size": cache_stats["size"],
+            "hit_rate": cache_stats["hit_rate"]
+        }
+    except Exception:
+        services["cache"] = {"status": "error"}
+        overall_status = "degraded"
     
     # Check screenshot service
     try:

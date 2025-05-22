@@ -10,6 +10,17 @@ load_dotenv()
 
 class Settings(BaseModel):
     """Application settings."""
+    # Cache Configuration
+    cache_enabled: bool = Field(
+        default_factory=lambda: os.getenv("CACHE_ENABLED", "True").lower() in ("true", "1", "t")
+    )
+    cache_ttl_seconds: int = Field(
+        default_factory=lambda: int(os.getenv("CACHE_TTL_SECONDS", "3600"))
+    )
+    cache_max_items: int = Field(
+        default_factory=lambda: int(os.getenv("CACHE_MAX_ITEMS", "100"))
+    )
+    
     # R2 Storage Configuration
     r2_access_key_id: str = Field(
         default_factory=lambda: os.getenv("R2_ACCESS_KEY_ID", "")
