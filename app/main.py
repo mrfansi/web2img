@@ -25,6 +25,9 @@ async def lifespan(app: FastAPI):
     # Startup: Ensure screenshot directory exists
     os.makedirs(settings.screenshot_dir, exist_ok=True)
     
+    # Initialize browser pool
+    await screenshot_service.startup()
+    
     yield
     
     # Shutdown: Clean up resources

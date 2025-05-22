@@ -60,6 +60,68 @@ class Settings(BaseModel):
     workers: int = Field(
         default_factory=lambda: int(os.getenv("WORKERS", "4"))
     )
+    
+    # Browser Pool Configuration
+    browser_pool_min_size: int = Field(
+        default_factory=lambda: int(os.getenv("BROWSER_POOL_MIN_SIZE", "2"))
+    )
+    browser_pool_max_size: int = Field(
+        default_factory=lambda: int(os.getenv("BROWSER_POOL_MAX_SIZE", "10"))
+    )
+    browser_pool_idle_timeout: int = Field(
+        default_factory=lambda: int(os.getenv("BROWSER_POOL_IDLE_TIMEOUT", "300"))
+    )
+    browser_pool_max_age: int = Field(
+        default_factory=lambda: int(os.getenv("BROWSER_POOL_MAX_AGE", "3600"))
+    )
+    browser_pool_cleanup_interval: int = Field(
+        default_factory=lambda: int(os.getenv("BROWSER_POOL_CLEANUP_INTERVAL", "60"))
+    )
+    
+    # Timeout Configuration
+    navigation_timeout_regular: int = Field(
+        default_factory=lambda: int(os.getenv("NAVIGATION_TIMEOUT_REGULAR", "30000"))
+    )
+    navigation_timeout_complex: int = Field(
+        default_factory=lambda: int(os.getenv("NAVIGATION_TIMEOUT_COMPLEX", "60000"))
+    )
+    browser_launch_timeout: int = Field(
+        default_factory=lambda: int(os.getenv("BROWSER_LAUNCH_TIMEOUT", "60000"))
+    )
+    context_creation_timeout: int = Field(
+        default_factory=lambda: int(os.getenv("CONTEXT_CREATION_TIMEOUT", "30000"))
+    )
+    page_creation_timeout: int = Field(
+        default_factory=lambda: int(os.getenv("PAGE_CREATION_TIMEOUT", "30000"))
+    )
+    screenshot_timeout: int = Field(
+        default_factory=lambda: int(os.getenv("SCREENSHOT_TIMEOUT", "30000"))
+    )
+    
+    # Retry Configuration
+    max_retries_regular: int = Field(
+        default_factory=lambda: int(os.getenv("MAX_RETRIES_REGULAR", "3"))
+    )
+    max_retries_complex: int = Field(
+        default_factory=lambda: int(os.getenv("MAX_RETRIES_COMPLEX", "5"))
+    )
+    retry_base_delay: float = Field(
+        default_factory=lambda: float(os.getenv("RETRY_BASE_DELAY", "0.5"))
+    )
+    retry_max_delay: float = Field(
+        default_factory=lambda: float(os.getenv("RETRY_MAX_DELAY", "10.0"))
+    )
+    retry_jitter: float = Field(
+        default_factory=lambda: float(os.getenv("RETRY_JITTER", "0.1"))
+    )
+    
+    # Circuit Breaker Configuration
+    circuit_breaker_threshold: int = Field(
+        default_factory=lambda: int(os.getenv("CIRCUIT_BREAKER_THRESHOLD", "5"))
+    )
+    circuit_breaker_reset_time: int = Field(
+        default_factory=lambda: int(os.getenv("CIRCUIT_BREAKER_RESET_TIME", "300"))
+    )
 
     class Config:
         env_file = ".env"

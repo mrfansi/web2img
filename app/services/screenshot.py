@@ -1,30 +1,73 @@
 import asyncio
 import os
+import re
 import time
 import uuid
-import re
-from typing import Dict, Optional, List, Any, Tuple
+from typing import Dict, List, Optional, Tuple, Any
 
-from playwright.async_api import async_playwright, Browser, BrowserContext, Page
+from playwright.async_api import async_playwright, Browser, BrowserContext, Page, TimeoutError as PlaywrightTimeoutError
 
 from app.core.config import settings
+from app.services.browser_pool import BrowserPool
+from app.services.retry import RetryConfig, CircuitBreaker, RetryManager
 
 
 class ScreenshotService:
     """Service for capturing screenshots using Playwright."""
 
     def __init__(self):
-        self._browser = None
-        self._playwright = None
-        self._contexts: List[BrowserContext] = []
-        self._context_pool: List[BrowserContext] = []  # Available contexts
-        self._lock = asyncio.Lock()
+        # Initialize the browser pool with configuration from settings
+        self._browser_pool = BrowserPool(
+            min_size=settings.browser_pool_min_size,
+            max_size=settings.browser_pool_max_size,
+            idle_timeout=settings.browser_pool_idle_timeout,
+            max_age=settings.browser_pool_max_age,
+            cleanup_interval=settings.browser_pool_cleanup_interval
+        )
         self._last_cleanup = time.time()
-        self._browser_lock = asyncio.Lock()  # Dedicated lock for browser operations
-        self._max_contexts = 3  # Reduced from 5 to 3 for better stability
-        self._context_ttl = 300  # Time to live for browser contexts in seconds (5 minutes)
-        self._browser_last_used = time.time()
-        self._browser_ttl = 600  # Browser time to live in seconds (10 minutes)
+        self._lock = asyncio.Lock()
+        
+        # Create retry configurations
+        self._retry_config_regular = RetryConfig(
+            max_retries=settings.max_retries_regular,
+            base_delay=settings.retry_base_delay,
+            max_delay=settings.retry_max_delay,
+            jitter=settings.retry_jitter
+        )
+        
+        self._retry_config_complex = RetryConfig(
+            max_retries=settings.max_retries_complex,
+            base_delay=settings.retry_base_delay,
+            max_delay=settings.retry_max_delay,
+            jitter=settings.retry_jitter
+        )
+        
+        # Create circuit breakers
+        self._browser_circuit_breaker = CircuitBreaker(
+            threshold=settings.circuit_breaker_threshold,
+            reset_time=settings.circuit_breaker_reset_time
+        )
+        
+        self._navigation_circuit_breaker = CircuitBreaker(
+            threshold=settings.circuit_breaker_threshold,
+            reset_time=settings.circuit_breaker_reset_time
+        )
+        
+        # Create retry managers
+        self._browser_retry_manager = RetryManager(
+            retry_config=self._retry_config_regular,
+            circuit_breaker=self._browser_circuit_breaker,
+            name="browser_operations"
+        )
+        
+        # Statistics
+        self._timeout_stats = {
+            "navigation": 0,
+            "browser": 0,
+            "context": 0,
+            "page": 0,
+            "screenshot": 0
+        }
         
         # Complex site patterns that need special handling
         self._complex_sites = [
@@ -51,191 +94,43 @@ class ScreenshotService:
         # Ensure screenshot directory exists
         os.makedirs(settings.screenshot_dir, exist_ok=True)
 
-    async def _get_browser(self):
-        """Get or create a browser instance."""
-        async with self._browser_lock:
-            # Check if browser needs to be recreated due to TTL
-            current_time = time.time()
-            if self._browser is not None and current_time - self._browser_last_used > self._browser_ttl:
-                # Browser has been idle too long, close it and create a new one
-                try:
-                    await self._browser.close()
-                except Exception:
-                    pass  # Ignore errors during cleanup
-                self._browser = None
-                if self._playwright:
-                    try:
-                        await self._playwright.stop()
-                    except Exception:
-                        pass  # Ignore errors during cleanup
-                    self._playwright = None
-            
-            # Create a new browser if needed
-            if self._browser is None:
-                try:
-                    self._playwright = await async_playwright().start()
-                    # Launch with optimized settings for performance and stability
-                    self._browser = await self._playwright.chromium.launch(
-                        args=[
-                            '--disable-gpu',  # Disable GPU hardware acceleration
-                            '--disable-dev-shm-usage',  # Overcome limited resource problems
-                            '--disable-setuid-sandbox',  # Disable setuid sandbox (performance)
-                            '--no-sandbox',  # Disable sandbox for better performance
-                            '--no-zygote',  # Disable zygote process
-                            '--disable-extensions',  # Disable extensions for performance
-                            '--disable-features=site-per-process',  # Disable site isolation
-                            '--disable-notifications',  # Disable notifications
-                            '--disable-popup-blocking',  # Disable popup blocking
-                            '--disable-sync',  # Disable sync
-                            '--disable-translate',  # Disable translate
-                            '--disable-web-security',  # Disable web security for complex sites
-                            '--disable-background-networking',  # Reduce background activity
-                            '--disable-default-apps',  # Disable default apps
-                            '--disable-prompt-on-repost',  # Disable prompt on repost
-                            '--disable-domain-reliability',  # Disable domain reliability
-                            '--metrics-recording-only',  # Metrics recording only
-                            '--mute-audio',  # Mute audio
-                            '--no-first-run',  # No first run dialog
-                        ],
-                        headless=True,
-                        timeout=60000  # Increase browser launch timeout to 60 seconds
-                    )
-                except Exception as e:
-                    # If browser creation fails, clean up resources and re-raise
-                    if self._playwright:
-                        try:
-                            await self._playwright.stop()
-                        except Exception:
-                            pass  # Ignore errors during cleanup
-                        self._playwright = None
-                    raise RuntimeError(f"Failed to create browser: {str(e)}") from e
-                    
-            # Update last used timestamp
-            self._browser_last_used = current_time
-            return self._browser
+    async def startup(self):
+        """Initialize the browser pool."""
+        await self._browser_pool.initialize()
 
-    async def _get_context(self):
-        """Get a browser context from the pool or create a new one."""
-        async with self._lock:
-            # Check if we have a context in the pool
-            if self._context_pool:
-                return self._context_pool.pop()
-            
-            # Get or create browser instance
-            try:
-                browser = await self._get_browser()
-                
-                # Create a new context if we haven't reached the limit
-                if len(self._contexts) < self._max_contexts:
-                    try:
-                        context = await browser.new_context(
-                            viewport={'width': 1280, 'height': 720},
-                            user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-                            java_script_enabled=True,
-                            ignore_https_errors=True,
-                            bypass_csp=True  # Bypass Content-Security-Policy
-                        )
-                        self._contexts.append(context)
-                        return context
-                    except Exception as e:
-                        # If context creation fails, try to recreate the browser
-                        if 'has been closed' in str(e):
-                            # Browser is closed, force recreation
-                            self._browser = None
-                            # Try again with a new browser
-                            browser = await self._get_browser()
-                            context = await browser.new_context(
-                                viewport={'width': 1280, 'height': 720},
-                                user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-                                java_script_enabled=True,
-                                ignore_https_errors=True,
-                                bypass_csp=True  # Bypass Content-Security-Policy
-                            )
-                            self._contexts.append(context)
-                            return context
-                        else:
-                            # Other error, re-raise
-                            raise
-                
-                # If we've reached the limit, wait for a context to become available
-                wait_start = time.time()
-                max_wait = 10  # Maximum wait time in seconds
-                
-                while not self._context_pool:
-                    # Check if we've waited too long
-                    if time.time() - wait_start > max_wait:
-                        # Force cleanup of a context to make room
-                        if self._contexts:
-                            try:
-                                # Close the oldest context
-                                await self._contexts[0].close()
-                                self._contexts.pop(0)
-                                # Create a new context
-                                context = await browser.new_context(
-                                    viewport={'width': 1280, 'height': 720},
-                                    user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-                                    java_script_enabled=True,
-                                    ignore_https_errors=True,
-                                    bypass_csp=True  # Bypass Content-Security-Policy
-                                )
-                                self._contexts.append(context)
-                                return context
-                            except Exception:
-                                # If that fails, recreate the browser
-                                self._browser = None
-                                browser = await self._get_browser()
-                                context = await browser.new_context(
-                                    viewport={'width': 1280, 'height': 720},
-                                    user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-                                    java_script_enabled=True,
-                                    ignore_https_errors=True,
-                                    bypass_csp=True  # Bypass Content-Security-Policy
-                                )
-                                self._contexts.append(context)
-                                return context
-                    
-                    # Release the lock while waiting
-                    self._lock.release()
-                    try:
-                        await asyncio.sleep(0.1)
-                    finally:
-                        await self._lock.acquire()
-                        
-                return self._context_pool.pop()
-            except Exception as e:
-                # If all else fails, recreate the browser and try one more time
-                self._browser = None
-                try:
-                    browser = await self._get_browser()
-                    context = await browser.new_context(
-                        viewport={'width': 1280, 'height': 720},
-                        user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-                        java_script_enabled=True,
-                        ignore_https_errors=True,
-                        bypass_csp=True  # Bypass Content-Security-Policy
-                    )
-                    self._contexts.append(context)
-                    return context
-                except Exception as e2:
-                    # If that still fails, give up and report the error
-                    raise RuntimeError(f"Failed to create browser context after multiple attempts: {str(e2)}") from e2
+    async def _get_context(self, width: int = 1280, height: int = 720):
+        """Get a browser context from the pool."""
+        # Get a browser from the pool
+        browser, browser_index = await self._browser_pool.get_browser()
         
-    async def _return_context(self, context: BrowserContext):
-        """Return a context to the pool."""
-        async with self._lock:
-            # Only return to pool if it's still in our list of contexts
-            if context in self._contexts:
-                try:
-                    # Clear browser cache and cookies before returning to pool
-                    pages = context.pages
-                    for page in pages:
-                        if not page.is_closed():
-                            await page.close()
-                    self._context_pool.append(context)
-                except Exception as e:
-                    # If context is already closed, remove it from contexts list
-                    if 'has been closed' in str(e) and context in self._contexts:
-                        self._contexts.remove(context)
+        if browser is None or browser_index is None:
+            # If we couldn't get a browser, raise an error
+            raise RuntimeError("Failed to get a browser from the pool")
+        
+        # Create a context for this browser
+        context = await self._browser_pool.create_context(
+            browser_index,
+            viewport={'width': width, 'height': height},
+            user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            java_script_enabled=True,
+            ignore_https_errors=True,
+            bypass_csp=True  # Bypass Content-Security-Policy
+        )
+        
+        if context is None:
+            # If context creation failed, release the browser and raise an error
+            await self._browser_pool.release_browser(browser_index, is_healthy=False)
+            raise RuntimeError("Failed to create browser context")
+        
+        return context, browser_index
+        
+    async def _return_context(self, context: BrowserContext, browser_index: int):
+        """Release a browser context."""
+        # Release the context back to the browser pool
+        await self._browser_pool.release_context(browser_index, context)
+        
+        # Release the browser back to the pool
+        await self._browser_pool.release_browser(browser_index)
 
     def _is_complex_site(self, url: str) -> bool:
         """Check if the URL is for a complex site that needs special handling."""
@@ -253,10 +148,10 @@ class ScreenshotService:
         """
         if self._is_complex_site(url):
             # For complex sites, use a more patient strategy
-            return "domcontentloaded", 60000  # 60 seconds timeout, wait for DOM only
+            return "domcontentloaded", settings.navigation_timeout_complex  # Wait for DOM only
         else:
             # For regular sites, use the standard strategy
-            return "networkidle", 30000  # 30 seconds timeout, wait for network idle
+            return "networkidle", settings.navigation_timeout_regular  # Wait for network idle
     
     async def capture_screenshot(self, url: str, width: int, height: int, format: str) -> str:
         """Capture a screenshot of the given URL.
@@ -288,22 +183,28 @@ class ScreenshotService:
             
         # Get a browser context
         context = None
+        browser_index = None
         page = None
         try:
-            # Get a context with retry logic
-            retry_count = 0
-            max_retries = 3 if not is_complex else 5  # More retries for complex sites
-            while retry_count < max_retries:
-                try:
-                    context = await self._get_context()
-                    # Create a new page
-                    page = await context.new_page()
-                    break
-                except Exception as e:
-                    retry_count += 1
-                    if retry_count >= max_retries:
-                        raise
-                    await asyncio.sleep(0.5 * (retry_count))  # Increasing wait before retry
+            # Select retry configuration based on site complexity
+            retry_config = self._retry_config_complex if is_complex else self._retry_config_regular
+            
+            # Create a retry manager for this operation
+            retry_manager = RetryManager(
+                retry_config=retry_config,
+                circuit_breaker=None,  # No circuit breaker for context creation
+                name="context_creation"
+            )
+            
+            # Get context with retry logic
+            async def get_context_with_page():
+                nonlocal context, browser_index, page
+                context, browser_index = await self._get_context(width=width, height=height)
+                page = await context.new_page(timeout=settings.page_creation_timeout)
+                return page
+            
+            # Execute with retry
+            page = await retry_manager.execute(get_context_with_page)
             
             # Set viewport size
             await page.set_viewport_size({"width": width, "height": height})
@@ -337,62 +238,115 @@ class ScreenshotService:
                     'Sec-Fetch-Dest': 'document',
                 })
             
-            # Navigate to the URL with strategy based on site complexity
-            try:
-                response = await page.goto(
-                    url, 
-                    wait_until=wait_until,
-                    timeout=page_timeout
-                )
+            # Create a retry manager for navigation
+            navigation_retry_manager = RetryManager(
+                retry_config=retry_config,
+                circuit_breaker=self._navigation_circuit_breaker,
+                name="navigation"
+            )
+            
+            # Define navigation function
+            async def navigate_to_url():
+                nonlocal page, context, browser_index
                 
-                if is_complex:
-                    # For complex sites, wait a bit more after navigation to ensure content loads
-                    await asyncio.sleep(2)
+                try:
+                    # Navigate to the URL
+                    response = await page.goto(
+                        url, 
+                        wait_until=wait_until,
+                        timeout=page_timeout
+                    )
                     
-                    # Scroll down slightly to trigger lazy loading content if needed
-                    await page.evaluate("window.scrollBy(0, 250)")
-                    await asyncio.sleep(1)
-            except Exception as e:
-                if is_complex and retry_count < max_retries:
-                    # For complex sites, try again with a different strategy if navigation fails
-                    retry_count += 1
+                    if is_complex:
+                        # For complex sites, wait a bit more after navigation to ensure content loads
+                        await asyncio.sleep(2)
+                        
+                        # Scroll down slightly to trigger lazy loading content if needed
+                        await page.evaluate("window.scrollBy(0, 250)")
+                        await asyncio.sleep(1)
+                    
+                    return response
+                except PlaywrightTimeoutError as e:
+                    # Increment timeout stats
+                    self._timeout_stats["navigation"] += 1
+                    
+                    # For complex sites, try with a simpler strategy before giving up
+                    if is_complex and "timeout" in str(e).lower():
+                        # Try with a simpler strategy
+                        if page and not page.is_closed():
+                            # Try with domcontentloaded and longer timeout
+                            response = await page.goto(
+                                url, 
+                                wait_until="domcontentloaded",  # Simpler strategy
+                                timeout=page_timeout * 1.5  # 50% longer timeout
+                            )
+                            await asyncio.sleep(3)  # Wait longer after load
+                            return response
+                    
+                    # If we get here, the simpler strategy failed or wasn't attempted
+                    raise
+                except Exception as e:
+                    # Check for closed context/browser issues
                     if "has been closed" in str(e):
                         # Browser context issue, recreate it
                         if context:
                             try:
-                                await self._return_context(context)
+                                await self._return_context(context, browser_index)
                             except Exception:
                                 pass
                         context = None
-                        # Need to restart the whole process
-                        raise RuntimeError("Browser context closed, need to restart") from e
-                    else:
-                        # Try with a simpler strategy
-                        try:
-                            if page and not page.is_closed():
-                                response = await page.goto(
-                                    url, 
-                                    wait_until="domcontentloaded",  # Simpler strategy
-                                    timeout=page_timeout
-                                )
-                                await asyncio.sleep(3)  # Wait longer after load
-                        except Exception:
-                            # If that also fails, re-raise the original error
-                            raise e
-                else:
-                    # For regular sites or if we've exhausted retries, re-raise the error
+                        browser_index = None
+                        
+                        # Get a new context and page
+                        context, browser_index = await self._get_context(width=width, height=height)
+                        page = await context.new_page(timeout=settings.page_creation_timeout)
+                        
+                        # Try navigation again
+                        response = await page.goto(
+                            url, 
+                            wait_until=wait_until,
+                            timeout=page_timeout
+                        )
+                        return response
+                    
+                    # Other errors are re-raised
                     raise
+            
+            # Execute navigation with retry
+            response = await navigation_retry_manager.execute(navigate_to_url)
             
             # Take the screenshot with a slight delay for complex sites
             if is_complex:
                 await asyncio.sleep(1)  # Extra wait for complex sites
-                
-            await page.screenshot(
-                path=filepath, 
-                type=format, 
-                full_page=False,
-                quality=90 if format in ['jpeg', 'webp'] else None
+            
+            # Create a retry manager for screenshot capture
+            screenshot_retry_manager = RetryManager(
+                retry_config=RetryConfig(
+                    max_retries=2,  # Fewer retries for screenshot capture
+                    base_delay=0.5,
+                    max_delay=2.0,
+                    jitter=0.1
+                ),
+                name="screenshot_capture"
             )
+            
+            # Define screenshot function
+            async def capture_screenshot():
+                try:
+                    await page.screenshot(
+                        path=filepath, 
+                        type=format, 
+                        full_page=False,
+                        quality=90 if format in ['jpeg', 'webp'] else None,
+                        timeout=settings.screenshot_timeout
+                    )
+                    return filepath
+                except PlaywrightTimeoutError:
+                    self._timeout_stats["screenshot"] += 1
+                    raise
+            
+            # Execute screenshot capture with retry
+            await screenshot_retry_manager.execute(capture_screenshot)
             
             # Close the page to free resources
             if page and not page.is_closed():
@@ -400,9 +354,10 @@ class ScreenshotService:
                 page = None
             
             # Return the context to the pool for reuse
-            if context:
-                await self._return_context(context)
+            if context and browser_index is not None:
+                await self._return_context(context, browser_index)
                 context = None  # Prevent double return in finally block
+                browser_index = None  # Prevent double return in finally block
             
             return filepath
         except Exception as e:
@@ -419,8 +374,8 @@ class ScreenshotService:
                     pass  # Ignore errors during cleanup
                     
             # Ensure context is returned to pool even if an error occurs
-            if context:
-                await self._return_context(context)
+            if context and browser_index is not None:
+                await self._return_context(context, browser_index)
 
     def _cleanup_temp_files(self):
         """Clean up old temporary files."""
@@ -443,36 +398,26 @@ class ScreenshotService:
     
     async def cleanup(self):
         """Clean up resources."""
-        async with self._lock:
-            # Close all contexts
-            for context in self._contexts:
-                try:
-                    await context.close()
-                except Exception:
-                    pass  # Ignore errors during cleanup
-            
-            self._contexts = []
-            self._context_pool = []
+        # Shutdown the browser pool
+        await self._browser_pool.shutdown()
         
-        async with self._browser_lock:
-            # Close browser
-            if self._browser:
-                try:
-                    await self._browser.close()
-                except Exception:
-                    pass  # Ignore errors during cleanup
-                self._browser = None
-                
-            # Stop playwright
-            if self._playwright:
-                try:
-                    await self._playwright.stop()
-                except Exception:
-                    pass  # Ignore errors during cleanup
-                self._playwright = None
-                
-            # Clean up temporary files
-            self._cleanup_temp_files()
+        # Clean up temporary files
+        self._cleanup_temp_files()
+        
+    def get_pool_stats(self):
+        """Get browser pool statistics."""
+        return self._browser_pool.get_stats()
+    
+    def get_retry_stats(self):
+        """Get retry and timeout statistics."""
+        return {
+            "timeouts": self._timeout_stats,
+            "browser_retry": self._browser_retry_manager.get_stats(),
+            "circuit_breakers": {
+                "browser": self._browser_circuit_breaker.get_state(),
+                "navigation": self._navigation_circuit_breaker.get_state()
+            }
+        }
 
 
 # Helper function for batch processing

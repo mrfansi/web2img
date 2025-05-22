@@ -308,6 +308,21 @@ The service is designed to handle high volumes of concurrent requests reliably. 
 - Intelligent resource limiting to prevent memory exhaustion
 - Efficient page configuration to block unnecessary resources
 - Automatic cleanup of browser resources
+- Site-specific handling for complex websites (LinkedIn, YouTube, etc.)
+- Visual content handling for image-rich websites
+
+### Site-Specific Optimizations
+
+- **Complex Site Detection**: Automatically detects complex websites that need special handling
+- **Adaptive Navigation Strategies**: Uses different navigation strategies based on site complexity
+  - Complex sites: Uses 'domcontentloaded' event with extended timeout (60s)
+  - Regular sites: Uses 'networkidle' event with standard timeout (30s)
+- **Visual Content Handling**: Selectively loads images for websites where visual content is important
+  - Visual content sites (e.g., Instagram, TikTok): Loads images but blocks audio/video
+  - Complex sites (e.g., LinkedIn, YouTube): Blocks only media files
+  - Regular sites: Blocks images, fonts, and media files for maximum performance
+- **Resource Optimization**: Intelligently blocks or allows resources based on site type
+- **Error Recovery**: Enhanced error handling and retry logic for problematic sites
 
 ### Connection Pooling
 
@@ -394,6 +409,28 @@ The script supports the following options:
 - `--concurrency`: Number of concurrent requests (default: 10)
 - `--requests`: Total number of requests to make (default: 50)
 - `--output`: Optional JSON file to save detailed results
+
+#### Batch Testing
+
+A batch testing script is included to verify the batch processing API performance:
+
+```bash
+python tests/test_batch.py --parallel 3
+```
+
+The script supports the following options:
+
+- `--url`: API base URL (default: http://localhost:8000)
+- `--parallel`: Number of parallel requests (default: 3)
+- `--no-cache`: Disable caching
+
+The test includes a diverse set of URLs to validate the service's capabilities:
+
+- Regular websites (example.com, google.com)
+- Complex websites (LinkedIn, YouTube, Facebook)
+- Visual content websites (Instagram, TikTok)
+
+This comprehensive test suite ensures that the service can handle all types of websites, including those that require special handling for complex layouts or visual content.
 
 #### Cache Testing
 

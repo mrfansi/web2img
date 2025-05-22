@@ -118,14 +118,30 @@ async def health_check() -> HealthResponse:
     
     # Check screenshot service
     try:
-        # Simple check if the screenshot directory exists
+        # Check if the screenshot directory exists
         if os.path.exists(settings.screenshot_dir):
-            services["screenshot"] = "ok"
+            # Get browser pool and retry stats if available
+            browser_pool_stats = None
+            retry_stats = None
+            if hasattr(screenshot_service, "get_pool_stats") and hasattr(screenshot_service, "get_retry_stats"):
+                browser_pool_stats = screenshot_service.get_pool_stats()
+                retry_stats = screenshot_service.get_retry_stats()
+            services["screenshot"] = {
+                "status": "ok",
+                "browser_pool": browser_pool_stats if browser_pool_stats else {},
+                "retry_stats": retry_stats if retry_stats else {}
+            }
         else:
-            services["screenshot"] = "error"
+            services["screenshot"] = {
+                "status": "error",
+                "message": "Screenshot directory does not exist"
+            }
             overall_status = "degraded"
-    except Exception:
-        services["screenshot"] = "error"
+    except Exception as e:
+        services["screenshot"] = {
+            "status": "error",
+            "message": str(e)
+        }
         overall_status = "degraded"
     
     # Check storage service
