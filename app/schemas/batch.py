@@ -110,7 +110,7 @@ class BatchItemResponse(BaseModel):
     url: Optional[str] = Field(
         default=None,
         description="URL to the processed image (only present if status is success)",
-        example="https://cdn-proxy.viding.org/signed_path/resize:fit:1280:720/format:png/base64_encoded_url"
+        example="https://imgproxy.example.com/signed_path/resize:fit:1280:720/format:png/base64_encoded_url"
     )
     error: Optional[str] = Field(
         default=None,
@@ -174,13 +174,13 @@ class BatchScreenshotResponse(BaseModel):
                     {
                         "id": "example-home",
                         "status": "success",
-                        "url": "https://cdn-proxy.viding.org/signed_path/resize:fit:1280:720/format:png/base64_encoded_url",
+                        "url": "https://imgproxy.example.com/signed_path/resize:fit:1280:720/format:png/base64_encoded_url",
                         "cached": True
                     },
                     {
                         "id": "example-about",
                         "status": "success",
-                        "url": "https://cdn-proxy.viding.org/signed_path/resize:fit:1280:720/format:png/base64_encoded_url",
+                        "url": "https://imgproxy.example.com/signed_path/resize:fit:1280:720/format:png/base64_encoded_url",
                         "cached": False
                     }
                 ]

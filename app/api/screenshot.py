@@ -46,7 +46,7 @@ router = APIRouter(tags=["screenshots"])
             "content": {
                 "application/json": {
                     "example": {
-                        "url": "https://cdn-proxy.viding.org/signed_path/resize:fit:1280:720/format:png/base64_encoded_url"
+                        "url": "https://imgproxy.example.com/signed_path/resize:fit:1280:720/format:png/base64_encoded_url"
                     }
                 }
             }
