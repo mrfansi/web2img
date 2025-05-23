@@ -6,6 +6,10 @@ from typing import List
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
+import pathlib
 
 from app.core.logging import logger
 from app.core.middleware import RequestLoggingMiddleware
@@ -14,7 +18,9 @@ from app.api.screenshot import router as screenshot_router
 from app.api.health import router as health_router
 from app.api.cache import router as cache_router
 from app.api.batch import router as batch_router
+from app.api.monitoring import router as monitoring_router
 from app.core.config import settings
+from app.core.monitoring import metrics_collector, start_monitoring, stop_monitoring
 from app.services.screenshot import screenshot_service
 from app.services.storage import storage_service
 from app.services.cache import cache_service
@@ -44,6 +50,10 @@ async def lifespan(app: FastAPI):
     await screenshot_service.startup()
     logger.info("Browser pool initialized")
     
+    # Start monitoring system
+    await start_monitoring()
+    logger.info("Monitoring system initialized")
+    
     yield
     
     # Shutdown: Clean up resources
@@ -51,6 +61,11 @@ async def lifespan(app: FastAPI):
     await screenshot_service.cleanup()
     await storage_service.cleanup()
     await cache_service.cleanup()
+    
+    # Stop monitoring system
+    await stop_monitoring()
+    logger.info("Monitoring system stopped")
+    
     logger.info("All resources cleaned up, service stopped")
 
 
@@ -96,6 +111,10 @@ def create_app() -> FastAPI:
             {
                 "name": "cache",
                 "description": "Operations for managing the screenshot cache"
+            },
+            {
+                "name": "monitoring",
+                "description": "Operations for monitoring service performance and health"
             }
         ],
         swagger_ui_parameters={"defaultModelsExpandDepth": -1}
@@ -133,6 +152,17 @@ def create_app() -> FastAPI:
         # Log the exception with structured data
         logger.error(f"WebToImgError: {exc.message}", exc.context)
         
+        # Record error in monitoring system
+        metrics_collector.record_error(
+            error_type=exc.error_code,
+            endpoint=request.url.path,
+            error_details={
+                "message": exc.message,
+                "context": exc.context,
+                "request_id": request_id
+            }
+        )
+        
         # Create response
         error_response = exc.to_dict()
         error_response["request_id"] = request_id
@@ -150,14 +180,22 @@ def create_app() -> FastAPI:
         request_id = getattr(request.state, 'request_id', 'unknown')
         
         # Log the exception with structured data
-        logger.exception(f"Unhandled exception in request handler", {
+        error_details = {
             "request_id": request_id,
             "method": request.method,
             "url": str(request.url),
             "client": request.client.host if request.client else None,
             "error_type": type(exc).__name__,
             "error_details": str(exc)
-        })
+        }
+        logger.exception(f"Unhandled exception in request handler", error_details)
+        
+        # Record error in monitoring system
+        metrics_collector.record_error(
+            error_type=type(exc).__name__,
+            endpoint=request.url.path,
+            error_details=error_details
+        )
         
         # Try to classify the exception
         error_class = classify_exception(exc)
@@ -193,6 +231,17 @@ def create_app() -> FastAPI:
     app.include_router(batch_router, prefix=settings.api_prefix)
     app.include_router(health_router, prefix=settings.api_prefix)
     app.include_router(cache_router, prefix=settings.api_prefix)
+    app.include_router(monitoring_router, prefix=settings.api_prefix)
+    
+    # Mount static files directory
+    static_dir = pathlib.Path(__file__).parent / "static"
+    app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+    
+    # Add route for dashboard
+    @app.get("/dashboard", response_class=HTMLResponse)
+    async def get_dashboard():
+        with open(static_dir / "dashboard.html", "r") as f:
+            return f.read()
     
     return app
 

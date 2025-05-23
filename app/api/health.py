@@ -1,5 +1,6 @@
 import os
 import platform
+import time
 from typing import Dict, Any
 
 from fastapi import APIRouter, status
@@ -11,6 +12,7 @@ from app.services.imgproxy import imgproxy_service
 from app.services.cache import cache_service
 from app.models.job import job_store
 from app.core.config import settings
+from app.core.monitoring import metrics_collector
 
 # Create a router for health check endpoints
 router = APIRouter(tags=["health"])
@@ -171,8 +173,47 @@ async def health_check() -> HealthResponse:
     # Add system info
     services["system"] = {
         "python": platform.python_version(),
-        "platform": platform.platform()
+        "platform": platform.platform(),
+        "uptime": time.time() - metrics_collector.get_metrics()["system"]["start_time"]
     }
+    
+    # Add monitoring metrics
+    try:
+        metrics = metrics_collector.get_metrics()
+        services["monitoring"] = {
+            "status": "ok",
+            "requests": {
+                "total": metrics["requests"]["total"],
+                "success": metrics["requests"]["success"],
+                "error": metrics["requests"]["error"],
+                "error_rate": metrics["requests"]["error"] / max(1, metrics["requests"]["total"])
+            },
+            "response_times": {
+                "avg_ms": metrics["response_times"]["avg"],
+                "p95_ms": metrics["response_times"]["p95"],
+                "p99_ms": metrics["response_times"]["p99"]
+            },
+            "errors": {
+                "total": metrics["errors"]["total"],
+                "by_type": dict(sorted(metrics["errors"]["by_type"].items(), 
+                                  key=lambda x: x[1], reverse=True)[:5])  # Top 5 error types
+            },
+            "browser_pool": {
+                "size": metrics["browser_pool"]["size"],
+                "available": metrics["browser_pool"]["available"],
+                "in_use": metrics["browser_pool"]["in_use"],
+                "utilization": metrics["browser_pool"]["in_use"] / max(1, metrics["browser_pool"]["size"])
+            },
+            "cache": {
+                "hit_rate": metrics["cache"]["hit_rate"],
+                "size": metrics["cache"]["size"]
+            }
+        }
+    except Exception as e:
+        services["monitoring"] = {
+            "status": "error",
+            "message": str(e)
+        }
     
     # Return health status
     return HealthResponse(

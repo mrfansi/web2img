@@ -8,6 +8,7 @@ from starlette.types import ASGIApp
 
 from app.core.config import settings
 from app.core.logging import get_logger
+from app.core.monitoring import metrics_collector
 
 
 logger = get_logger("middleware")
@@ -96,6 +97,13 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
                 {"response": response_info}
             )
             
+            # Record metrics
+            metrics_collector.record_request(
+                endpoint=request.url.path,
+                status_code=response.status_code,
+                duration_ms=duration * 1000  # Convert seconds to milliseconds
+            )
+            
             # Add request ID to response headers
             response.headers["X-Request-ID"] = request_id
             
@@ -111,4 +119,23 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
                     "duration": duration,
                 }
             )
+            
+            # Record error metrics
+            error_type = type(e).__name__
+            metrics_collector.record_error(
+                error_type=error_type,
+                endpoint=request.url.path,
+                error_details={
+                    "message": str(e),
+                    "duration_ms": duration * 1000,
+                }
+            )
+            
+            # Record request metrics (as a failed request)
+            metrics_collector.record_request(
+                endpoint=request.url.path,
+                status_code=500,  # Assume 500 for unhandled exceptions
+                duration_ms=duration * 1000
+            )
+            
             raise

@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>web2img Monitoring Dashboard</title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+      body {
+        padding-top: 20px;
+        background-color: #f8f9fa;
+      }
+      .card {
+        margin-bottom: 20px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      }
+      .card-header {
+        font-weight: bold;
+        background-color: #f1f8ff;
+      }
+      .metric-value {
+        font-size: 24px;
+        font-weight: bold;
+      }
+      .metric-label {
+        font-size: 14px;
+        color: #6c757d;
+      }
+      .status-indicator {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        display: inline-block;
+        margin-right: 5px;
+      }
+      .status-ok {
+        background-color: #28a745;
+      }
+      .status-warning {
+        background-color: #ffc107;
+      }
+      .status-error {
+        background-color: #dc3545;
+      }
+      .refresh-btn {
+        margin-bottom: 20px;
+      }
+      #error-log-container {
+        max-height: 400px;
+        overflow-y: auto;
+      }
+      .error-item {
+        border-left: 3px solid #dc3545;
+        padding-left: 10px;
+        margin-bottom: 10px;
+      }
+      .error-time {
+        font-size: 12px;
+        color: #6c757d;
+      }
+      .error-type {
+        font-weight: bold;
+      }
+      .error-message {
+        font-family: monospace;
+        white-space: pre-wrap;
+        background-color: #f8f9fa;
+        padding: 5px;
+        border-radius: 3px;
+        margin-top: 5px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="row mb-4">
+        <div class="col">
+          <h1>web2img Monitoring Dashboard</h1>
+          <p class="text-muted">
+            Real-time monitoring and analytics for the web2img service
+          </p>
+          <button id="refresh-btn" class="btn btn-primary refresh-btn">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="16"
+              height="16"
+              fill="currentColor"
+              class="bi bi-arrow-clockwise"
+              viewBox="0 0 16 16"
+            >
+              <path
+                fill-rule="evenodd"
+                d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2v1z"
+              />
+              <path
+                d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466z"
+              />
+            </svg>
+            Refresh Data
+          </button>
+          <span id="last-updated" class="ms-3 text-muted"></span>
+        </div>
+      </div>
+
+      <div class="row">
+        <!-- System Status Card -->
+        <div class="col-md-6">
+          <div class="card">
+            <div class="card-header">System Status</div>
+            <div class="card-body">
+              <div class="row">
+                <div class="col-md-6">
+                  <div class="mb-3">
+                    <div class="metric-label">Status</div>
+                    <div id="system-status" class="metric-value">
+                      <span class="status-indicator status-ok"></span> OK
+                    </div>
+                  </div>
+                  <div class="mb-3">
+                    <div class="metric-label">Uptime</div>
+                    <div id="system-uptime" class="metric-value">0d 0h 0m</div>
+                  </div>
+                </div>
+                <div class="col-md-6">
+                  <div class="mb-3">
+                    <div class="metric-label">Version</div>
+                    <div id="system-version" class="metric-value">1.0.0</div>
+                  </div>
+                  <div class="mb-3">
+                    <div class="metric-label">Environment</div>
+                    <div id="system-env" class="metric-value">Production</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Request Metrics Card -->
+        <div class="col-md-6">
+          <div class="card">
+            <div class="card-header">Request Metrics</div>
+            <div class="card-body">
+              <div class="row">
+                <div class="col-md-4">
+                  <div class="mb-3">
+                    <div class="metric-label">Total Requests</div>
+                    <div id="total-requests" class="metric-value">0</div>
+                  </div>
+                </div>
+                <div class="col-md-4">
+                  <div class="mb-3">
+                    <div class="metric-label">Success Rate</div>
+                    <div id="success-rate" class="metric-value">0%</div>
+                  </div>
+                </div>
+                <div class="col-md-4">
+                  <div class="mb-3">
+                    <div class="metric-label">Error Rate</div>
+                    <div id="error-rate" class="metric-value">0%</div>
+                  </div>
+                </div>
+              </div>
+              <div class="row mt-3">
+                <div class="col-md-12">
+                  <canvas id="requests-chart" height="100"></canvas>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="row">
+        <!-- Performance Metrics Card -->
+        <div class="col-md-6">
+          <div class="card">
+            <div class="card-header">Performance Metrics</div>
+            <div class="card-body">
+              <div class="row">
+                <div class="col-md-4">
+                  <div class="mb-3">
+                    <div class="metric-label">Avg Response Time</div>
+                    <div id="avg-response-time" class="metric-value">0 ms</div>
+                  </div>
+                </div>
+                <div class="col-md-4">
+                  <div class="mb-3">
+                    <div class="metric-label">95th Percentile</div>
+                    <div id="p95-response-time" class="metric-value">0 ms</div>
+                  </div>
+                </div>
+                <div class="col-md-4">
+                  <div class="mb-3">
+                    <div class="metric-label">99th Percentile</div>
+                    <div id="p99-response-time" class="metric-value">0 ms</div>
+                  </div>
+                </div>
+              </div>
+              <div class="row mt-3">
+                <div class="col-md-12">
+                  <canvas id="response-time-chart" height="100"></canvas>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Browser Pool Metrics Card -->
+        <div class="col-md-6">
+          <div class="card">
+            <div class="card-header">Browser Pool Metrics</div>
+            <div class="card-body">
+              <div class="row">
+                <div class="col-md-4">
+                  <div class="mb-3">
+                    <div class="metric-label">Pool Size</div>
+                    <div id="pool-size" class="metric-value">0</div>
+                  </div>
+                </div>
+                <div class="col-md-4">
+                  <div class="mb-3">
+                    <div class="metric-label">In Use</div>
+                    <div id="pool-in-use" class="metric-value">0</div>
+                  </div>
+                </div>
+                <div class="col-md-4">
+                  <div class="mb-3">
+                    <div class="metric-label">Utilization</div>
+                    <div id="pool-utilization" class="metric-value">0%</div>
+                  </div>
+                </div>
+              </div>
+              <div class="row mt-3">
+                <div class="col-md-12">
+                  <canvas id="browser-pool-chart" height="100"></canvas>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="row">
+        <!-- Cache Metrics Card -->
+        <div class="col-md-6">
+          <div class="card">
+            <div class="card-header">Cache Metrics</div>
+            <div class="card-body">
+              <div class="row">
+                <div class="col-md-4">
+                  <div class="mb-3">
+                    <div class="metric-label">Hit Rate</div>
+                    <div id="cache-hit-rate" class="metric-value">0%</div>
+                  </div>
+                </div>
+                <div class="col-md-4">
+                  <div class="mb-3">
+                    <div class="metric-label">Cache Size</div>
+                    <div id="cache-size" class="metric-value">0</div>
+                  </div>
+                </div>
+                <div class="col-md-4">
+                  <div class="mb-3">
+                    <div class="metric-label">Cache Status</div>
+                    <div id="cache-status" class="metric-value">
+                      <span class="status-indicator status-ok"></span> Enabled
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="row mt-3">
+                <div class="col-md-12">
+                  <canvas id="cache-chart" height="100"></canvas>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Error Metrics Card -->
+        <div class="col-md-6">
+          <div class="card">
+            <div class="card-header">Error Metrics</div>
+            <div class="card-body">
+              <div class="row">
+                <div class="col-md-6">
+                  <div class="mb-3">
+                    <div class="metric-label">Total Errors</div>
+                    <div id="total-errors" class="metric-value">0</div>
+                  </div>
+                </div>
+                <div class="col-md-6">
+                  <div class="mb-3">
+                    <div class="metric-label">Most Common Error</div>
+                    <div id="common-error" class="metric-value">None</div>
+                  </div>
+                </div>
+              </div>
+              <div class="row mt-3">
+                <div class="col-md-12">
+                  <canvas id="error-chart" height="100"></canvas>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Recent Errors Card -->
+      <div class="row">
+        <div class="col-md-12">
+          <div class="card">
+            <div class="card-header">Recent Errors</div>
+            <div class="card-body">
+              <div id="error-log-container">
+                <div id="error-log">
+                  <div class="text-center text-muted">No errors to display</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // Charts
+      let requestsChart;
+      let responseTimeChart;
+      let browserPoolChart;
+      let cacheChart;
+      let errorChart;
+
+      // Initialize charts
+      function initCharts() {
+        // Requests Chart
+        const requestsCtx = document
+          .getElementById("requests-chart")
+          .getContext("2d");
+        requestsChart = new Chart(requestsCtx, {
+          type: "line",
+          data: {
+            labels: Array(10).fill(""),
+            datasets: [
+              {
+                label: "Requests",
+                data: Array(10).fill(0),
+                borderColor: "rgba(75, 192, 192, 1)",
+                backgroundColor: "rgba(75, 192, 192, 0.2)",
+                tension: 0.4,
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: {
+                display: false,
+              },
+            },
+            scales: {
+              y: {
+                beginAtZero: true,
+              },
+            },
+          },
+        });
+
+        // Response Time Chart
+        const responseTimeCtx = document
+          .getElementById("response-time-chart")
+          .getContext("2d");
+        responseTimeChart = new Chart(responseTimeCtx, {
+          type: "line",
+          data: {
+            labels: Array(10).fill(""),
+            datasets: [
+              {
+                label: "Avg Response Time (ms)",
+                data: Array(10).fill(0),
+                borderColor: "rgba(54, 162, 235, 1)",
+                backgroundColor: "rgba(54, 162, 235, 0.2)",
+                tension: 0.4,
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: {
+                display: false,
+              },
+            },
+            scales: {
+              y: {
+                beginAtZero: true,
+              },
+            },
+          },
+        });
+
+        // Browser Pool Chart
+        const browserPoolCtx = document
+          .getElementById("browser-pool-chart")
+          .getContext("2d");
+        browserPoolChart = new Chart(browserPoolCtx, {
+          type: "bar",
+          data: {
+            labels: ["Available", "In Use"],
+            datasets: [
+              {
+                data: [0, 0],
+                backgroundColor: [
+                  "rgba(75, 192, 192, 0.6)",
+                  "rgba(255, 159, 64, 0.6)",
+                ],
+                borderColor: ["rgba(75, 192, 192, 1)", "rgba(255, 159, 64, 1)"],
+                borderWidth: 1,
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: {
+                display: false,
+              },
+            },
+            scales: {
+              y: {
+                beginAtZero: true,
+              },
+            },
+          },
+        });
+
+        // Cache Chart
+        const cacheCtx = document
+          .getElementById("cache-chart")
+          .getContext("2d");
+        cacheChart = new Chart(cacheCtx, {
+          type: "doughnut",
+          data: {
+            labels: ["Hits", "Misses"],
+            datasets: [
+              {
+                data: [0, 0],
+                backgroundColor: [
+                  "rgba(75, 192, 192, 0.6)",
+                  "rgba(255, 99, 132, 0.6)",
+                ],
+                borderColor: ["rgba(75, 192, 192, 1)", "rgba(255, 99, 132, 1)"],
+                borderWidth: 1,
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+          },
+        });
+
+        // Error Chart
+        const errorCtx = document
+          .getElementById("error-chart")
+          .getContext("2d");
+        errorChart = new Chart(errorCtx, {
+          type: "bar",
+          data: {
+            labels: ["No Errors"],
+            datasets: [
+              {
+                data: [0],
+                backgroundColor: "rgba(255, 99, 132, 0.6)",
+                borderColor: "rgba(255, 99, 132, 1)",
+                borderWidth: 1,
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: {
+                display: false,
+              },
+            },
+            scales: {
+              y: {
+                beginAtZero: true,
+              },
+            },
+          },
+        });
+      }
+
+      // Format uptime
+      function formatUptime(seconds) {
+        const days = Math.floor(seconds / 86400);
+        const hours = Math.floor((seconds % 86400) / 3600);
+        const minutes = Math.floor((seconds % 3600) / 60);
+        return `${days}d ${hours}h ${minutes}m`;
+      }
+
+      // Format timestamp
+      function formatTimestamp(timestamp) {
+        const date = new Date(timestamp * 1000);
+        return date.toLocaleTimeString();
+      }
+
+      // Update dashboard with metrics data
+      function updateDashboard(data) {
+        // Update system metrics
+        document.getElementById("system-uptime").textContent = formatUptime(
+          data.services.system.uptime
+        );
+        document.getElementById("system-version").textContent = data.version;
+
+        // Update status indicator
+        const statusIndicator = document
+          .getElementById("system-status")
+          .querySelector(".status-indicator");
+        if (data.status === "ok") {
+          statusIndicator.className = "status-indicator status-ok";
+          document.getElementById("system-status").innerHTML =
+            '<span class="status-indicator status-ok"></span> OK';
+        } else if (data.status === "degraded") {
+          statusIndicator.className = "status-indicator status-warning";
+          document.getElementById("system-status").innerHTML =
+            '<span class="status-indicator status-warning"></span> Degraded';
+        } else {
+          statusIndicator.className = "status-indicator status-error";
+          document.getElementById("system-status").innerHTML =
+            '<span class="status-indicator status-error"></span> Error';
+        }
+
+        // Update monitoring metrics if available
+        if (
+          data.services.monitoring &&
+          data.services.monitoring.status === "ok"
+        ) {
+          const monitoring = data.services.monitoring;
+
+          // Request metrics
+          document.getElementById("total-requests").textContent =
+            monitoring.requests.total;
+          document.getElementById("success-rate").textContent = `${(
+            (1 - monitoring.requests.error_rate) *
+            100
+          ).toFixed(1)}%`;
+          document.getElementById("error-rate").textContent = `${(
+            monitoring.requests.error_rate * 100
+          ).toFixed(1)}%`;
+
+          // Response time metrics
+          document.getElementById(
+            "avg-response-time"
+          ).textContent = `${monitoring.response_times.avg_ms.toFixed(1)} ms`;
+          document.getElementById(
+            "p95-response-time"
+          ).textContent = `${monitoring.response_times.p95_ms.toFixed(1)} ms`;
+          document.getElementById(
+            "p99-response-time"
+          ).textContent = `${monitoring.response_times.p99_ms.toFixed(1)} ms`;
+
+          // Browser pool metrics
+          document.getElementById("pool-size").textContent =
+            monitoring.browser_pool.size;
+          document.getElementById("pool-in-use").textContent =
+            monitoring.browser_pool.in_use;
+          document.getElementById("pool-utilization").textContent = `${(
+            monitoring.browser_pool.utilization * 100
+          ).toFixed(1)}%`;
+
+          // Update browser pool chart
+          browserPoolChart.data.datasets[0].data = [
+            monitoring.browser_pool.available,
+            monitoring.browser_pool.in_use,
+          ];
+          browserPoolChart.update();
+
+          // Cache metrics
+          document.getElementById("cache-hit-rate").textContent = `${(
+            monitoring.cache.hit_rate * 100
+          ).toFixed(1)}%`;
+          document.getElementById("cache-size").textContent =
+            monitoring.cache.size;
+
+          // Update cache chart
+          const hits = Math.round(monitoring.cache.hit_rate * 100);
+          const misses = 100 - hits;
+          cacheChart.data.datasets[0].data = [hits, misses];
+          cacheChart.update();
+
+          // Error metrics
+          document.getElementById("total-errors").textContent =
+            monitoring.errors.total;
+
+          // Update error chart
+          if (Object.keys(monitoring.errors.by_type).length > 0) {
+            const errorLabels = Object.keys(monitoring.errors.by_type);
+            const errorValues = Object.values(monitoring.errors.by_type);
+            errorChart.data.labels = errorLabels;
+            errorChart.data.datasets[0].data = errorValues;
+            errorChart.update();
+
+            // Update most common error
+            document.getElementById("common-error").textContent =
+              errorLabels[0];
+          } else {
+            document.getElementById("common-error").textContent = "None";
+          }
+        }
+
+        // Update last updated time
+        document.getElementById(
+          "last-updated"
+        ).textContent = `Last updated: ${new Date().toLocaleTimeString()}`;
+      }
+
+      // Fetch error logs
+      async function fetchErrorLogs() {
+        try {
+          const response = await fetch("/metrics/errors");
+          const data = await response.json();
+
+          // Update error log
+          const errorLogContainer = document.getElementById("error-log");
+          if (data.recent_errors && data.recent_errors.length > 0) {
+            errorLogContainer.innerHTML = "";
+
+            data.recent_errors.forEach((error) => {
+              const errorItem = document.createElement("div");
+              errorItem.className = "error-item";
+
+              const errorTime = document.createElement("div");
+              errorTime.className = "error-time";
+              errorTime.textContent = formatTimestamp(error.timestamp);
+
+              const errorType = document.createElement("div");
+              errorType.className = "error-type";
+              errorType.textContent = `${error.type} at ${error.endpoint}`;
+
+              const errorMessage = document.createElement("div");
+              errorMessage.className = "error-message";
+              errorMessage.textContent = JSON.stringify(error.details, null, 2);
+
+              errorItem.appendChild(errorTime);
+              errorItem.appendChild(errorType);
+              errorItem.appendChild(errorMessage);
+
+              errorLogContainer.appendChild(errorItem);
+            });
+          } else {
+            errorLogContainer.innerHTML =
+              '<div class="text-center text-muted">No errors to display</div>';
+          }
+        } catch (error) {
+          console.error("Error fetching error logs:", error);
+        }
+      }
+
+      // Fetch metrics data
+      async function fetchMetrics() {
+        try {
+          const response = await fetch("/health");
+          const data = await response.json();
+          updateDashboard(data);
+          await fetchErrorLogs();
+        } catch (error) {
+          console.error("Error fetching metrics:", error);
+        }
+      }
+
+      // Initialize dashboard
+      document.addEventListener("DOMContentLoaded", () => {
+        initCharts();
+        fetchMetrics();
+
+        // Set up refresh button
+        document
+          .getElementById("refresh-btn")
+          .addEventListener("click", fetchMetrics);
+
+        // Auto-refresh every 30 seconds
+        setInterval(fetchMetrics, 30000);
+      });
+    </script>
+  </body>
+</html>
