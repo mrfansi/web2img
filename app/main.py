@@ -5,7 +5,7 @@ from typing import List
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
@@ -242,6 +242,10 @@ def create_app() -> FastAPI:
     async def get_dashboard():
         with open(static_dir / "dashboard.html", "r") as f:
             return f.read()
+
+    @app.get("/")
+    async def get_root():
+        return RedirectResponse(url="/dashboard")
     
     return app
 
