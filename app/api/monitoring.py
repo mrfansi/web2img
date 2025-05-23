@@ -1,11 +1,16 @@
 from typing import Dict, Any, Optional
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
+import asyncio
+import json
 
 from app.core.monitoring import metrics_collector
 from app.core.errors import HTTP_200_OK
 
 # Create a router for monitoring endpoints
 router = APIRouter(tags=["monitoring"])
+
+# Store active WebSocket connections
+active_connections = []
 
 
 @router.get(
@@ -197,3 +202,39 @@ async def get_performance_metrics() -> Dict[str, Any]:
         "cache": metrics.get("cache", {}),
         "system": metrics.get("system", {}),
     }
+
+
+@router.websocket("/metrics/ws", name="metrics_websocket")
+async def websocket_metrics(websocket: WebSocket):
+    """WebSocket endpoint for real-time metrics updates.
+    
+    Establishes a WebSocket connection and sends metrics updates at regular intervals.
+    """
+    await websocket.accept()
+    
+    # Add to active connections
+    active_connections.append(websocket)
+    
+    try:
+        while True:
+            # Get current metrics
+            metrics = metrics_collector.get_metrics()
+            
+            # Send metrics as JSON
+            await websocket.send_text(json.dumps(metrics))
+            
+            # Wait before sending next update
+            await asyncio.sleep(1)  # Send updates every second
+    except WebSocketDisconnect:
+        # Remove from active connections
+        active_connections.remove(websocket)
+    except Exception as e:
+        # Handle any other exceptions
+        if websocket in active_connections:
+            active_connections.remove(websocket)
+        
+        # Try to send error message
+        try:
+            await websocket.close(code=1011, reason=str(e))
+        except:
+            pass
