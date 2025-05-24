@@ -1,9 +1,16 @@
-from typing import Dict, Any
+from typing import Dict, Any, List, Optional
 
-from fastapi import APIRouter, HTTPException, Path, Query, BackgroundTasks
+from fastapi import APIRouter, HTTPException, Path, Query, BackgroundTasks, Header, Depends
 from pydantic import ValidationError
 
-from app.schemas.batch import BatchScreenshotRequest, BatchScreenshotResponse, BatchJobStatusResponse
+from app.schemas.batch import (
+    BatchScreenshotRequest, 
+    BatchScreenshotResponse, 
+    BatchJobStatusResponse,
+    ScheduleJobRequest,
+    RecurrenceRequest,
+    BatchJobListResponse
+)
 from app.services.batch import batch_service
 from app.core.errors import (
     WebToImgError, 
@@ -12,10 +19,20 @@ from app.core.errors import (
     HTTP_400_BAD_REQUEST,
     HTTP_404_NOT_FOUND,
     HTTP_202_ACCEPTED,
+    HTTP_429_TOO_MANY_REQUESTS,
     HTTP_500_INTERNAL_SERVER_ERROR
 )
 
 router = APIRouter(tags=["batch"])
+
+# Simple user ID extraction from header for rate limiting
+async def get_user_id(x_api_key: Optional[str] = Header(None)) -> Optional[str]:
+    """Extract user ID from API key header."""
+    if not x_api_key:
+        return None
+    # In a real implementation, we would validate the API key and look up the user
+    # For now, we'll just use the API key as the user ID
+    return x_api_key
 
 
 @router.post(
@@ -25,7 +42,10 @@ router = APIRouter(tags=["batch"])
     summary="Create a batch screenshot job",
     description="Submit multiple screenshot requests to be processed as a batch"
 )
-async def create_batch_job(request: BatchScreenshotRequest) -> Dict[str, Any]:
+async def create_batch_job(
+    request: BatchScreenshotRequest, 
+    user_id: Optional[str] = Depends(get_user_id)
+) -> Dict[str, Any]:
     """Create a batch job for processing multiple screenshot requests.
     
     This endpoint allows you to submit multiple screenshot requests to be processed as a batch.
@@ -47,7 +67,11 @@ async def create_batch_job(request: BatchScreenshotRequest) -> Dict[str, Any]:
         items = [item.model_dump() for item in request.items]
         config = request.config.model_dump() if request.config else {}
         
-        job = await batch_service.create_batch_job(items, config)
+        # Add user_id to config for tracking
+        if user_id:
+            config["user_id"] = user_id
+        
+        job = await batch_service.create_batch_job(items, config, user_id)
         
         # Return the job status
         return job.get_status()
@@ -103,6 +127,195 @@ async def get_batch_job_status(job_id: str = Path(..., description="Batch job ID
         
     except HTTPException:
         raise
+    except Exception as e:
+        # If it's already one of our custom errors, just re-raise it
+        if isinstance(e, WebToImgError):
+            raise
+        
+        # Otherwise, convert to an appropriate error response
+        error_dict = get_error_response(e)
+        
+        # Raise HTTPException with the detailed error information
+        raise HTTPException(
+            status_code=error_dict.get("http_status", HTTP_500_INTERNAL_SERVER_ERROR),
+            detail=error_dict
+        )
+
+
+@router.post(
+    "/batch/screenshots/{job_id}/schedule",
+    response_model=BatchJobStatusResponse,
+    status_code=HTTP_202_ACCEPTED,
+    summary="Schedule a batch job",
+    description="Schedule a batch job for future execution"
+)
+async def schedule_batch_job(
+    request: ScheduleJobRequest,
+    job_id: str = Path(..., description="Batch job ID")
+) -> Dict[str, Any]:
+    """Schedule a batch job for future execution.
+    
+    This endpoint allows you to schedule a batch job to be executed at a specific time in the future.
+    The job must already exist and be in a pending state.
+    
+    Returns the updated job status, including the scheduled time.
+    """
+    try:
+        # Schedule the job
+        job_status = await batch_service.schedule_job(job_id, request.scheduled_time)
+        
+        if not job_status:
+            raise HTTPException(
+                status_code=HTTP_404_NOT_FOUND,
+                detail=f"Batch job not found or could not be scheduled: {job_id}"
+            )
+        
+        return job_status
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        # If it's already one of our custom errors, just re-raise it
+        if isinstance(e, WebToImgError):
+            raise
+        
+        # Otherwise, convert to an appropriate error response
+        error_dict = get_error_response(e)
+        
+        # Raise HTTPException with the detailed error information
+        raise HTTPException(
+            status_code=error_dict.get("http_status", HTTP_500_INTERNAL_SERVER_ERROR),
+            detail=error_dict
+        )
+
+
+@router.post(
+    "/batch/screenshots/{job_id}/recurrence",
+    response_model=BatchJobStatusResponse,
+    status_code=HTTP_202_ACCEPTED,
+    summary="Set job recurrence",
+    description="Set a job to recur with the specified pattern"
+)
+async def set_job_recurrence(
+    request: RecurrenceRequest,
+    job_id: str = Path(..., description="Batch job ID")
+) -> Dict[str, Any]:
+    """Set a job to recur with the specified pattern.
+    
+    This endpoint allows you to set a job to recur with a specified pattern, such as hourly, daily, weekly, or monthly.
+    The job must already exist and be in a scheduled state.
+    
+    Returns the updated job status, including the recurrence pattern and next scheduled time.
+    """
+    try:
+        # Set job recurrence
+        job_status = await batch_service.set_job_recurrence(
+            job_id, 
+            request.pattern, 
+            request.interval, 
+            request.count
+        )
+        
+        if not job_status:
+            raise HTTPException(
+                status_code=HTTP_404_NOT_FOUND,
+                detail=f"Batch job not found or could not set recurrence: {job_id}"
+            )
+        
+        return job_status
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        # If it's already one of our custom errors, just re-raise it
+        if isinstance(e, WebToImgError):
+            raise
+        
+        # Otherwise, convert to an appropriate error response
+        error_dict = get_error_response(e)
+        
+        # Raise HTTPException with the detailed error information
+        raise HTTPException(
+            status_code=error_dict.get("http_status", HTTP_500_INTERNAL_SERVER_ERROR),
+            detail=error_dict
+        )
+
+
+@router.post(
+    "/batch/screenshots/{job_id}/cancel",
+    response_model=BatchJobStatusResponse,
+    status_code=HTTP_200_OK,
+    summary="Cancel a batch job",
+    description="Cancel a batch job that is processing or scheduled"
+)
+async def cancel_batch_job(
+    job_id: str = Path(..., description="Batch job ID")
+) -> Dict[str, Any]:
+    """Cancel a batch job that is processing or scheduled.
+    
+    This endpoint allows you to cancel a batch job that is currently processing or scheduled for future execution.
+    Any pending items in the job will be marked as failed with a cancellation message.
+    
+    Returns the updated job status.
+    """
+    try:
+        # Cancel the job
+        success = await batch_service.cancel_job(job_id)
+        
+        if not success:
+            raise HTTPException(
+                status_code=HTTP_404_NOT_FOUND,
+                detail=f"Batch job not found or could not be cancelled: {job_id}"
+            )
+        
+        # Get the updated job status
+        job_status = await batch_service.get_job_status(job_id)
+        
+        if not job_status:
+            raise HTTPException(
+                status_code=HTTP_404_NOT_FOUND,
+                detail=f"Batch job not found: {job_id}"
+            )
+        
+        return job_status
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        # If it's already one of our custom errors, just re-raise it
+        if isinstance(e, WebToImgError):
+            raise
+        
+        # Otherwise, convert to an appropriate error response
+        error_dict = get_error_response(e)
+        
+        # Raise HTTPException with the detailed error information
+        raise HTTPException(
+            status_code=error_dict.get("http_status", HTTP_500_INTERNAL_SERVER_ERROR),
+            detail=error_dict
+        )
+
+
+@router.get(
+    "/batch/screenshots/active",
+    response_model=BatchJobListResponse,
+    status_code=HTTP_200_OK,
+    summary="Get active batch jobs",
+    description="Get all active batch jobs (processing or scheduled)"
+)
+async def get_active_batch_jobs() -> Dict[str, Any]:
+    """Get all active batch jobs (processing or scheduled).
+    
+    This endpoint allows you to retrieve a list of all batch jobs that are currently processing or scheduled for future execution.
+    
+    Returns a list of job statuses.
+    """
+    try:
+        # Get active jobs
+        active_jobs = await batch_service.get_active_jobs()
+        
+        return {"jobs": active_jobs}
+        
     except Exception as e:
         # If it's already one of our custom errors, just re-raise it
         if isinstance(e, WebToImgError):

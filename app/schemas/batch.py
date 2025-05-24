@@ -1,7 +1,9 @@
 from typing import List, Dict, Any, Optional
-from pydantic import BaseModel, Field, HttpUrl
+from pydantic import BaseModel, Field, HttpUrl, validator
+from datetime import datetime
 
 from app.schemas.screenshot import ScreenshotRequest
+from app.models.job import JobPriority, RecurrencePattern
 
 
 class BatchItemRequest(ScreenshotRequest):
@@ -49,6 +51,55 @@ class BatchConfig(BaseModel):
         description="Whether to use cache for screenshots",
         example=True
     )
+    priority: str = Field(
+        default="normal",
+        description="Priority of the batch job (high, normal, low)",
+        example="normal"
+    )
+    scheduled_time: Optional[str] = Field(
+        default=None,
+        description="ISO 8601 datetime string for when to execute the job",
+        example="2025-06-01T12:00:00Z"
+    )
+    recurrence: Optional[str] = Field(
+        default=None,
+        description="Recurrence pattern for the job (none, hourly, daily, weekly, monthly, custom)",
+        example="daily"
+    )
+    recurrence_interval: Optional[int] = Field(
+        default=1,
+        description="Interval for recurrence (e.g., every 2 days)",
+        example=1,
+        ge=1
+    )
+    recurrence_count: Optional[int] = Field(
+        default=0,
+        description="Number of times to recur (0 means infinite)",
+        example=7,
+        ge=0
+    )
+    recurrence_cron: Optional[str] = Field(
+        default=None,
+        description="Custom cron expression for recurrence (only used with recurrence=custom)",
+        example="0 9 * * 1-5"  # 9am on weekdays
+    )
+    rate_limit: Optional[int] = Field(
+        default=None,
+        description="Maximum number of requests per minute",
+        example=10
+    )
+    
+    @validator('priority')
+    def validate_priority(cls, v):
+        if v not in [p.value for p in JobPriority]:
+            raise ValueError(f"Priority must be one of: {', '.join([p.value for p in JobPriority])}")
+        return v
+        
+    @validator('recurrence')
+    def validate_recurrence(cls, v):
+        if v is not None and v not in [r.value for r in RecurrencePattern]:
+            raise ValueError(f"Recurrence must be one of: {', '.join([r.value for r in RecurrencePattern])}")
+        return v
 
 
 class BatchScreenshotRequest(BaseModel):
@@ -89,7 +140,13 @@ class BatchScreenshotRequest(BaseModel):
                     "webhook": "https://api.example.com/callbacks/screenshots",
                     "webhook_auth": "Bearer token123",
                     "fail_fast": False,
-                    "cache": True
+                    "cache": True,
+                    "priority": "high",
+                    "scheduled_time": "2025-06-01T12:00:00Z",
+                    "recurrence": "daily",
+                    "recurrence_interval": 1,
+                    "recurrence_count": 7,
+                    "rate_limit": 10
                 }
             }
         }
@@ -190,6 +247,59 @@ class BatchScreenshotResponse(BaseModel):
     }
 
 
+class ScheduleJobRequest(BaseModel):
+    """Request model for scheduling a batch job."""
+    scheduled_time: str = Field(
+        ...,
+        description="ISO 8601 datetime string for when to execute the job",
+        example="2025-06-01T12:00:00Z"
+    )
+    
+    @validator('scheduled_time')
+    def validate_scheduled_time(cls, v):
+        try:
+            # Validate that it's a valid ISO format datetime string
+            dt = datetime.fromisoformat(v.replace('Z', '+00:00'))
+            # Ensure it's in the future
+            if dt < datetime.now():
+                raise ValueError("Scheduled time must be in the future")
+            return v
+        except ValueError as e:
+            raise ValueError(f"Invalid datetime format: {str(e)}")
+
+
+class RecurrenceRequest(BaseModel):
+    """Request model for setting job recurrence."""
+    pattern: str = Field(
+        ...,
+        description="Recurrence pattern (none, hourly, daily, weekly, monthly, custom)",
+        example="daily"
+    )
+    interval: int = Field(
+        default=1,
+        description="Interval for recurrence (e.g., every 2 days)",
+        example=1,
+        ge=1
+    )
+    count: int = Field(
+        default=0,
+        description="Number of times to recur (0 means infinite)",
+        example=7,
+        ge=0
+    )
+    cron: Optional[str] = Field(
+        default=None,
+        description="Custom cron expression (only used with pattern=custom)",
+        example="0 9 * * 1-5"  # 9am on weekdays
+    )
+    
+    @validator('pattern')
+    def validate_pattern(cls, v):
+        if v not in [r.value for r in RecurrencePattern]:
+            raise ValueError(f"Pattern must be one of: {', '.join([r.value for r in RecurrencePattern])}")
+        return v
+
+
 class BatchJobStatusResponse(BaseModel):
     """Response model for batch job status."""
     job_id: str = Field(
@@ -199,8 +309,13 @@ class BatchJobStatusResponse(BaseModel):
     )
     status: str = Field(
         ...,
-        description="Status of the batch job (completed, processing, failed)",
+        description="Status of the batch job (pending, processing, completed, failed, scheduled, cancelled)",
         example="processing"
+    )
+    priority: str = Field(
+        ...,
+        description="Priority of the batch job (high, normal, low)",
+        example="normal"
     )
     total: int = Field(
         ...,
@@ -227,6 +342,21 @@ class BatchJobStatusResponse(BaseModel):
         description="Timestamp when the job was last updated",
         example="2025-05-23T00:30:02Z"
     )
+    scheduled_time: Optional[str] = Field(
+        default=None,
+        description="Scheduled timestamp for job execution",
+        example="2025-06-01T12:00:00Z"
+    )
+    recurrence: Optional[str] = Field(
+        default=None,
+        description="Recurrence pattern for the job",
+        example="daily"
+    )
+    next_scheduled_time: Optional[str] = Field(
+        default=None,
+        description="Next scheduled timestamp for recurring jobs",
+        example="2025-06-02T12:00:00Z"
+    )
     estimated_completion: Optional[str] = Field(
         default=None,
         description="Estimated timestamp for job completion",
@@ -238,12 +368,62 @@ class BatchJobStatusResponse(BaseModel):
             "example": {
                 "job_id": "batch-123456",
                 "status": "processing",
+                "priority": "high",
                 "total": 2,
                 "completed": 1,
                 "failed": 0,
                 "created_at": "2025-05-23T00:30:00Z",
                 "updated_at": "2025-05-23T00:30:02Z",
+                "scheduled_time": null,
+                "recurrence": null,
+                "next_scheduled_time": null,
                 "estimated_completion": "2025-05-23T00:30:05Z"
+            }
+        }
+    }
+
+
+class BatchJobListResponse(BaseModel):
+    """Response model for a list of batch jobs."""
+    jobs: List[BatchJobStatusResponse] = Field(
+        ...,
+        description="List of batch jobs",
+        example=[]
+    )
+    
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "jobs": [
+                    {
+                        "job_id": "batch-123456",
+                        "status": "processing",
+                        "priority": "high",
+                        "total": 2,
+                        "completed": 1,
+                        "failed": 0,
+                        "created_at": "2025-05-23T00:30:00Z",
+                        "updated_at": "2025-05-23T00:30:02Z",
+                        "scheduled_time": null,
+                        "recurrence": null,
+                        "next_scheduled_time": null,
+                        "estimated_completion": "2025-05-23T00:30:05Z"
+                    },
+                    {
+                        "job_id": "batch-789012",
+                        "status": "scheduled",
+                        "priority": "normal",
+                        "total": 3,
+                        "completed": 0,
+                        "failed": 0,
+                        "created_at": "2025-05-23T00:35:00Z",
+                        "updated_at": "2025-05-23T00:35:00Z",
+                        "scheduled_time": "2025-06-01T12:00:00Z",
+                        "recurrence": "daily",
+                        "next_scheduled_time": "2025-06-02T12:00:00Z",
+                        "estimated_completion": null
+                    }
+                ]
             }
         }
     }
