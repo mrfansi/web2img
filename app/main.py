@@ -24,6 +24,7 @@ from app.core.monitoring import metrics_collector, start_monitoring, stop_monito
 from app.services.screenshot import screenshot_service
 from app.services.storage import storage_service
 from app.services.cache import cache_service
+from app.services.batch import batch_service
 
 
 @asynccontextmanager
@@ -54,6 +55,10 @@ async def lifespan(app: FastAPI):
     await start_monitoring()
     logger.info("Monitoring system initialized")
     
+    # Start batch job scheduler
+    await batch_service.start_scheduler()
+    logger.info("Batch job scheduler started")
+    
     yield
     
     # Shutdown: Clean up resources
@@ -61,6 +66,10 @@ async def lifespan(app: FastAPI):
     await screenshot_service.cleanup()
     await storage_service.cleanup()
     await cache_service.cleanup()
+    
+    # Stop batch job scheduler
+    await batch_service.stop_scheduler()
+    logger.info("Batch job scheduler stopped")
     
     # Stop monitoring system
     await stop_monitoring()

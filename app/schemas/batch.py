@@ -260,8 +260,8 @@ class ScheduleJobRequest(BaseModel):
         try:
             # Validate that it's a valid ISO format datetime string
             dt = datetime.fromisoformat(v.replace('Z', '+00:00'))
-            # Ensure it's in the future
-            if dt < datetime.now():
+            # Ensure it's in the future using timezone-aware comparison
+            if dt < datetime.now(timezone.utc):
                 raise ValueError("Scheduled time must be in the future")
             return v
         except ValueError as e:

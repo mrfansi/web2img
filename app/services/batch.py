@@ -229,8 +229,20 @@ class BatchService:
             
         return None
         
-    async def set_job_recurrence(self, job_id: str, pattern: str, interval: int = 1, count: int = 0) -> Optional[Dict[str, Any]]:
-        """Set a job to recur with the specified pattern."""
+    async def set_job_recurrence(self, job_id: str, pattern: str, interval: int = 1, count: int = 0, cron: Optional[str] = None) -> Optional[Dict[str, Any]]:
+        """
+        Set a job to recur with the specified pattern.
+        
+        Args:
+            job_id: ID of the job to set recurrence for
+            pattern: Recurrence pattern (none, hourly, daily, weekly, monthly, custom)
+            interval: Interval for recurrence (e.g., every 2 days)
+            count: Number of times to recur (0 means infinite)
+            cron: Custom cron expression (only used with pattern=custom)
+            
+        Returns:
+            Updated job status or None if job not found or pattern is invalid
+        """
         job = job_store.get_job(job_id)
         if not job:
             return None
@@ -241,6 +253,10 @@ class BatchService:
             job.recurrence_interval = interval
             job.recurrence_count = count
             
+            # Set custom cron expression if provided and pattern is custom
+            if pattern == RecurrencePattern.CUSTOM.value and cron:
+                job.recurrence_cron = cron
+            
             # Calculate next scheduled time if the job is already scheduled
             if job.scheduled_time:
                 job._calculate_next_scheduled_time()
@@ -250,8 +266,9 @@ class BatchService:
                 await self.start_scheduler()
                 
             return job.get_status()
-        except ValueError:
-            # If invalid pattern, return None
+        except ValueError as e:
+            # If invalid pattern, log the error and return None
+            logger.error(f"Invalid recurrence pattern for job {job_id}: {str(e)}")
             pass
             
         return None
@@ -515,5 +532,5 @@ class BatchService:
 # Create a singleton instance
 batch_service = BatchService()
 
-# Start the job scheduler
-asyncio.create_task(batch_service.start_scheduler())
+# Note: The scheduler will be started in the FastAPI startup event handler
+# Do not start it here as there may not be an active event loop during module import

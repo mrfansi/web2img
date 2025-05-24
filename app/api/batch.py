@@ -213,7 +213,8 @@ async def set_job_recurrence(
             job_id, 
             request.pattern, 
             request.interval, 
-            request.count
+            request.count,
+            request.cron
         )
         
         if not job_status:

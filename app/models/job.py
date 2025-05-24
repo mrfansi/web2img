@@ -189,6 +189,39 @@ class BatchJob:
                 return item
         return None
     
+    def _add_months(self, dt: datetime, months: int) -> datetime:
+        """
+        Add a given number of months to a datetime, safely handling month-end edge cases.
+        
+        Args:
+            dt: The base datetime
+            months: Number of months to add
+            
+        Returns:
+            A new datetime with the months added
+        """
+        # Calculate target year and month
+        year = dt.year + ((dt.month - 1 + months) // 12)
+        month = ((dt.month - 1 + months) % 12) + 1
+        
+        # Get the last day of the target month
+        if month == 2:
+            # Handle February and leap years
+            if (year % 4 == 0 and year % 100 != 0) or (year % 400 == 0):
+                last_day = 29
+            else:
+                last_day = 28
+        elif month in [4, 6, 9, 11]:
+            last_day = 30
+        else:
+            last_day = 31
+        
+        # Use the original day if possible, otherwise use the last day of the month
+        day = min(dt.day, last_day)
+        
+        # Create the new datetime with the same time components
+        return dt.replace(year=year, month=month, day=day)
+    
     def _calculate_next_scheduled_time(self) -> None:
         """Calculate the next scheduled time based on recurrence pattern."""
         if self.recurrence_pattern == RecurrencePattern.NONE or not self.scheduled_time:
@@ -206,14 +239,14 @@ class BatchJob:
         elif self.recurrence_pattern == RecurrencePattern.WEEKLY:
             next_dt = base_dt + timedelta(weeks=self.recurrence_interval)
         elif self.recurrence_pattern == RecurrencePattern.MONTHLY:
-            # Add months (approximate)
-            year = base_dt.year + ((base_dt.month - 1 + self.recurrence_interval) // 12)
-            month = ((base_dt.month - 1 + self.recurrence_interval) % 12) + 1
-            next_dt = base_dt.replace(year=year, month=month)
+            # Add months safely handling month-end edge cases
+            next_dt = self._add_months(base_dt, self.recurrence_interval)
         elif self.recurrence_pattern == RecurrencePattern.CUSTOM and self.recurrence_cron:
             # For custom cron expressions, we would need a cron parser library
-            # This is a placeholder for future implementation
-            next_dt = base_dt + timedelta(days=1)  # Default to daily if custom pattern can't be parsed
+            raise NotImplementedError(
+                "Custom cron expression parsing is not yet implemented. " 
+                "Please use one of the standard recurrence patterns (hourly, daily, weekly, monthly)."
+            )
         else:
             self.next_scheduled_time = None
             return
@@ -227,15 +260,26 @@ class BatchJob:
         
         # Check if we've reached the recurrence count limit
         if self.recurrence_count > 0:
-            # Count existing recurrences
+            # Count existing recurrences by traversing the parent chain
             recurrence_count = 1  # This job counts as 1
-            current_job = self
-            while current_job.parent_job_id:
-                recurrence_count += 1
-                # In a real implementation, we would look up the parent job
-                # For now, we'll just assume we can't exceed the count
-                if recurrence_count >= self.recurrence_count:
-                    return None
+            current_job_id = self.parent_job_id
+            
+            # Get a reference to the job store
+            from app.models.job import job_store
+            
+            # Traverse the parent chain to count recurrences
+            while current_job_id:
+                # Look up the parent job
+                parent_job = job_store.get_job(current_job_id)
+                if parent_job:
+                    recurrence_count += 1
+                    current_job_id = parent_job.parent_job_id
+                    # If we've reached the limit, stop recurring
+                    if recurrence_count >= self.recurrence_count:
+                        return None
+                else:
+                    # Parent job not found, break the chain
+                    break
         
         # Create a new config for the recurrence
         new_config = self.config.copy()
