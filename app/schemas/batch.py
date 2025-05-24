@@ -374,9 +374,9 @@ class BatchJobStatusResponse(BaseModel):
                 "failed": 0,
                 "created_at": "2025-05-23T00:30:00Z",
                 "updated_at": "2025-05-23T00:30:02Z",
-                "scheduled_time": null,
-                "recurrence": null,
-                "next_scheduled_time": null,
+                "scheduled_time": None,
+                "recurrence": None,
+                "next_scheduled_time": None,
                 "estimated_completion": "2025-05-23T00:30:05Z"
             }
         }
@@ -404,9 +404,9 @@ class BatchJobListResponse(BaseModel):
                         "failed": 0,
                         "created_at": "2025-05-23T00:30:00Z",
                         "updated_at": "2025-05-23T00:30:02Z",
-                        "scheduled_time": null,
-                        "recurrence": null,
-                        "next_scheduled_time": null,
+                        "scheduled_time": None,
+                        "recurrence": None,
+                        "next_scheduled_time": None,
                         "estimated_completion": "2025-05-23T00:30:05Z"
                     },
                     {
@@ -421,7 +421,7 @@ class BatchJobListResponse(BaseModel):
                         "scheduled_time": "2025-06-01T12:00:00Z",
                         "recurrence": "daily",
                         "next_scheduled_time": "2025-06-02T12:00:00Z",
-                        "estimated_completion": null
+                        "estimated_completion": None
                     }
                 ]
             }
