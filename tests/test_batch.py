@@ -9,7 +9,16 @@ from typing import Dict, List, Any
 import httpx
 
 
-async def test_batch_processing(base_url: str, urls: List[str], parallel: int = 3, use_cache: bool = True) -> None:
+async def test_batch_processing(base_url: str = "http://localhost:8000", urls: List[str] = None, parallel: int = 3, use_cache: bool = True) -> None:
+    # Default list of URLs if none provided
+    if urls is None:
+        urls = [
+            "https://example.com",
+            "https://google.com",
+            "https://github.com",
+            "https://microsoft.com",
+            "https://apple.com"
+        ]
     """Test the batch processing API with the given URLs."""
     print("\nTesting batch processing API...\n")
     

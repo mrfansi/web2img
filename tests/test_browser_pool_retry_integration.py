@@ -224,7 +224,11 @@ async def test_concurrent_screenshot_with_retry():
             
             # Check if retry was used
             retry_stats = screenshot_service.get_retry_stats()
-            if retry_stats["browser_retry"] > 0 or retry_stats["navigation_retry"] > 0:
+            # Extract retry counts safely
+            browser_retry_count = retry_stats.get("browser_retry", {}).get("attempts", 0)
+            navigation_retry_count = retry_stats.get("navigation_retry", {}).get("attempts", 0)
+            
+            if browser_retry_count > 0 or navigation_retry_count > 0:
                 results["retry_used"] += 1
             
             # Clean up the file

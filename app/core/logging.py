@@ -1,172 +1,115 @@
-import json
 import logging
 import sys
-import time
-from datetime import datetime
-from typing import Dict, Any, Optional
+from typing import Any, Dict, List, Optional
 
-from app.core.config import settings
-
-
-class JsonFormatter(logging.Formatter):
-    """Custom formatter to output logs in JSON format for better parsing."""
-    
-    def format(self, record: logging.LogRecord) -> str:
-        """Format the log record as a JSON string.
-        
-        Args:
-            record: The log record to format
-            
-        Returns:
-            JSON formatted log string
-        """
-        # Get the original message
-        message = record.getMessage()
-        
-        # Create the base log object
-        log_object = {
-            "timestamp": datetime.fromtimestamp(record.created).isoformat(),
-            "level": record.levelname,
-            "logger": record.name,
-            "message": message,
-            "module": record.module,
-            "function": record.funcName,
-            "line": record.lineno,
-            "process_id": record.process,
-            "thread_id": record.thread,
-        }
-        
-        # Add exception info if present
-        if record.exc_info:
-            log_object["exception"] = {
-                "type": record.exc_info[0].__name__,
-                "message": str(record.exc_info[1]),
-                "traceback": self.formatException(record.exc_info)
-            }
-        
-        # Add extra fields from the record
-        if hasattr(record, "extra") and record.extra:
-            log_object.update(record.extra)
-        
-        # Convert to JSON string
-        return json.dumps(log_object)
+from loguru import logger
+# In Pydantic v2, BaseSettings has moved to pydantic-settings package
+try:
+    from pydantic_settings import BaseSettings
+except ImportError:
+    # Fallback for Pydantic v1
+    from pydantic import BaseSettings
 
 
-class StructuredLogger:
-    """Structured logger for the application."""
+class LogConfig(BaseSettings):
+    """Logging configuration"""
     
-    def __init__(self, name: str):
-        """Initialize the structured logger.
-        
-        Args:
-            name: Logger name
-        """
-        self.logger = logging.getLogger(name)
-        self.logger.setLevel(self._get_log_level())
-        
-        # Remove existing handlers if any
-        for handler in self.logger.handlers[:]:  
-            self.logger.removeHandler(handler)
-        
-        # Add console handler with JSON formatter
-        handler = logging.StreamHandler(sys.stdout)
-        handler.setFormatter(JsonFormatter())
-        self.logger.addHandler(handler)
+    # Logging level
+    LEVEL: str = "INFO"
     
-    def _get_log_level(self) -> int:
-        """Get the log level from settings.
-        
-        Returns:
-            Log level as an integer
-        """
-        level = getattr(settings, "log_level", "INFO").upper()
-        return getattr(logging, level, logging.INFO)
+    # Logging format
+    FORMAT: str = (
+        "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | "
+        "<level>{level: <8}</level> | "
+        "<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> | "
+        "<level>{message}</level>"
+    )
     
-    def _log(self, level: int, msg: str, extra: Optional[Dict[str, Any]] = None) -> None:
-        """Log a message with the given level and extra data.
-        
-        Args:
-            level: Log level
-            msg: Log message
-            extra: Extra data to include in the log
-        """
-        # Create a copy of extra to avoid modifying the original
-        log_extra = {"extra": extra or {}}
-        
-        # Add request_id if present in the current context
-        # This would typically be set by middleware for each request
-        # For now, we'll just use a placeholder
-        
-        self.logger.log(level, msg, extra=log_extra)
-    
-    def debug(self, msg: str, extra: Optional[Dict[str, Any]] = None) -> None:
-        """Log a debug message.
-        
-        Args:
-            msg: Log message
-            extra: Extra data to include in the log
-        """
-        self._log(logging.DEBUG, msg, extra)
-    
-    def info(self, msg: str, extra: Optional[Dict[str, Any]] = None) -> None:
-        """Log an info message.
-        
-        Args:
-            msg: Log message
-            extra: Extra data to include in the log
-        """
-        self._log(logging.INFO, msg, extra)
-    
-    def warning(self, msg: str, extra: Optional[Dict[str, Any]] = None) -> None:
-        """Log a warning message.
-        
-        Args:
-            msg: Log message
-            extra: Extra data to include in the log
-        """
-        self._log(logging.WARNING, msg, extra)
-    
-    def error(self, msg: str, extra: Optional[Dict[str, Any]] = None) -> None:
-        """Log an error message.
-        
-        Args:
-            msg: Log message
-            extra: Extra data to include in the log
-        """
-        self._log(logging.ERROR, msg, extra)
-    
-    def critical(self, msg: str, extra: Optional[Dict[str, Any]] = None) -> None:
-        """Log a critical message.
-        
-        Args:
-            msg: Log message
-            extra: Extra data to include in the log
-        """
-        self._log(logging.CRITICAL, msg, extra)
-    
-    def exception(self, msg: str, extra: Optional[Dict[str, Any]] = None) -> None:
-        """Log an exception message.
-        
-        Args:
-            msg: Log message
-            extra: Extra data to include in the log
-        """
-        log_extra = {"extra": extra or {}}
-        self.logger.exception(msg, extra=log_extra)
+    # Whether to serialize the log message to JSON
+    JSON_LOGS: bool = False
 
 
-# Create a function to get a logger instance
-def get_logger(name: str) -> StructuredLogger:
-    """Get a structured logger instance.
+class InterceptHandler(logging.Handler):
+    """
+    Intercept handler to route standard logging to loguru.
+    """
+    
+    def emit(self, record: logging.LogRecord) -> None:
+        # Get corresponding Loguru level if it exists
+        try:
+            level = logger.level(record.levelname).name
+        except ValueError:
+            level = record.levelno
+
+        # Find caller from where originated the logged message
+        frame, depth = logging.currentframe(), 2
+        while frame.f_code.co_filename == logging.__file__:
+            frame = frame.f_back
+            depth += 1
+
+        logger.opt(depth=depth, exception=record.exc_info).log(
+            level, record.getMessage()
+        )
+
+
+def get_logger(name: str):
+    """Get a logger instance with the specified name.
     
     Args:
-        name: Logger name
+        name: The name of the logger, typically the module name.
         
     Returns:
-        Structured logger instance
+        A logger instance bound with the specified name.
     """
-    return StructuredLogger(name)
+    return logger.bind(name=name)
 
 
-# Create a default logger for the application
-logger = get_logger("web2img")
+def setup_logging() -> None:
+    """Configure logging with loguru."""
+    log_config = LogConfig()
+    
+    # Remove default configuration
+    logger.remove()
+    
+    # Add custom configuration
+    logger.add(
+        sys.stdout,
+        enqueue=True,
+        backtrace=True,
+        level=log_config.LEVEL,
+        format=log_config.FORMAT,
+        serialize=log_config.JSON_LOGS,
+    )
+    
+    # Add file logging if needed
+    logger.add(
+        "logs/web2img.log",
+        rotation="10 MB",
+        retention="1 week",
+        enqueue=True,
+        backtrace=True,
+        level=log_config.LEVEL,
+        format=log_config.FORMAT,
+        serialize=log_config.JSON_LOGS,
+    )
+    
+    # Intercept standard logging
+    logging.basicConfig(handlers=[InterceptHandler()], level=0)
+    
+    # Update root logger
+    logging.getLogger("uvicorn").handlers = [InterceptHandler()]
+    
+    # Replace logging handlers for commonly used libraries
+    for logger_name in [
+        "uvicorn",
+        "uvicorn.error",
+        "fastapi",
+        "gunicorn",
+        "gunicorn.error",
+        "gunicorn.access",
+    ]:
+        logging_logger = logging.getLogger(logger_name)
+        logging_logger.handlers = [InterceptHandler()]
+
+    # Done
+    logger.info("Logging configuration completed")

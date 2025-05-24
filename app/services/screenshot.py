@@ -586,10 +586,14 @@ async def capture_screenshot_with_options(url: str, width: int = 1280, height: i
         r2_key = await storage_service.upload_file(filepath)
         
         # Generate imgproxy URL
+        # Ensure width and height are integers before passing to generate_url
+        img_width = int(width) if not isinstance(width, int) else width
+        img_height = int(height) if not isinstance(height, int) else height
+        
         imgproxy_url = imgproxy_service.generate_url(
             r2_key,
-            width=width,
-            height=height,
+            width=img_width,
+            height=img_height,
             format=format
         )
         

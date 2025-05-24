@@ -1,5 +1,4 @@
 import asyncio
-import logging
 import time
 from typing import Dict, List, Any, Optional, Tuple
 import httpx
@@ -7,8 +6,9 @@ import httpx
 from app.models.job import job_store, BatchJob, JobItem
 from app.services.screenshot import capture_screenshot_with_options
 from app.services.cache import cache_service
+from app.core.logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger("batch_service")
 
 
 class BatchService:
