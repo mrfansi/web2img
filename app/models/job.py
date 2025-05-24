@@ -264,10 +264,8 @@ class BatchJob:
             recurrence_count = 1  # This job counts as 1
             current_job_id = self.parent_job_id
             
-            # Get a reference to the job store
-            from app.models.job import job_store
-            
             # Traverse the parent chain to count recurrences
+            # Use the module-level job_store variable (no need for local import)
             while current_job_id:
                 # Look up the parent job
                 parent_job = job_store.get_job(current_job_id)

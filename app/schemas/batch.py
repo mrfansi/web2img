@@ -1,6 +1,6 @@
 from typing import List, Dict, Any, Optional
 from pydantic import BaseModel, Field, HttpUrl, validator
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.schemas.screenshot import ScreenshotRequest
 from app.models.job import JobPriority, RecurrencePattern
