@@ -9,8 +9,7 @@ import time
 from pathlib import Path
 from typing import List, Optional, Dict, Any
 
-# Add the project root to the Python path
-sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
+
 
 # Import the logging setup
 from app.core.logging import setup_logging, get_logger
@@ -72,17 +71,17 @@ class TestRunner:
             ]
 
             if not test_functions:
-                # If no test_ functions, check if the module has a main test function
+                # If no test_ functions are found, try to use the module's main function as a fallback
                 if hasattr(module, "main") and callable(module.main):
-                    logger.info(f"Running main() in {test_file.name}")
-                    await module.main()
+                    logger.info(f"Running main() function in {test_file.name}")
+                    # Handle both async and sync main functions
+                    if asyncio.iscoroutinefunction(module.main):
+                        await module.main()
+                    else:
+                        module.main()
                     result["functions_run"].append("main")
-                # Or try running the file directly if it has a __main__ block
-                elif hasattr(module, "__name__") and "__main__" in module.__dict__:
-                    logger.info(f"Running {test_file.name} as script")
-                    if hasattr(module, "test_screenshot_api"):
-                        await module.test_screenshot_api()
-                        result["functions_run"].append("test_screenshot_api")
+                else:
+                    logger.warning(f"No test functions or main() function found in {test_file.name}")
             else:
                 # Run each test function in the module
                 for func_name in test_functions:

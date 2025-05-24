@@ -43,9 +43,16 @@ class InterceptHandler(logging.Handler):
 
         # Find caller from where originated the logged message
         frame, depth = logging.currentframe(), 2
-        while frame.f_code.co_filename == logging.__file__:
-            frame = frame.f_back
-            depth += 1
+        
+        # Safeguard: Check if frame exists and if logging.__file__ is accessible
+        if frame is not None and hasattr(logging, '__file__'):
+            # Traverse frames to find the original caller
+            max_depth = 25  # Prevent infinite loops
+            while (frame is not None and frame.f_back is not None and 
+                   hasattr(frame, 'f_code') and hasattr(frame.f_code, 'co_filename') and
+                   frame.f_code.co_filename == logging.__file__ and depth < max_depth):
+                frame = frame.f_back
+                depth += 1
 
         logger.opt(depth=depth, exception=record.exc_info).log(
             level, record.getMessage()
