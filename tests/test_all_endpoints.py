@@ -93,7 +93,7 @@ def test_all_endpoints():
             endpoint="/screenshot",
             method="POST",
             payload={
-                "url": "https://example.com",
+                "url": "https://viding.co/mini-rsvp/1179324",
                 "width": 800,
                 "height": 600,
                 "format": "png"
@@ -161,14 +161,14 @@ def test_all_endpoints():
             payload={
                 "items": [
                     {
-                        "url": "https://example.com",
+                        "url": "https://viding.co/mini-rsvp/1179317",
                         "width": 800,
                         "height": 600,
                         "format": "png",
                         "id": "test-1"
                     },
                     {
-                        "url": "https://google.com",
+                        "url": "https://viding.co/mini-rsvp/1179324",
                         "width": 800,
                         "height": 600,
                         "format": "png",
@@ -225,34 +225,37 @@ def test_all_endpoints():
             test_batch_job_status_and_results(job_id)
 
 
-def test_batch_job_status_and_results(job_id: str):
-    """Test batch job status and results endpoints for a specific job ID."""
+def test_batch_job_status_and_results(job_id):
+    """Test the batch job status and results endpoints for a specific job ID."""
     # Test job status endpoint
-    print(f"Testing: Batch Job Status for job {job_id}")
+    print(f"\nTesting: Batch Job Status for job {job_id}")
     response = client.get(f"/batch/screenshots/{job_id}")
     if response.status_code == 200:
-        print(f"\u2705 Batch Job Status: PASSED")
-        print(f"Status: {response.json().get('status')}")
+        print(f"✅ Batch Job Status: PASSED")
+        status = response.json().get("status")
+        print(f"Status: {status}")
+        
+        # Wait for job to complete if it's still processing
+        if status == "processing":
+            print("Waiting for batch job to complete...")
+            start_time = time.time()
+            completed = False
+            while time.time() - start_time < 30:
+                response = client.get(f"/batch/screenshots/{job_id}")
+                if response.status_code == 200:
+                    status = response.json().get("status")
+                    print(f"Job status: {status}, Completed: {response.json().get('completed')}/{response.json().get('total')}")
+                    if status in ["completed", "completed_with_errors", "failed"]:
+                        completed = True
+                        break
+                time.sleep(1)
+
+            if not completed:
+                print("❌ Batch Job Completion: FAILED - Timeout waiting for job to complete")
+                return
     else:
-        print(f"\u274c Batch Job Status: FAILED - Status code {response.status_code}")
+        print(f"❌ Batch Job Status: FAILED - Status code {response.status_code}")
         print(f"Response: {response.text[:200]}...")
-
-    # Wait for job to complete (max 30 seconds)
-    print("Waiting for batch job to complete...")
-    start_time = time.time()
-    completed = False
-    while time.time() - start_time < 30:
-        response = client.get(f"/batch/screenshots/{job_id}")
-        if response.status_code == 200:
-            status = response.json().get("status")
-            print(f"Job status: {status}, Completed: {response.json().get('completed')}/{response.json().get('total')}")
-            if status in ["completed", "completed_with_errors", "failed"]:
-                completed = True
-                break
-        time.sleep(1)
-
-    if not completed:
-        print("❌ Batch Job Completion: FAILED - Timeout waiting for job to complete")
         return
 
     # Test job results endpoint
@@ -266,6 +269,23 @@ def test_batch_job_status_and_results(job_id: str):
         print(f"Total items: {results.get('total')}")
         print(f"Succeeded: {results.get('succeeded')}")
         print(f"Failed: {results.get('failed')}")
+        
+        # Print detailed information about failed items
+        if results.get('failed', 0) > 0:
+            print("\nFailed Items Details:")
+            
+            # The results are in the 'results' array, not 'items'
+            result_items = results.get('results', [])
+            if not result_items:
+                print("No result items found")
+            
+            for item in result_items:
+                if item.get('status') == 'error':
+                    print(f"  Item ID: {item.get('id')}")
+                    print(f"  URL: {item.get('url') or 'Not available'}")
+                    error = item.get('error', 'Unknown error')
+                    print(f"  Error: {error}")
+
     else:
         print(f"❌ Batch Job Results: FAILED - Status code {response.status_code}")
         print(f"Response: {response.text[:200]}...")
@@ -274,6 +294,12 @@ def test_batch_job_status_and_results(job_id: str):
 def main():
     """Run all tests."""
     test_all_endpoints()
+    # Allow any remaining async tasks to complete
+    time.sleep(2)  # Increased sleep time to allow more time for async tasks
+    # Force close any remaining async tasks to prevent event loop errors
+    for task in asyncio.all_tasks(asyncio.get_event_loop()) if hasattr(asyncio, 'all_tasks') else []:
+        if not task.done():
+            task.cancel()
 
 
 if __name__ == "__main__":
