@@ -6,22 +6,15 @@ class HealthResponse(BaseModel):
     """Response model for health check endpoint."""
     status: str = Field(
         ..., 
-        description="Service status",
-        example="ok"
+        description="Service status"
     )
     version: str = Field(
         ..., 
-        description="API version",
-        example="1.0.0"
+        description="API version"
     )
     services: Dict[str, Any] = Field(
         ..., 
-        description="Status of individual services",
-        example={
-            "screenshot": "ok",
-            "storage": "ok",
-            "imgproxy": "ok"
-        }
+        description="Status of individual services"
     )
     
     model_config = {
