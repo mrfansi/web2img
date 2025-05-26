@@ -78,6 +78,14 @@ class Settings(BaseModel):
         default_factory=lambda: int(os.getenv("BROWSER_POOL_CLEANUP_INTERVAL", "60"))
     )
     
+    # Screenshot Service Configuration
+    screenshot_cleanup_interval: int = Field(
+        default_factory=lambda: int(os.getenv("SCREENSHOT_CLEANUP_INTERVAL", "300"))
+    )
+    temp_file_retention_hours: int = Field(
+        default_factory=lambda: int(os.getenv("TEMP_FILE_RETENTION_HOURS", "24"))
+    )
+    
     # Timeout Configuration
     navigation_timeout_regular: int = Field(
         default_factory=lambda: int(os.getenv("NAVIGATION_TIMEOUT_REGULAR", "30000"))

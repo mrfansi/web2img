@@ -441,40 +441,134 @@ class BatchService:
             "cleanup_stats": cleanup_stats
         })
     
+    async def _initialize_job(self, job: BatchJob) -> Tuple[int, int, bool, bool, asyncio.Semaphore]:
+        """Initialize a batch job for processing.
+        
+        Args:
+            job: The batch job to initialize
+            
+        Returns:
+            A tuple of (parallel, timeout, fail_fast, use_cache, semaphore)
+        """
+        # Mark job as processing
+        job.start_processing()
+        
+        # Get configuration
+        parallel = job.config.get("parallel", 3)
+        timeout = job.config.get("timeout", 30)
+        fail_fast = job.config.get("fail_fast", False)
+        use_cache = job.config.get("cache", True)
+        
+        # Create a semaphore to limit concurrency
+        semaphore = asyncio.Semaphore(parallel)
+        
+        return parallel, timeout, fail_fast, use_cache, semaphore
+    
+    async def _create_item_tasks(self, job: BatchJob, semaphore: asyncio.Semaphore, 
+                               timeout: int, use_cache: bool) -> List[asyncio.Task]:
+        """Create tasks for all items in a batch job.
+        
+        Args:
+            job: The batch job containing items
+            semaphore: Semaphore to limit concurrency
+            timeout: Timeout for screenshot capture in seconds
+            use_cache: Whether to use caching
+            
+        Returns:
+            A list of tasks for processing items
+        """
+        tasks = []
+        for item_id, item in job.items.items():
+            task = asyncio.create_task(
+                self._process_item(job, item, semaphore, timeout, use_cache)
+            )
+            tasks.append(task)
+        return tasks
+    
+    async def _process_tasks_fail_fast(self, tasks: List[asyncio.Task]) -> None:
+        """Process tasks with fail-fast behavior.
+        
+        Args:
+            tasks: The tasks to process
+        """
+        for future in asyncio.as_completed(tasks):
+            item_id, success, error = await future
+            if not success:
+                # Cancel all remaining tasks
+                for t in tasks:
+                    if not t.done():
+                        t.cancel()
+                break
+    
+    async def _handle_job_cancellation(self, job: BatchJob) -> None:
+        """Handle job cancellation.
+        
+        Args:
+            job: The batch job that was cancelled
+        """
+        logger.info(f"Batch job {job.job_id} was cancelled")
+        # Mark all pending items as failed
+        for item_id, item in job.items.items():
+            if item.status == "pending" or item.status == "processing":
+                item.fail("Job cancelled")
+        # Update job status
+        job.status = "cancelled"
+        job.update()
+    
+    async def _handle_job_error(self, job: BatchJob, error: Exception) -> None:
+        """Handle job error.
+        
+        Args:
+            job: The batch job that encountered an error
+            error: The exception that occurred
+        """
+        logger.exception(f"Error processing batch job {job.job_id}: {str(error)}", {
+            "job_id": job.job_id,
+            "error": str(error),
+            "error_type": type(error).__name__
+        })
+        # Mark all pending items as failed
+        for item_id, item in job.items.items():
+            if item.status == "pending" or item.status == "processing":
+                item.fail(f"Job failed: {str(error)}")
+        # Update job status
+        job.update()
+    
+    async def _cleanup_job_resources(self, job: BatchJob) -> None:
+        """Clean up resources for a batch job.
+        
+        Args:
+            job: The batch job to clean up resources for
+        """
+        # Remove job from processing jobs
+        if job.job_id in self.processing_jobs:
+            del self.processing_jobs[job.job_id]
+            
+        # Remove user from active users if this was their job
+        user_id = job.config.get("user_id")
+        if user_id and user_id in self.active_users:
+            self.active_users.remove(user_id)
+    
     async def _process_batch_job(self, job: BatchJob) -> None:
-        """Process a batch job."""
+        """Process a batch job.
+        
+        This method coordinates the processing of all items in a batch job,
+        handling configuration, concurrency, error cases, and cleanup.
+        
+        Args:
+            job: The batch job to process
+        """
         try:
-            # Mark job as processing
-            job.start_processing()
-            
-            # Get configuration
-            parallel = job.config.get("parallel", 3)
-            timeout = job.config.get("timeout", 30)
-            fail_fast = job.config.get("fail_fast", False)
-            use_cache = job.config.get("cache", True)
-            
-            # Create a semaphore to limit concurrency
-            semaphore = asyncio.Semaphore(parallel)
+            # Initialize job
+            parallel, timeout, fail_fast, use_cache, semaphore = await self._initialize_job(job)
             
             # Create tasks for all items
-            tasks = []
-            for item_id, item in job.items.items():
-                task = asyncio.create_task(
-                    self._process_item(job, item, semaphore, timeout, use_cache)
-                )
-                tasks.append(task)
+            tasks = await self._create_item_tasks(job, semaphore, timeout, use_cache)
             
             # Process all items
             if fail_fast:
                 # If fail_fast is enabled, we need to stop on first failure
-                for future in asyncio.as_completed(tasks):
-                    item_id, success, error = await future  # Use 'future' instead of 'task' to avoid type confusion
-                    if not success:
-                        # Cancel all remaining tasks
-                        for t in tasks:
-                            if not t.done():
-                                t.cancel()
-                        break
+                await self._process_tasks_fail_fast(tasks)
             else:
                 # Otherwise, wait for all tasks to complete
                 await asyncio.gather(*tasks)
@@ -486,36 +580,133 @@ class BatchService:
             await self._send_webhook_notification(job)
             
         except asyncio.CancelledError:
-            logger.info(f"Batch job {job.job_id} was cancelled")
-            # Mark all pending items as failed
-            for item_id, item in job.items.items():
-                if item.status == "pending" or item.status == "processing":
-                    item.fail("Job cancelled")
-            # Update job status
-            job.status = "cancelled"
-            job.update()
+            await self._handle_job_cancellation(job)
             
         except Exception as e:
-            logger.exception(f"Error processing batch job {job.job_id}: {str(e)}")
-            # Mark all pending items as failed
-            for item_id, item in job.items.items():
-                if item.status == "pending" or item.status == "processing":
-                    item.fail(f"Job failed: {str(e)}")
-            # Update job status
-            job.update()
+            await self._handle_job_error(job, e)
+            
         finally:
-            # Remove job from processing jobs
-            if job.job_id in self.processing_jobs:
-                del self.processing_jobs[job.job_id]
+            await self._cleanup_job_resources(job)
+    
+    async def _check_cache(self, item: JobItem) -> Optional[str]:
+        """Check if a screenshot is available in the cache.
+        
+        Args:
+            item: The job item to check cache for
+            
+        Returns:
+            The cached URL if available, None otherwise
+        """
+        try:
+            return await cache_service.get(
+                url=str(item.request_data.get("url")),
+                width=item.request_data.get("width", 1280),
+                height=item.request_data.get("height", 720),
+                format=item.request_data.get("format", "png")
+            )
+        except Exception as e:
+            logger.warning(f"Cache lookup failed for item {item.id}: {str(e)}", {
+                "item_id": item.id,
+                "error": str(e),
+                "error_type": type(e).__name__
+            })
+            return None
+    
+    async def _cache_result(self, item: JobItem, result: Dict[str, Any]) -> None:
+        """Cache a screenshot result.
+        
+        Args:
+            item: The job item to cache result for
+            result: The screenshot result to cache
+        """
+        if "url" not in result or result["url"] is None:
+            return
+            
+        try:
+            await cache_service.set(
+                url=item.request_data.get("url", ""),
+                width=item.request_data.get("width", 1280),
+                height=item.request_data.get("height", 720),
+                format=item.request_data.get("format", "png"),
+                imgproxy_url=str(result["url"])
+            )
+        except Exception as e:
+            logger.warning(f"Failed to cache result for item {item.id}: {str(e)}", {
+                "item_id": item.id,
+                "error": str(e),
+                "error_type": type(e).__name__
+            })
+    
+    async def _capture_screenshot_with_retry(self, item: JobItem, timeout: int) -> Tuple[bool, Dict[str, Any], str]:
+        """Capture a screenshot with retry logic.
+        
+        Args:
+            item: The job item to capture screenshot for
+            timeout: The timeout for the screenshot capture in seconds
+            
+        Returns:
+            A tuple of (success, result, error_message)
+        """
+        max_retries = 3
+        retry_count = 0
+        retry_delay = 1.0  # Initial delay in seconds
+        last_error = "Unknown error occurred"
+        
+        while retry_count < max_retries:
+            try:
+                # Attempt to capture screenshot with timeout
+                result = await asyncio.wait_for(
+                    capture_screenshot_with_options(
+                        url=str(item.request_data.get("url")),
+                        width=item.request_data.get("width", 1280),
+                        height=item.request_data.get("height", 720),
+                        format=item.request_data.get("format", "png")
+                    ),
+                    timeout=timeout
+                )
+                return True, result, ""
                 
-            # Remove user from active users if this was their job
-            user_id = job.config.get("user_id")
-            if user_id and user_id in self.active_users:
-                self.active_users.remove(user_id)
+            except asyncio.TimeoutError:
+                last_error = f"Screenshot capture timed out after {timeout} seconds"
+                logger.warning(f"Timeout for item {item.id} (attempt {retry_count+1}/{max_retries}): {last_error}")
+                
+            except Exception as e:
+                # Check if this is a browser context error that we should retry
+                error_str = str(e)
+                if "has been closed" in error_str or "Target page, context or browser has been closed" in error_str:
+                    last_error = f"Browser context error: {error_str}"
+                    logger.warning(f"Browser context error for item {item.id} (attempt {retry_count+1}/{max_retries}): {error_str}")
+                else:
+                    # Non-retryable error
+                    last_error = f"Error processing item: {error_str}"
+                    logger.exception(f"Error processing batch item {item.id}: {last_error}")
+                    return False, {}, last_error
+            
+            # Increment retry count and apply backoff
+            retry_count += 1
+            if retry_count >= max_retries:
+                break
+                
+            await asyncio.sleep(retry_delay)
+            retry_delay *= 2  # Exponential backoff
+        
+        # If we've exhausted retries
+        return False, {}, last_error
     
     async def _process_item(self, job: BatchJob, item: JobItem, semaphore: asyncio.Semaphore, 
-                           timeout: int, use_cache: bool) -> Tuple[str, bool, Optional[str]]:
-        """Process a single item in a batch job."""
+                            timeout: int, use_cache: bool) -> Tuple[str, bool, Optional[str]]:
+        """Process a single item in a batch job.
+        
+        Args:
+            job: The batch job containing the item
+            item: The job item to process
+            semaphore: Semaphore to limit concurrency
+            timeout: Timeout for screenshot capture in seconds
+            use_cache: Whether to use caching
+            
+        Returns:
+            A tuple of (item_id, success, error_message)
+        """
         async with semaphore:
             try:
                 # Mark item as processing
@@ -523,83 +714,29 @@ class BatchService:
                 job.update()
                 
                 # Check cache first if enabled
-                cached_url = None
                 if use_cache:
-                    cached_url = await cache_service.get(
-                        url=str(item.request_data.get("url")),
-                        width=item.request_data.get("width", 1280),
-                        height=item.request_data.get("height", 720),
-                        format=item.request_data.get("format", "png")
-                    )
-                
-                if cached_url:
-                    # Use cached result
-                    item.complete({"url": cached_url}, cached=True)
-                    return item.id, True, None
+                    cached_url = await self._check_cache(item)
+                    if cached_url:
+                        # Use cached result
+                        item.complete({"url": cached_url}, cached=True)
+                        return item.id, True, None
                 
                 # Capture screenshot with retry logic
-                max_retries = 3
-                retry_count = 0
-                retry_delay = 1.0  # Initial delay in seconds
-                last_error = "Unknown error occurred"
+                success, result, error = await self._capture_screenshot_with_retry(item, timeout)
                 
-                while retry_count < max_retries:
-                    try:
-                        # Attempt to capture screenshot with timeout
-                        result = await asyncio.wait_for(
-                            capture_screenshot_with_options(
-                                url=str(item.request_data.get("url")),
-                                width=item.request_data.get("width", 1280),
-                                height=item.request_data.get("height", 720),
-                                format=item.request_data.get("format", "png")
-                            ),
-                            timeout=timeout
-                        )
-                        
-                        # Cache the result if caching is enabled and URL is present
-                        if use_cache and "url" in result and result["url"] is not None:
-                            await cache_service.set(
-                                url=item.request_data.get("url", ""),
-                                width=item.request_data.get("width", 1280),
-                                height=item.request_data.get("height", 720),
-                                format=item.request_data.get("format", "png"),
-                                imgproxy_url=str(result["url"])
-                            )                      
-                        # Mark item as completed
-                        item.complete(result)
-                        return item.id, True, None
-                        
-                    except asyncio.TimeoutError:
-                        last_error = f"Screenshot capture timed out after {timeout} seconds"
-                        logger.warning(f"Timeout for item {item.id} (attempt {retry_count+1}/{max_retries}): {last_error}")
-                        retry_count += 1
-                        if retry_count >= max_retries:
-                            break
-                        await asyncio.sleep(retry_delay)
-                        retry_delay *= 2  # Exponential backoff
-                        
-                    except Exception as e:
-                        # Check if this is a browser context error that we should retry
-                        error_str = str(e)
-                        if "has been closed" in error_str or "Target page, context or browser has been closed" in error_str:
-                            last_error = f"Browser context error: {error_str}"
-                            logger.warning(f"Browser context error for item {item.id} (attempt {retry_count+1}/{max_retries}): {error_str}")
-                            retry_count += 1
-                            if retry_count >= max_retries:
-                                break
-                            await asyncio.sleep(retry_delay)
-                            retry_delay *= 2  # Exponential backoff
-                        else:
-                            # Non-retryable error
-                            last_error = f"Error processing item: {error_str}"
-                            logger.exception(f"Error processing batch item {item.id}: {last_error}")
-                            item.fail(last_error)
-                            return item.id, False, last_error
-                
-                # If we've exhausted retries, fail the item
-                item.fail(last_error)
-                return item.id, False, last_error
-                
+                if success:
+                    # Cache the result if caching is enabled
+                    if use_cache:
+                        await self._cache_result(item, result)
+                    
+                    # Mark item as completed
+                    item.complete(result)
+                    return item.id, True, None
+                else:
+                    # Mark item as failed
+                    item.fail(error)
+                    return item.id, False, error
+                    
             except Exception as e:
                 error = f"Error processing item: {str(e)}"
                 logger.exception(f"Error processing batch item {item.id}: {error}")
@@ -609,34 +746,117 @@ class BatchService:
                 # Update job status
                 job.update()
     
-    async def _send_webhook_notification(self, job: BatchJob) -> None:
-        """Send webhook notification if configured."""
-        webhook_url = job.config.get("webhook")
-        if not webhook_url:
-            logger.debug(f"No webhook configured for job {job.job_id}")
-            return
+    def _prepare_webhook_headers(self, webhook_auth: Optional[str] = None) -> Dict[str, str]:
+        """Prepare headers for webhook notification.
         
-        webhook_auth = job.config.get("webhook_auth")
-        
-        # Prepare the payload
-        payload = job.get_results()
-        
-        # Prepare headers with proper error handling
+        Args:
+            webhook_auth: Optional authorization header value
+            
+        Returns:
+            Dictionary of HTTP headers
+        """
         headers = {
             "Content-Type": "application/json"
         }
         
         if webhook_auth:
             headers["Authorization"] = webhook_auth
+            
+        return headers
+    
+    def _log_webhook_attempt(self, job_id: str, webhook_url: str, payload: Dict[str, Any], has_auth: bool) -> None:
+        """Log a webhook notification attempt.
         
-        # Log webhook attempt with context
-        logger.info(f"Sending webhook notification for job {job.job_id}", {
-            "job_id": job.job_id,
+        Args:
+            job_id: The ID of the job
+            webhook_url: The webhook URL
+            payload: The payload to send
+            has_auth: Whether authentication is being used
+        """
+        logger.info(f"Sending webhook notification for job {job_id}", {
+            "job_id": job_id,
             "webhook_url": webhook_url,
             "payload_size": len(str(payload)),
-            "has_auth": webhook_auth is not None
+            "has_auth": has_auth
         })
+    
+    def _log_webhook_response(self, job_id: str, webhook_url: str, response: httpx.Response) -> None:
+        """Log a webhook notification response.
         
+        Args:
+            job_id: The ID of the job
+            webhook_url: The webhook URL
+            response: The HTTP response
+        """
+        # Log response with appropriate level based on status code
+        if response.status_code >= 500:
+            logger.error(f"Webhook notification failed for job {job_id} with server error", {
+                "job_id": job_id,
+                "webhook_url": webhook_url,
+                "status_code": response.status_code,
+                "response": response.text[:500]  # Limit response text to avoid huge logs
+            })
+        elif response.status_code >= 400:
+            logger.warning(f"Webhook notification failed for job {job_id} with client error", {
+                "job_id": job_id,
+                "webhook_url": webhook_url,
+                "status_code": response.status_code,
+                "response": response.text[:500]  # Limit response text to avoid huge logs
+            })
+        else:
+            logger.info(f"Webhook notification sent successfully for job {job_id}", {
+                "job_id": job_id,
+                "webhook_url": webhook_url,
+                "status_code": response.status_code
+            })
+    
+    def _log_webhook_error(self, job_id: str, webhook_url: str, error: Exception, error_type: str) -> None:
+        """Log a webhook notification error.
+        
+        Args:
+            job_id: The ID of the job
+            webhook_url: The webhook URL
+            error: The exception that occurred
+            error_type: The type of error
+        """
+        if error_type == "TimeoutError":
+            logger.error(f"Webhook notification timed out for job {job_id}", {
+                "job_id": job_id,
+                "webhook_url": webhook_url,
+                "timeout": 15.0
+            })
+        elif error_type == "ConnectError":
+            logger.error(f"Connection error sending webhook for job {job_id}", {
+                "job_id": job_id,
+                "webhook_url": webhook_url,
+                "error": str(error),
+                "error_type": error_type
+            })
+        elif error_type == "RequestError":
+            logger.error(f"Request error sending webhook for job {job_id}", {
+                "job_id": job_id,
+                "webhook_url": webhook_url,
+                "error": str(error),
+                "error_type": error_type
+            })
+        else:
+            logger.exception(f"Unexpected error sending webhook for job {job_id}", {
+                "job_id": job_id,
+                "webhook_url": webhook_url,
+                "error": str(error),
+                "error_type": error_type
+            })
+    
+    async def _send_webhook_request(self, job_id: str, webhook_url: str, payload: Dict[str, Any], 
+                                  headers: Dict[str, str]) -> None:
+        """Send a webhook notification request.
+        
+        Args:
+            job_id: The ID of the job
+            webhook_url: The webhook URL
+            payload: The payload to send
+            headers: The HTTP headers to use
+        """
         try:
             # Send the webhook notification with proper timeout handling and resource management
             async with self._http_client(timeout=10.0) as client:
@@ -650,54 +870,42 @@ class BatchService:
                         timeout=15.0  # Overall timeout including connection time
                     )
                     
-                    # Log response with appropriate level based on status code
-                    if response.status_code >= 500:
-                        logger.error(f"Webhook notification failed for job {job.job_id} with server error", {
-                            "job_id": job.job_id,
-                            "webhook_url": webhook_url,
-                            "status_code": response.status_code,
-                            "response": response.text[:500]  # Limit response text to avoid huge logs
-                        })
-                    elif response.status_code >= 400:
-                        logger.warning(f"Webhook notification failed for job {job.job_id} with client error", {
-                            "job_id": job.job_id,
-                            "webhook_url": webhook_url,
-                            "status_code": response.status_code,
-                            "response": response.text[:500]  # Limit response text to avoid huge logs
-                        })
-                    else:
-                        logger.info(f"Webhook notification sent successfully for job {job.job_id}", {
-                            "job_id": job.job_id,
-                            "webhook_url": webhook_url,
-                            "status_code": response.status_code
-                        })
-                except asyncio.TimeoutError:
-                    logger.error(f"Webhook notification timed out for job {job.job_id}", {
-                        "job_id": job.job_id,
-                        "webhook_url": webhook_url,
-                        "timeout": 15.0
-                    })
+                    self._log_webhook_response(job_id, webhook_url, response)
+                    
+                except asyncio.TimeoutError as e:
+                    self._log_webhook_error(job_id, webhook_url, e, "TimeoutError")
+                    
         except httpx.ConnectError as e:
-            logger.error(f"Connection error sending webhook for job {job.job_id}", {
-                "job_id": job.job_id,
-                "webhook_url": webhook_url,
-                "error": str(e),
-                "error_type": "ConnectError"
-            })
+            self._log_webhook_error(job_id, webhook_url, e, "ConnectError")
+            
         except httpx.RequestError as e:
-            logger.error(f"Request error sending webhook for job {job.job_id}", {
-                "job_id": job.job_id,
-                "webhook_url": webhook_url,
-                "error": str(e),
-                "error_type": "RequestError"
-            })
+            self._log_webhook_error(job_id, webhook_url, e, "RequestError")
+            
         except Exception as e:
-            logger.exception(f"Unexpected error sending webhook for job {job.job_id}", {
-                "job_id": job.job_id,
-                "webhook_url": webhook_url,
-                "error": str(e),
-                "error_type": type(e).__name__
-            })
+            self._log_webhook_error(job_id, webhook_url, e, type(e).__name__)
+    
+    async def _send_webhook_notification(self, job: BatchJob) -> None:
+        """Send webhook notification if configured.
+        
+        Args:
+            job: The batch job to send notification for
+        """
+        webhook_url = job.config.get("webhook")
+        if not webhook_url:
+            logger.debug(f"No webhook configured for job {job.job_id}")
+            return
+        
+        webhook_auth = job.config.get("webhook_auth")
+        
+        # Prepare the payload and headers
+        payload = job.get_results()
+        headers = self._prepare_webhook_headers(webhook_auth)
+        
+        # Log webhook attempt
+        self._log_webhook_attempt(job.job_id, webhook_url, payload, webhook_auth is not None)
+        
+        # Send the webhook notification
+        await self._send_webhook_request(job.job_id, webhook_url, payload, headers)
 
 
 # Create a singleton instance
