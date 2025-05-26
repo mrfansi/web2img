@@ -29,7 +29,7 @@ class RateLimiter:
         self.rate = rate  # tokens per second
         self.per = per  # time period in seconds
         self.burst = burst  # maximum number of tokens
-        self.tokens = burst  # current number of tokens
+        self.tokens: float = float(burst)  # current number of tokens (as float for fractional tokens)
         self.last_update = time.time()  # last time tokens were added
     
     def update_tokens(self) -> None:
@@ -181,8 +181,9 @@ class BatchService:
         job = job_store.create_job(items, config)
         
         # If the job is scheduled for the future, don't start processing it now
-        if job.status == "scheduled":
-            logger.info(f"Job {job.job_id} scheduled for {datetime.fromtimestamp(job.scheduled_time, tz=timezone.utc).isoformat()}")
+        if job.status == "scheduled" and job.scheduled_time is not None:
+            scheduled_time = datetime.fromtimestamp(float(job.scheduled_time), tz=timezone.utc).isoformat()
+            logger.info(f"Job {job.job_id} scheduled for {scheduled_time}")
             
             # Make sure the scheduler is running
             if not self.scheduler_running:
@@ -213,7 +214,7 @@ class BatchService:
         try:
             # Parse ISO format datetime string
             dt = datetime.fromisoformat(scheduled_time.replace('Z', '+00:00'))
-            timestamp = dt.timestamp()
+            timestamp = float(dt.timestamp())  # Explicitly convert to float
             
             # Schedule the job
             success = job_store.schedule_job(job, timestamp)
@@ -225,6 +226,7 @@ class BatchService:
                 return job.get_status()
         except ValueError:
             # If parsing fails, return None
+            logger.error(f"Failed to parse scheduled_time: {scheduled_time}")
             pass
             
         return None
@@ -348,8 +350,8 @@ class BatchService:
             # Process all items
             if fail_fast:
                 # If fail_fast is enabled, we need to stop on first failure
-                for task in asyncio.as_completed(tasks):
-                    item_id, success, error = await task
+                for future in asyncio.as_completed(tasks):
+                    item_id, success, error = await future  # Use 'future' instead of 'task' to avoid type confusion
                     if not success:
                         # Cancel all remaining tasks
                         for t in tasks:
@@ -437,16 +439,15 @@ class BatchService:
                             timeout=timeout
                         )
                         
-                        # Store in cache if enabled
-                        if use_cache:
+                        # Cache the result if caching is enabled and URL is present
+                        if use_cache and "url" in result and result["url"] is not None:
                             await cache_service.set(
-                                url=str(item.request_data.get("url")),
+                                url=item.request_data.get("url", ""),
                                 width=item.request_data.get("width", 1280),
                                 height=item.request_data.get("height", 720),
                                 format=item.request_data.get("format", "png"),
-                                imgproxy_url=result.get("url")
-                            )
-                        
+                                imgproxy_url=str(result["url"])
+                            )                      
                         # Mark item as completed
                         item.complete(result)
                         return item.id, True, None
@@ -495,41 +496,92 @@ class BatchService:
         """Send webhook notification if configured."""
         webhook_url = job.config.get("webhook")
         if not webhook_url:
+            logger.debug(f"No webhook configured for job {job.job_id}")
             return
         
         webhook_auth = job.config.get("webhook_auth")
         
+        # Prepare the payload
+        payload = job.get_results()
+        
+        # Prepare headers with proper error handling
+        headers = {
+            "Content-Type": "application/json"
+        }
+        
+        if webhook_auth:
+            headers["Authorization"] = webhook_auth
+        
+        # Log webhook attempt with context
+        logger.info(f"Sending webhook notification for job {job.job_id}", {
+            "job_id": job.job_id,
+            "webhook_url": webhook_url,
+            "payload_size": len(str(payload)),
+            "has_auth": webhook_auth is not None
+        })
+        
         try:
-            # Prepare the payload
-            payload = job.get_results()
-            
-            # Prepare headers
-            headers = {
-                "Content-Type": "application/json"
-            }
-            
-            if webhook_auth:
-                headers["Authorization"] = webhook_auth
-            
-            # Send the webhook notification
+            # Send the webhook notification with proper timeout handling
             async with httpx.AsyncClient() as client:
-                response = await client.post(
-                    webhook_url,
-                    json=payload,
-                    headers=headers,
-                    timeout=10.0
-                )
-                
-                if response.status_code >= 400:
-                    logger.error(
-                        f"Webhook notification failed for job {job.job_id}: "
-                        f"Status code {response.status_code}, Response: {response.text}"
+                try:
+                    response = await asyncio.wait_for(
+                        client.post(
+                            webhook_url,
+                            json=payload,
+                            headers=headers,
+                            timeout=10.0
+                        ),
+                        timeout=15.0  # Overall timeout including connection time
                     )
-                else:
-                    logger.info(f"Webhook notification sent for job {job.job_id}")
                     
+                    # Log response with appropriate level based on status code
+                    if response.status_code >= 500:
+                        logger.error(f"Webhook notification failed for job {job.job_id} with server error", {
+                            "job_id": job.job_id,
+                            "webhook_url": webhook_url,
+                            "status_code": response.status_code,
+                            "response": response.text[:500]  # Limit response text to avoid huge logs
+                        })
+                    elif response.status_code >= 400:
+                        logger.warning(f"Webhook notification failed for job {job.job_id} with client error", {
+                            "job_id": job.job_id,
+                            "webhook_url": webhook_url,
+                            "status_code": response.status_code,
+                            "response": response.text[:500]  # Limit response text to avoid huge logs
+                        })
+                    else:
+                        logger.info(f"Webhook notification sent successfully for job {job.job_id}", {
+                            "job_id": job.job_id,
+                            "webhook_url": webhook_url,
+                            "status_code": response.status_code
+                        })
+                except asyncio.TimeoutError:
+                    logger.error(f"Webhook notification timed out for job {job.job_id}", {
+                        "job_id": job.job_id,
+                        "webhook_url": webhook_url,
+                        "timeout": 15.0
+                    })
+        except httpx.ConnectError as e:
+            logger.error(f"Connection error sending webhook for job {job.job_id}", {
+                "job_id": job.job_id,
+                "webhook_url": webhook_url,
+                "error": str(e),
+                "error_type": "ConnectError"
+            })
+        except httpx.RequestError as e:
+            logger.error(f"Request error sending webhook for job {job.job_id}", {
+                "job_id": job.job_id,
+                "webhook_url": webhook_url,
+                "error": str(e),
+                "error_type": "RequestError"
+            })
         except Exception as e:
-            logger.exception(f"Error sending webhook notification for job {job.job_id}: {str(e)}")
+            logger.exception(f"Unexpected error sending webhook for job {job.job_id}", {
+                "job_id": job.job_id,
+                "webhook_url": webhook_url,
+                "error": str(e),
+                "error_type": type(e).__name__
+            })
 
 
 # Create a singleton instance

@@ -49,14 +49,14 @@ class JobItem:
             "status": self.status
         }
         
-        if self.result is not None:
-            result["url"] = self.result.get("url")
+        if self.result is not None and "url" in self.result:
+            result["url"] = str(self.result["url"])
         
         if self.error is not None:
             result["error"] = self.error
         
         if self.cached is not None:
-            result["cached"] = self.cached
+            result["cached"] = bool(self.cached)  # Ensure boolean type
         
         return result
 
@@ -255,7 +255,7 @@ class BatchJob:
             self.next_scheduled_time = None
             return
         
-        self.next_scheduled_time = next_dt.timestamp()
+        self.next_scheduled_time = float(next_dt.timestamp())  # Explicitly convert to float
     
     def create_recurrence(self) -> Optional['BatchJob']:
         """Create a new job based on this job's recurrence pattern."""

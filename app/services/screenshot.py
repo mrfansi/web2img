@@ -260,7 +260,7 @@ class ScreenshotService:
         wait_until, page_timeout = await self._get_navigation_strategy(url)
             
         # Get a browser context
-        context = None
+        context_dict: Dict[str, Any] = {}  # Initialize as empty dict instead of None
         browser_index = None
         page = None
         try:
@@ -276,7 +276,7 @@ class ScreenshotService:
                     format=format,
                     filepath=filepath,
                     start_time=start_time,
-                    context_dict=context
+                    context_dict=context_dict
                 )
             except asyncio.QueueFull:
                 # If the throttle queue is full, raise a custom error
@@ -603,9 +603,19 @@ class ScreenshotService:
             # Close page if still open
             if page and not page.is_closed():
                 try:
-                    await page.close()
-                except Exception:
-                    pass  # Ignore errors during cleanup
+                    await asyncio.wait_for(page.close(), timeout=3.0)
+                except asyncio.TimeoutError as e:
+                    self.logger.warning(f"Timeout when closing page for {url}", {
+                        "url": url,
+                        "error": "Page close operation timed out",
+                        "timeout": 3.0
+                    })
+                except Exception as e:
+                    self.logger.warning(f"Error when closing page for {url}: {str(e)}", {
+                        "url": url,
+                        "error": str(e),
+                        "error_type": type(e).__name__
+                    })
                     
             # Ensure context is returned to pool even if an error occurs
             if context and browser_index is not None:
@@ -624,9 +634,25 @@ class ScreenshotService:
                     })
                     # Force browser recycling as a last resort
                     try:
-                        await self._browser_pool.release_browser(browser_index, is_healthy=False)
-                    except Exception:
-                        pass  # Last resort failed, just continue
+                        await asyncio.wait_for(
+                            self._browser_pool.release_browser(browser_index, is_healthy=False),
+                            timeout=5.0
+                        )
+                        self.logger.info(f"Successfully forced browser recycling for browser {browser_index}")
+                    except asyncio.TimeoutError as e:
+                        self.logger.error(f"Timeout during forced browser recycling for browser {browser_index}", {
+                            "url": url,
+                            "browser_index": browser_index,
+                            "error": "Browser recycling operation timed out",
+                            "timeout": 5.0
+                        })
+                    except Exception as e:
+                        self.logger.error(f"Failed to recycle browser {browser_index} as last resort: {str(e)}", {
+                            "url": url,
+                            "browser_index": browser_index,
+                            "error": str(e),
+                            "error_type": type(e).__name__
+                        })
 
     def _cleanup_temp_files(self) -> int:
         """Clean up old temporary files.

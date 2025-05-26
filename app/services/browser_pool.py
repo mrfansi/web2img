@@ -69,11 +69,29 @@ class BrowserPool:
                 await asyncio.sleep(self._cleanup_interval)
                 await self.cleanup()
         except asyncio.CancelledError:
-            # Task was cancelled, clean up resources
+            # Task was cancelled, this is expected during shutdown
+            # No need to log this as it's a normal part of the shutdown process
             pass
+        except (asyncio.TimeoutError, ConnectionError) as e:
+            # Log specific network/timeout errors with context
+            from app.core.logging import get_logger
+            logger = get_logger("browser_pool")
+            logger.error(f"Timeout or connection error in browser pool cleanup loop: {str(e)}", {
+                "error": str(e),
+                "error_type": type(e).__name__,
+                "cleanup_interval": self._cleanup_interval
+            })
         except Exception as e:
-            # Log error but don't crash
-            print(f"Error in browser pool cleanup loop: {str(e)}")
+            # Log unexpected errors with full context
+            from app.core.logging import get_logger
+            logger = get_logger("browser_pool")
+            logger.exception(f"Unexpected error in browser pool cleanup loop: {str(e)}", {
+                "error": str(e),
+                "error_type": type(e).__name__,
+                "cleanup_interval": self._cleanup_interval,
+                "browser_count": len(self._browsers),
+                "available_browsers": len(self._available_browsers)
+            })
     
     async def _create_browser_instance(self) -> Optional[Dict[str, Any]]:
         """Create a new browser instance with metadata."""
@@ -430,32 +448,84 @@ class BrowserPool:
     
     async def shutdown(self):
         """Shutdown all browsers in the pool."""
+        from app.core.logging import get_logger
+        logger = get_logger("browser_pool")
+        
         # Cancel cleanup task
         if self._cleanup_task:
             self._cleanup_task.cancel()
             try:
                 await self._cleanup_task
             except asyncio.CancelledError:
-                pass  # Expected when cancelling
+                # This is expected when cancelling a task
+                logger.debug("Cleanup task cancelled during shutdown")
+            except Exception as e:
+                # Log any unexpected errors during cleanup task cancellation
+                logger.warning(f"Error while cancelling cleanup task: {str(e)}", {
+                    "error": str(e),
+                    "error_type": type(e).__name__
+                })
+        
+        browser_count = len(self._browsers)
+        logger.info(f"Shutting down browser pool with {browser_count} browsers")
         
         async with self._lock:
             # Close all browsers
-            for browser_data in self._browsers:
+            for i, browser_data in enumerate(self._browsers):
+                # Track context closure success for logging
+                context_success = 0
+                context_errors = 0
+                
+                # Close all contexts
+                for j, context in enumerate(browser_data["contexts"]):
+                    try:
+                        await context.close()
+                        context_success += 1
+                    except (ConnectionError, TimeoutError) as e:
+                        # Log specific network/timeout errors
+                        context_errors += 1
+                        logger.warning(f"Network error closing context {j} for browser {i}: {str(e)}", {
+                            "error": str(e),
+                            "error_type": type(e).__name__,
+                            "browser_index": i,
+                            "context_index": j
+                        })
+                    except Exception as e:
+                        # Log unexpected errors with context
+                        context_errors += 1
+                        logger.error(f"Error closing context {j} for browser {i}: {str(e)}", {
+                            "error": str(e),
+                            "error_type": type(e).__name__,
+                            "browser_index": i,
+                            "context_index": j
+                        })
+                
                 try:
-                    # Close all contexts
-                    for context in browser_data["contexts"]:
-                        try:
-                            await context.close()
-                        except Exception:
-                            pass  # Ignore errors during cleanup
-                    
                     # Close the browser
                     await browser_data["browser"].close()
                     
                     # Stop playwright
                     await browser_data["playwright"].stop()
-                except Exception:
-                    pass  # Ignore errors during cleanup
+                    
+                    logger.debug(f"Successfully closed browser {i}", {
+                        "browser_index": i,
+                        "contexts_closed": context_success,
+                        "context_errors": context_errors
+                    })
+                except (ConnectionError, TimeoutError) as e:
+                    # Log specific network/timeout errors
+                    logger.warning(f"Network error closing browser {i}: {str(e)}", {
+                        "error": str(e),
+                        "error_type": type(e).__name__,
+                        "browser_index": i
+                    })
+                except Exception as e:
+                    # Log unexpected errors with context
+                    logger.error(f"Error closing browser {i}: {str(e)}", {
+                        "error": str(e),
+                        "error_type": type(e).__name__,
+                        "browser_index": i
+                    })
             
             # Clear lists
             self._browsers = []
@@ -464,6 +534,8 @@ class BrowserPool:
             # Update stats
             self._stats["current_size"] = 0
             self._stats["current_usage"] = 0
+            
+            logger.info("Browser pool shutdown complete")
     
     def get_stats(self) -> Dict[str, Any]:
         """Get pool statistics.
