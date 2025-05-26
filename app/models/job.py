@@ -114,7 +114,11 @@ class BatchJob:
                 self.status = "scheduled"
         
         # Recurring job support
-        self.recurrence_pattern = RecurrencePattern(self.config.get("recurrence", RecurrencePattern.NONE))
+        recurrence_value = self.config.get("recurrence", RecurrencePattern.NONE.value)
+        if recurrence_value is None:
+            self.recurrence_pattern = None
+        else:
+            self.recurrence_pattern = RecurrencePattern(recurrence_value)
         self.recurrence_count = self.config.get("recurrence_count", 0)  # 0 means infinite
         self.recurrence_interval = self.config.get("recurrence_interval", 1)  # Default interval is 1
         self.parent_job_id: Optional[str] = self.config.get("parent_job_id")  # For tracking job lineage
@@ -224,7 +228,7 @@ class BatchJob:
     
     def _calculate_next_scheduled_time(self) -> None:
         """Calculate the next scheduled time based on recurrence pattern."""
-        if self.recurrence_pattern == RecurrencePattern.NONE or not self.scheduled_time:
+        if self.recurrence_pattern is None or self.recurrence_pattern == RecurrencePattern.NONE or not self.scheduled_time:
             self.next_scheduled_time = None
             return
         
@@ -255,7 +259,7 @@ class BatchJob:
     
     def create_recurrence(self) -> Optional['BatchJob']:
         """Create a new job based on this job's recurrence pattern."""
-        if self.recurrence_pattern == RecurrencePattern.NONE or not self.next_scheduled_time:
+        if self.recurrence_pattern is None or self.recurrence_pattern == RecurrencePattern.NONE or not self.next_scheduled_time:
             return None
         
         # Check if we've reached the recurrence count limit

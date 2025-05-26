@@ -249,7 +249,10 @@ class BatchService:
             
         try:
             # Set recurrence pattern
-            job.recurrence_pattern = RecurrencePattern(pattern)
+            if pattern is None:
+                job.recurrence_pattern = None
+            else:
+                job.recurrence_pattern = RecurrencePattern(pattern)
             job.recurrence_interval = interval
             job.recurrence_count = count
             
