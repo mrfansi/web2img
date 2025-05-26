@@ -1,7 +1,7 @@
 import os
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from dotenv import load_dotenv
 
 # Load environment variables from .env file if it exists
@@ -153,9 +153,9 @@ class Settings(BaseModel):
     log_response_body: bool = Field(
         default_factory=lambda: os.getenv("LOG_RESPONSE_BODY", "False").lower() in ("true", "1", "t")
     )
-
-    class Config:
-        env_file = ".env"
+    
+    # Use model_config instead of class Config to fix Pydantic v2 deprecation warning
+    model_config = ConfigDict(env_file=".env")
 
 
 # Create global settings instance
