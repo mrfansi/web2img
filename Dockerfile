@@ -47,11 +47,6 @@ RUN mkdir -p /tmp/web2img
 # Expose the port the app runs on
 EXPOSE 8000
 
-# Environment variables for configuration
-ENV PORT=8000
-ENV WORKERS=4
-ENV RELOAD=False
-
 # Command to run the application with Gunicorn and Uvicorn workers
 # Uses the WORKERS environment variable for the number of workers
-CMD gunicorn app.main:app -k uvicorn.workers.UvicornWorker -w ${WORKERS} -b 0.0.0.0:${PORT}
+CMD python main.py
