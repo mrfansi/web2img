@@ -1,6 +1,6 @@
 import asyncio
 import time
-from typing import Dict, List, Optional, Tuple, Any
+from typing import Dict, List, Optional, Tuple, Any, AsyncGenerator
 
 from playwright.async_api import async_playwright, Browser, BrowserContext, Page
 from app.core.config import settings
@@ -151,6 +151,10 @@ class BrowserPool:
         
         Returns:
             Tuple of (browser, browser_index) or (None, None) if failed
+            
+        Note:
+            It's recommended to use the browser_context() context manager instead
+            of calling get_browser() and release_browser() directly.
         """
         async with self._lock:
             # Check if we have an available browser
@@ -536,6 +540,87 @@ class BrowserPool:
             self._stats["current_usage"] = 0
             
             logger.info("Browser pool shutdown complete")
+    
+    async def browser_context(self, **kwargs) -> AsyncGenerator[Tuple[BrowserContext, int], None]:
+        """Context manager for safely using a browser and context.
+        
+        This is the recommended way to get and use a browser context, as it ensures
+        proper cleanup even in case of exceptions.
+        
+        Example:
+            ```python
+            async with browser_pool.browser_context() as (context, browser_index):
+                page = await context.new_page()
+                # Use the page...
+            # Context and page are automatically closed and browser is released
+            ```
+            
+        Args:
+            **kwargs: Additional arguments to pass to browser.new_context()
+            
+        Yields:
+            Tuple of (context, browser_index)
+        """
+        from app.core.logging import get_logger
+        logger = get_logger("browser_pool")
+        
+        browser, browser_index = None, None
+        context = None
+        
+        try:
+            # Get a browser from the pool
+            browser, browser_index = await self.get_browser()
+            if browser is None or browser_index is None:
+                logger.error("Failed to get browser from pool")
+                raise RuntimeError("Failed to get browser from pool")
+                
+            # Create a context
+            context = await self.create_context(browser_index, **kwargs)
+            if context is None:
+                logger.error(f"Failed to create context for browser {browser_index}")
+                await self.release_browser(browser_index, is_healthy=False)
+                raise RuntimeError(f"Failed to create context for browser {browser_index}")
+                
+            # Yield the context and browser index
+            yield context, browser_index
+        except Exception as e:
+            # Handle any exceptions during setup
+            logger.error(f"Error in browser_context setup: {str(e)}", {
+                "error": str(e),
+                "error_type": type(e).__name__,
+                "browser_index": browser_index
+            })
+            
+            # Clean up if needed
+            if context is not None and browser_index is not None:
+                try:
+                    await asyncio.wait_for(self.release_context(browser_index, context), timeout=5.0)
+                except Exception as cleanup_error:
+                    logger.error(f"Error releasing context during exception handling: {str(cleanup_error)}")
+            elif browser_index is not None:
+                try:
+                    await asyncio.wait_for(self.release_browser(browser_index, is_healthy=False), timeout=5.0)
+                except Exception as cleanup_error:
+                    logger.error(f"Error releasing browser during exception handling: {str(cleanup_error)}")
+                    
+            # Re-raise the original exception
+            raise
+        finally:
+            # This block runs after the with block completes or if an exception occurs
+            if context is not None and browser_index is not None:
+                try:
+                    await asyncio.wait_for(self.release_context(browser_index, context), timeout=5.0)
+                except Exception as e:
+                    logger.error(f"Error in browser_context cleanup: {str(e)}", {
+                        "error": str(e),
+                        "error_type": type(e).__name__,
+                        "browser_index": browser_index
+                    })
+                    # Force browser recycling as a last resort
+                    try:
+                        await asyncio.wait_for(self.release_browser(browser_index, is_healthy=False), timeout=5.0)
+                    except Exception:
+                        logger.error(f"Failed to recycle browser {browser_index} during cleanup")
     
     def get_stats(self) -> Dict[str, Any]:
         """Get pool statistics.

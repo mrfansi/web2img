@@ -3,7 +3,7 @@ import os
 import re
 import time
 import uuid
-from typing import Dict, List, Optional, Tuple, Any
+from typing import Dict, List, Optional, Tuple, Any, AsyncGenerator, ContextManager
 
 from app.core.logging import get_logger
 
@@ -32,6 +32,17 @@ class ScreenshotService:
         )
         self._last_cleanup = time.time()
         self._lock = asyncio.Lock()
+        
+        # Resource tracking for automatic cleanup
+        self._active_resources = {
+            "contexts": set(),  # Set of (browser_index, context) tuples
+            "pages": set()     # Set of page objects
+        }
+        self._resource_lock = asyncio.Lock()
+        
+        # Cleanup task
+        self._cleanup_task = None
+        self._cleanup_interval = settings.screenshot_cleanup_interval or 300  # 5 minutes default
         
         # Create retry configurations
         self._retry_config_regular = RetryConfig(
@@ -101,7 +112,7 @@ class ScreenshotService:
         os.makedirs(settings.screenshot_dir, exist_ok=True)
 
     async def startup(self):
-        """Initialize the browser pool."""
+        """Initialize the browser pool and start the cleanup task."""
         self.logger.info("Initializing screenshot service", {
             "browser_pool_config": {
                 "min_size": settings.browser_pool_min_size,
@@ -120,71 +131,180 @@ class ScreenshotService:
                     "base_delay": settings.retry_base_delay,
                     "max_delay": settings.retry_max_delay
                 }
-            }
+            },
+            "cleanup_interval": self._cleanup_interval
         })
+        
+        # Initialize the browser pool
         await self._browser_pool.initialize()
+        
+        # Start the scheduled cleanup task
+        self._start_cleanup_task()
+        
         self.logger.info("Screenshot service initialized successfully")
 
-    async def _get_context(self, width: int = 1280, height: int = 720):
-        """Get a browser context from the pool."""
+    async def _get_context(self, width: int = 1280, height: int = 720) -> Tuple[Optional[BrowserContext], Optional[int]]:
+        """Get a browser context from the pool.
+        
+        Note:
+            It's recommended to use the managed_context() context manager instead
+            of calling _get_context() and _return_context() directly.
+        """
         # Get a browser from the pool
         browser, browser_index = await self._browser_pool.get_browser()
-        
         if browser is None or browser_index is None:
-            # If we couldn't get a browser, raise an error
-            # Note: This should not normally happen as BrowserPool.get_browser now raises BrowserPoolExhaustedError
-            # But we keep this as a fallback
-            from app.core.errors import BrowserPoolExhaustedError
-            raise BrowserPoolExhaustedError(context={
-                "width": width,
-                "height": height
-            })
-        
-        # Create a context for this browser
-        context = await self._browser_pool.create_context(
-            browser_index,
-            viewport={'width': width, 'height': height},
-            user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-            java_script_enabled=True,
-            ignore_https_errors=True,
-            bypass_csp=True  # Bypass Content-Security-Policy
-        )
-        
-        if context is None:
-            # If context creation failed, release the browser and raise an error
-            await self._browser_pool.release_browser(browser_index, is_healthy=False)
-            from app.core.errors import BrowserError
-            raise BrowserError(
-                message="Failed to create browser context",
-                context={
-                    "browser_index": browser_index,
-                    "width": width,
-                    "height": height
-                }
-            )
-        
-        return context, browser_index
-        
-    async def _return_context(self, context: BrowserContext, browser_index: int):
-        """Release a browser context."""
+            self.logger.error("Failed to get browser from pool")
+            return None, None
+            
+        # Create a new context with the specified viewport size
         try:
-            await self._browser_pool.release_context(browser_index, context)
-            self.logger.debug(f"Successfully released browser context for browser {browser_index}")
+            context = await self._browser_pool.create_context(
+                browser_index,
+                viewport={"width": width, "height": height},
+                user_agent=settings.user_agent,
+                ignore_https_errors=True
+            )
+            
+            if context is None:
+                self.logger.error(f"Failed to create context for browser {browser_index}")
+                await self._browser_pool.release_browser(browser_index, is_healthy=False)
+                return None, None
+            
+            # Track the context for automatic cleanup
+            await self._track_resource("context", (browser_index, context))
+                
+            return context, browser_index
         except Exception as e:
-            # Log error but don't raise to avoid disrupting cleanup
-            self.logger.error(f"Error releasing browser context: {str(e)}", {
+            self.logger.error(f"Error creating context: {str(e)}", {
                 "error": str(e),
                 "error_type": type(e).__name__,
                 "browser_index": browser_index
             })
-            # Mark the browser as unhealthy to force recycling
+            await self._browser_pool.release_browser(browser_index, is_healthy=False)
+            return None, None
+            
+    async def _return_context(self, context: BrowserContext, browser_index: int, is_healthy: bool = True) -> None:
+        """Return a browser context to the pool and untrack it."""
+        try:
+            # Untrack the context from resource tracking
+            await self._untrack_resource("context", (browser_index, context))
+            
+            # Release the context back to the browser pool
+            await self._browser_pool.release_context(browser_index, context)
+            
+            if not is_healthy:
+                # If the context is not healthy, release the browser as unhealthy
+                await self._browser_pool.release_browser(browser_index, is_healthy=False)
+                self.logger.info(f"Released unhealthy browser {browser_index}")
+        except Exception as e:
+            self.logger.error(f"Error returning context: {str(e)}", {
+                "error": str(e),
+                "error_type": type(e).__name__,
+                "browser_index": browser_index
+            })
+            # Try to release the browser as unhealthy as a last resort
             try:
                 await self._browser_pool.release_browser(browser_index, is_healthy=False)
-            except Exception as inner_e:
-                self.logger.error(f"Error releasing unhealthy browser: {str(inner_e)}")
+            except Exception as release_error:
+                self.logger.error(f"Failed to release browser {browser_index} after context error: {str(release_error)}")
+            
+    async def managed_context(self, width: int = 1280, height: int = 720) -> AsyncGenerator[Tuple[BrowserContext, int, Page], None]:
+        """Context manager for safely using a browser context and page.
         
-        # Release the browser back to the pool
-        await self._browser_pool.release_browser(browser_index)
+        This is the recommended way to get and use a browser context and page, as it ensures
+        proper cleanup even in case of exceptions.
+        
+        Example:
+            ```python
+            async with screenshot_service.managed_context(width=1280, height=720) as (context, browser_index, page):
+                # Use the context and page...
+            # Context, page, and browser are automatically cleaned up
+            ```
+            
+        Args:
+            width: The viewport width
+            height: The viewport height
+            
+        Yields:
+            Tuple of (context, browser_index, page)
+        """
+        context = None
+        browser_index = None
+        page = None
+        
+        try:
+            # Get a context from the pool
+            context, browser_index = await self._get_context(width, height)
+            if context is None or browser_index is None:
+                raise RuntimeError("Failed to get browser context")
+                
+            # Create a new page
+            try:
+                page = await asyncio.wait_for(
+                    context.new_page(),
+                    timeout=settings.page_creation_timeout
+                )
+                # Track the page for automatic cleanup
+                await self._track_resource("page", page)
+            except asyncio.TimeoutError:
+                self.logger.error("Timeout creating new page")
+                await self._return_context(context, browser_index, is_healthy=False)
+                raise RuntimeError("Timeout creating new page")
+            except Exception as e:
+                self.logger.error(f"Error creating new page: {str(e)}", {
+                    "error": str(e),
+                    "error_type": type(e).__name__
+                })
+                await self._return_context(context, browser_index, is_healthy=False)
+                raise RuntimeError(f"Error creating new page: {str(e)}")
+                
+            # Yield the context, browser index, and page
+            yield context, browser_index, page
+        except Exception as e:
+            # Handle any exceptions during setup
+            self.logger.error(f"Error in managed_context setup: {str(e)}", {
+                "error": str(e),
+                "error_type": type(e).__name__,
+                "browser_index": browser_index
+            })
+            
+            # Clean up if needed
+            if page is not None and not page.is_closed():
+                try:
+                    await asyncio.wait_for(page.close(), timeout=3.0)
+                    await self._untrack_resource("page", page)
+                except Exception as cleanup_error:
+                    self.logger.warning(f"Error closing page during exception handling: {str(cleanup_error)}")
+                    
+            if context is not None and browser_index is not None:
+                try:
+                    await self._return_context(context, browser_index, is_healthy=False)
+                except Exception as cleanup_error:
+                    self.logger.error(f"Error returning context during exception handling: {str(cleanup_error)}")
+                    
+            # Re-raise the original exception
+            raise
+        finally:
+            # This block runs after the with block completes or if an exception occurs
+            if page is not None and not page.is_closed():
+                try:
+                    await asyncio.wait_for(page.close(), timeout=3.0)
+                    await self._untrack_resource("page", page)
+                except Exception as e:
+                    self.logger.warning(f"Error closing page during cleanup: {str(e)}", {
+                        "error": str(e),
+                        "error_type": type(e).__name__
+                    })
+                    
+            if context is not None and browser_index is not None:
+                try:
+                    await self._return_context(context, browser_index)
+                except Exception as e:
+                    self.logger.error(f"Error returning context during cleanup: {str(e)}", {
+                        "error": str(e),
+                        "error_type": type(e).__name__,
+                        "browser_index": browser_index
+                    })
 
     def _is_complex_site(self, url: str) -> bool:
         """Check if the URL is for a complex site that needs special handling."""
@@ -693,9 +813,126 @@ class ScreenshotService:
             })
             return files_removed
     
+    def _start_cleanup_task(self):
+        """Start the scheduled cleanup task."""
+        if self._cleanup_task is None or self._cleanup_task.done():
+            self.logger.info(f"Starting scheduled cleanup task with interval {self._cleanup_interval} seconds")
+            self._cleanup_task = asyncio.create_task(self._scheduled_cleanup_loop())
+            # Add error handling for the cleanup task
+            self._cleanup_task.add_done_callback(self._handle_cleanup_task_done)
+    
+    def _handle_cleanup_task_done(self, task):
+        """Handle completion of the cleanup task."""
+        try:
+            # Check if the task raised an exception
+            exception = task.exception()
+            if exception:
+                self.logger.error(f"Cleanup task failed with error: {str(exception)}", {
+                    "error": str(exception),
+                    "error_type": type(exception).__name__
+                })
+                # Restart the cleanup task
+                self._start_cleanup_task()
+        except asyncio.CancelledError:
+            # Task was cancelled, which is expected during shutdown
+            self.logger.info("Cleanup task was cancelled")
+        except Exception as e:
+            # Unexpected error handling the task completion
+            self.logger.error(f"Error handling cleanup task completion: {str(e)}", {
+                "error": str(e),
+                "error_type": type(e).__name__
+            })
+    
+    async def _scheduled_cleanup_loop(self):
+        """Scheduled cleanup loop that runs periodically."""
+        try:
+            while True:
+                # Sleep for the cleanup interval
+                await asyncio.sleep(self._cleanup_interval)
+                
+                # Perform cleanup operations
+                try:
+                    await self._cleanup_resources()
+                    self._cleanup_temp_files()
+                except Exception as e:
+                    self.logger.error(f"Error in scheduled cleanup: {str(e)}", {
+                        "error": str(e),
+                        "error_type": type(e).__name__
+                    })
+        except asyncio.CancelledError:
+            # Task was cancelled, which is expected during shutdown
+            self.logger.info("Scheduled cleanup loop was cancelled")
+        except Exception as e:
+            # Unexpected error in the cleanup loop
+            self.logger.error(f"Unexpected error in cleanup loop: {str(e)}", {
+                "error": str(e),
+                "error_type": type(e).__name__
+            })
+            # Re-raise to trigger the done callback
+            raise
+    
+    async def _cleanup_resources(self):
+        """Clean up tracked resources that may have been leaked."""
+        async with self._resource_lock:
+            # Clean up tracked pages
+            pages_closed = 0
+            for page in list(self._active_resources["pages"]):
+                try:
+                    if not page.is_closed():
+                        await asyncio.wait_for(page.close(), timeout=3.0)
+                        pages_closed += 1
+                except Exception as e:
+                    self.logger.warning(f"Error closing tracked page: {str(e)}")
+                self._active_resources["pages"].discard(page)
+            
+            # Clean up tracked contexts
+            contexts_closed = 0
+            for browser_index, context in list(self._active_resources["contexts"]):
+                try:
+                    await self._return_context(context, browser_index)
+                    contexts_closed += 1
+                except Exception as e:
+                    self.logger.warning(f"Error releasing tracked context: {str(e)}")
+                self._active_resources["contexts"].discard((browser_index, context))
+            
+            if pages_closed > 0 or contexts_closed > 0:
+                self.logger.info(f"Cleaned up tracked resources", {
+                    "pages_closed": pages_closed,
+                    "contexts_closed": contexts_closed
+                })
+    
+    async def _track_resource(self, resource_type: str, resource):
+        """Track a resource for automatic cleanup."""
+        async with self._resource_lock:
+            if resource_type == "page":
+                self._active_resources["pages"].add(resource)
+            elif resource_type == "context":
+                browser_index, context = resource
+                self._active_resources["contexts"].add((browser_index, context))
+    
+    async def _untrack_resource(self, resource_type: str, resource):
+        """Remove a resource from tracking."""
+        async with self._resource_lock:
+            if resource_type == "page":
+                self._active_resources["pages"].discard(resource)
+            elif resource_type == "context":
+                browser_index, context = resource
+                self._active_resources["contexts"].discard((browser_index, context))
+    
     async def cleanup(self):
         """Clean up resources."""
         self.logger.info("Cleaning up screenshot service resources")
+        
+        # Cancel the cleanup task if it's running
+        if self._cleanup_task and not self._cleanup_task.done():
+            self._cleanup_task.cancel()
+            try:
+                await self._cleanup_task
+            except asyncio.CancelledError:
+                pass
+        
+        # Clean up tracked resources
+        await self._cleanup_resources()
         
         # Shutdown the browser pool
         start_time = time.time()

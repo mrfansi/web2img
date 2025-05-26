@@ -1,10 +1,11 @@
 import asyncio
 import time
 import uuid
-from typing import Dict, List, Any, Optional, Tuple, Set
+from typing import Dict, List, Any, Optional, Tuple, Set, AsyncGenerator, ContextManager
 import httpx
 from datetime import datetime, timezone
 from collections import defaultdict
+from contextlib import asynccontextmanager
 
 from app.models.job import job_store, BatchJob, JobItem, RecurrencePattern
 from app.services.screenshot import capture_screenshot_with_options
@@ -74,7 +75,59 @@ class BatchService:
     """Service for batch processing of screenshot requests."""
     
     def __init__(self):
+        """Initialize the batch service."""
+        # Dictionary to store active jobs
+        self.active_jobs = {}
+        # Dictionary to store processing jobs
         self.processing_jobs: Dict[str, asyncio.Task] = {}
+        # Set to store active users
+        self.active_users: Set[str] = set()
+        # Lock for job operations
+        self._lock = asyncio.Lock()
+        # Rate limiter for job scheduling
+        self._rate_limiter = RateLimiter(
+            rate=10,  # 10 jobs
+            per=60,   # per minute
+            burst=20  # allow burst of up to 20 jobs
+        )
+        # Resource tracking for HTTP clients
+        self._active_clients = set()
+        self._client_lock = asyncio.Lock()
+        
+    @asynccontextmanager
+    async def _http_client(self, timeout: float = 10.0) -> AsyncGenerator[httpx.AsyncClient, None]:
+        """Context manager for HTTP clients to ensure proper resource management.
+        
+        This ensures that HTTP clients are properly closed even in case of exceptions,
+        preventing resource leaks.
+        
+        Args:
+            timeout: The timeout for HTTP requests in seconds
+            
+        Yields:
+            An HTTP client that will be automatically closed
+        """
+        client = httpx.AsyncClient(timeout=timeout)
+        
+        # Track the client for cleanup
+        async with self._client_lock:
+            self._active_clients.add(client)
+            
+        try:
+            yield client
+        finally:
+            # Always close the client, even if an exception occurs
+            try:
+                await client.aclose()
+            except Exception as e:
+                logger.warning(f"Error closing HTTP client: {str(e)}", {
+                    "error": str(e),
+                    "error_type": type(e).__name__
+                })
+            
+            # Remove the client from tracking
+            async with self._client_lock:
+                self._active_clients.discard(client)
         
         # Rate limiting
         self.rate_limiters: Dict[str, RateLimiter] = {}
@@ -312,17 +365,81 @@ class BatchService:
         
         return True
     
-    async def get_active_jobs(self) -> List[Dict[str, Any]]:
-        """Get all active jobs (processing or scheduled)."""
-        active_jobs = []
+    async def get_active_jobs(self) -> Dict[str, Any]:
+        """Get all active jobs."""
+        return {
+            job_id: {
+                "status": job.status,
+                "progress": job.get_progress(),
+                "created_at": job.created_at,
+                "updated_at": job.updated_at,
+                "scheduled_time": job.scheduled_time,
+                "recurrence": job.recurrence
+            }
+            for job_id, job in self.active_jobs.items()
+        }
         
-        # Get all jobs
-        for job_id, job in job_store.jobs.items():
-            # Include processing and scheduled jobs
-            if job.status in ["processing", "scheduled"]:
-                active_jobs.append(job.get_status())
-                
-        return active_jobs
+    async def _cleanup_resources(self) -> Dict[str, int]:
+        """Clean up tracked resources that may have been leaked.
+        
+        Returns:
+            Dictionary with counts of cleaned up resources
+        """
+        cleanup_stats = {
+            "http_clients": 0
+        }
+        
+        # Clean up HTTP clients
+        async with self._client_lock:
+            clients_to_close = list(self._active_clients)
+            for client in clients_to_close:
+                try:
+                    await asyncio.wait_for(client.aclose(), timeout=3.0)
+                    cleanup_stats["http_clients"] += 1
+                except Exception as e:
+                    logger.warning(f"Error closing HTTP client during cleanup: {str(e)}", {
+                        "error": str(e),
+                        "error_type": type(e).__name__
+                    })
+                self._active_clients.discard(client)
+        
+        if cleanup_stats["http_clients"] > 0:
+            logger.info(f"Cleaned up {cleanup_stats["http_clients"]} HTTP clients")
+            
+        return cleanup_stats
+    
+    async def shutdown(self):
+        """Shutdown the batch service."""
+        logger.info("Shutting down batch service")
+        
+        # Cancel all processing jobs
+        for job_id, task in list(self.processing_jobs.items()):
+            if not task.done():
+                task.cancel()
+                try:
+                    await asyncio.wait_for(task, timeout=5.0)
+                except asyncio.CancelledError:
+                    logger.info(f"Cancelled job {job_id} during shutdown")
+                except asyncio.TimeoutError:
+                    logger.warning(f"Timeout waiting for job {job_id} to cancel during shutdown")
+                except Exception as e:
+                    logger.error(f"Error cancelling job {job_id} during shutdown: {str(e)}", {
+                        "error": str(e),
+                        "error_type": type(e).__name__,
+                        "job_id": job_id
+                    })
+        
+        # Clean up resources
+        cleanup_stats = await self._cleanup_resources()
+        
+        # Clear all active jobs
+        self.active_jobs.clear()
+        self.processing_jobs.clear()
+        self.active_users.clear()
+        
+        logger.info("Batch service shutdown complete", {
+            "cleanup_stats": cleanup_stats
+        })
     
     async def _process_batch_job(self, job: BatchJob) -> None:
         """Process a batch job."""
@@ -521,15 +638,14 @@ class BatchService:
         })
         
         try:
-            # Send the webhook notification with proper timeout handling
-            async with httpx.AsyncClient() as client:
+            # Send the webhook notification with proper timeout handling and resource management
+            async with self._http_client(timeout=10.0) as client:
                 try:
                     response = await asyncio.wait_for(
                         client.post(
                             webhook_url,
                             json=payload,
-                            headers=headers,
-                            timeout=10.0
+                            headers=headers
                         ),
                         timeout=15.0  # Overall timeout including connection time
                     )
