@@ -982,17 +982,18 @@ class ScreenshotService:
         Returns:
             Number of files removed
         """
-        if not self._temp_dir or not os.path.exists(self._temp_dir):
+        temp_dir = settings.screenshot_dir
+        if not temp_dir or not os.path.exists(temp_dir):
             return 0
             
         now = time.time()
-        retention_seconds = self._temp_file_retention_hours * 3600
+        retention_seconds = settings.temp_file_retention_hours * 3600
         removed_count = 0
         
         try:
             # Get all files in the temp directory
-            for filename in os.listdir(self._temp_dir):
-                filepath = os.path.join(self._temp_dir, filename)
+            for filename in os.listdir(temp_dir):
+                filepath = os.path.join(temp_dir, filename)
                 
                 # Skip directories
                 if not os.path.isfile(filepath):

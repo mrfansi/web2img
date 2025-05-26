@@ -94,6 +94,23 @@ class BatchService:
         self._active_clients = set()
         self._client_lock = asyncio.Lock()
         
+        # Rate limiting
+        self.rate_limiters = {}
+        self.default_rate_limiter = RateLimiter(rate=10, per=60, burst=20)  # 10 requests per minute, burst of 20
+        
+        # User rate limit tiers
+        self.rate_limit_tiers = {
+            "free": RateLimiter(rate=10, per=60, burst=20),      # 10 requests per minute
+            "basic": RateLimiter(rate=30, per=60, burst=50),     # 30 requests per minute
+            "premium": RateLimiter(rate=60, per=60, burst=100),   # 60 requests per minute
+            "enterprise": RateLimiter(rate=120, per=60, burst=200)  # 120 requests per minute
+        }
+        
+        # Job scheduler
+        self.scheduler_task = None
+        self.scheduler_running = False
+        self.active_users = set()  # Track active users for rate limiting
+    
     @asynccontextmanager
     async def _http_client(self, timeout: float = 10.0) -> AsyncGenerator[httpx.AsyncClient, None]:
         """Context manager for HTTP clients to ensure proper resource management.
@@ -128,23 +145,6 @@ class BatchService:
             # Remove the client from tracking
             async with self._client_lock:
                 self._active_clients.discard(client)
-        
-        # Rate limiting
-        self.rate_limiters: Dict[str, RateLimiter] = {}
-        self.default_rate_limiter = RateLimiter(rate=10, per=60, burst=20)  # 10 requests per minute, burst of 20
-        
-        # User rate limit tiers
-        self.rate_limit_tiers = {
-            "free": RateLimiter(rate=10, per=60, burst=20),      # 10 requests per minute
-            "basic": RateLimiter(rate=30, per=60, burst=50),     # 30 requests per minute
-            "premium": RateLimiter(rate=60, per=60, burst=100),   # 60 requests per minute
-            "enterprise": RateLimiter(rate=120, per=60, burst=200)  # 120 requests per minute
-        }
-        
-        # Job scheduler
-        self.scheduler_task = None
-        self.scheduler_running = False
-        self.active_users: Set[str] = set()  # Track active users for rate limiting
     
     async def start_scheduler(self) -> None:
         """Start the job scheduler."""
