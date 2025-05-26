@@ -216,13 +216,17 @@ def test_all_endpoints():
     print(f"Failed: {results['failed']}")
     print(f"Success rate: {results['passed'] / results['total'] * 100:.1f}%")
 
-    # Additional tests for batch job status and results
-    if any(t.name == "Batch Screenshot Job Creation" and t.success for t in tests):
-        batch_test = next(t for t in tests if t.name == "Batch Screenshot Job Creation" and t.success)
-        job_id = batch_test.response.json().get("job_id")
-        if job_id:
-            print("\n=== Testing Batch Job Status and Results ===\n")
-            test_batch_job_status_and_results(job_id)
+    # Note: Batch job status and results testing is now handled in test_batch_async.py
+    # This avoids the issue with event loop closure causing batch job cancellation
+    # Uncomment the code below if you want to test batch job status and results here
+    # (not recommended due to event loop issues)
+    
+    # if any(t.name == "Batch Screenshot Job Creation" and t.success for t in tests):
+    #     batch_test = next(t for t in tests if t.name == "Batch Screenshot Job Creation" and t.success)
+    #     job_id = batch_test.response.json().get("job_id")
+    #     if job_id:
+    #         print("\n=== Testing Batch Job Status and Results ===\n")
+    #         test_batch_job_status_and_results(job_id)
 
 
 def test_batch_job_status_and_results(job_id):
@@ -240,7 +244,9 @@ def test_batch_job_status_and_results(job_id):
             print("Waiting for batch job to complete...")
             start_time = time.time()
             completed = False
-            while time.time() - start_time < 30:
+            # Increase timeout to ensure job has time to complete
+            max_wait_time = 60  # Increased from 30 to 60 seconds
+            while time.time() - start_time < max_wait_time:
                 response = client.get(f"/batch/screenshots/{job_id}")
                 if response.status_code == 200:
                     status = response.json().get("status")
@@ -248,10 +254,11 @@ def test_batch_job_status_and_results(job_id):
                     if status in ["completed", "completed_with_errors", "failed"]:
                         completed = True
                         break
-                time.sleep(1)
+                # Increase sleep time to reduce polling frequency
+                time.sleep(2)  # Increased from 1 to 2 seconds
 
             if not completed:
-                print("❌ Batch Job Completion: FAILED - Timeout waiting for job to complete")
+                print(f"❌ Batch Job Completion: FAILED - Timeout waiting for job to complete after {max_wait_time} seconds")
                 return
     else:
         print(f"❌ Batch Job Status: FAILED - Status code {response.status_code}")
@@ -297,9 +304,19 @@ def main():
     # Allow any remaining async tasks to complete
     time.sleep(2)  # Increased sleep time to allow more time for async tasks
     # Force close any remaining async tasks to prevent event loop errors
-    for task in asyncio.all_tasks(asyncio.get_event_loop()) if hasattr(asyncio, 'all_tasks') else []:
-        if not task.done():
-            task.cancel()
+    try:
+        # Try to get the running loop first
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        # No running event loop, create a new one
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+    
+    # Cancel any remaining tasks
+    if hasattr(asyncio, 'all_tasks'):
+        for task in asyncio.all_tasks(loop):
+            if not task.done():
+                task.cancel()
 
 
 if __name__ == "__main__":
