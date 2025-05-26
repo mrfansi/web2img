@@ -1,6 +1,6 @@
 import asyncio
 import time
-from typing import Dict, Any, Optional, List, Callable
+from typing import Dict, Any, Optional, List, Callable, Awaitable, TypeVar, Union
 
 from app.core.logging import get_logger
 
@@ -33,7 +33,7 @@ class RequestThrottle:
         }
         self.logger = get_logger(f"throttle.{name}")
     
-    async def execute(self, operation: Callable, *args, **kwargs) -> Any:
+    async def execute(self, operation: Callable[..., Awaitable[Any]], *args, **kwargs) -> Any:
         """Execute an operation with throttling.
         
         Args:
@@ -51,7 +51,7 @@ class RequestThrottle:
         self._stats["total_requests"] += 1
         
         # Check if we can acquire the semaphore immediately
-        if self._semaphore.locked() and self._semaphore._value == 0:
+        if self._semaphore.locked() and self._active_count >= self.max_concurrent:
             # Semaphore is fully locked, need to queue
             try:
                 # Try to put a placeholder in the queue
