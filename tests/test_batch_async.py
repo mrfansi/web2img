@@ -25,7 +25,7 @@ async def test_batch_job():
     # Use HTTPX AsyncClient with TestClient as a transport to properly handle FastAPI app
     test_client = TestClient(app)
     transport = httpx.ASGITransport(app=app)
-    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+    async with httpx.AsyncClient(transport=transport, base_url="http://localhost:8000") as client:
         # Create batch job
         payload = {
             "items": [
