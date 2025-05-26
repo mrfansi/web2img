@@ -203,9 +203,16 @@ async def main():
     
     # List of test URLs
     test_urls = [
-        "https://example.com",
-        "https://google.com",
-        "https://github.com"
+        "https://viding.co/mini-rsvp/1179317",
+        "https://viding.co/mini-rsvp/1179324",
+        "https://viding.co/mini-rsvp/1179333",
+        "https://viding.co/mini-rsvp/1179340",
+        "https://viding.co/mini-rsvp/1220490",
+        "https://viding.co/mini-rsvp/1179422",
+        "https://viding.co/mini-rsvp/1176156",
+        "https://viding.co/mini-rsvp/1176154",
+        "https://viding.co/mini-rsvp/1176152",
+        "https://viding.co/mini-rsvp/1176147"
     ]
     
     # Run the cache test

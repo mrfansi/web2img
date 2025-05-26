@@ -91,6 +91,12 @@ class Settings(BaseModel):
     context_creation_timeout: int = Field(
         default_factory=lambda: int(os.getenv("CONTEXT_CREATION_TIMEOUT", "30000"))
     )
+    browser_context_timeout: int = Field(
+        default_factory=lambda: int(os.getenv("BROWSER_CONTEXT_TIMEOUT", "15000"))
+    )
+    page_creation_timeout: int = Field(
+        default_factory=lambda: int(os.getenv("PAGE_CREATION_TIMEOUT", "10000"))
+    )
 
     screenshot_timeout: int = Field(
         default_factory=lambda: int(os.getenv("SCREENSHOT_TIMEOUT", "30000"))

@@ -84,6 +84,16 @@ class BrowserPoolExhaustedError(BrowserError):
         )
 
 
+class BrowserTimeoutError(BrowserError):
+    """Error when browser operations timeout."""
+    def __init__(self, message: str = "Browser operation timed out", context: Optional[Dict[str, Any]] = None, original_exception: Optional[Exception] = None):
+        super().__init__(
+            message=message,
+            context=context,
+            original_exception=original_exception
+        )
+
+
 class NavigationError(WebToImgError):
     """Error during page navigation."""
     def __init__(self, url: str, context: Optional[Dict[str, Any]] = None, original_exception: Optional[Exception] = None):
@@ -203,6 +213,18 @@ class CircuitBreakerOpenError(WebToImgError):
             message=f"Service protection activated for {name}. Too many errors occurred recently. Please try again later.",
             error_code="circuit_breaker_open",
             http_status=HTTP_503_SERVICE_UNAVAILABLE,
+            context=context
+        )
+
+
+# System capacity errors
+class SystemOverloadedError(WebToImgError):
+    """Error when the system is overloaded and cannot accept more requests."""
+    def __init__(self, message: str = "System is currently overloaded. Please try again later.", context: Optional[Dict[str, Any]] = None):
+        super().__init__(
+            message=message,
+            error_code="system_overloaded",
+            http_status=HTTP_429_TOO_MANY_REQUESTS,
             context=context
         )
 

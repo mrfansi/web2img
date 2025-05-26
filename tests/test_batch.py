@@ -135,22 +135,16 @@ def main():
     
     # Test URLs
     urls = [
-        "https://example.com",
-        "https://google.com",
-        "https://github.com",
-        "https://microsoft.com",
-        "https://apple.com",
-        "https://linkedin.com",
-        "https://amazon.com",
-        "https://facebook.com",
-        "https://twitter.com",
-        "https://instagram.com",
-        "https://youtube.com",
-        "https://whatsapp.com",
-        "https://tiktok.com",
-        "https://snapchat.com",
-        "https://viding.co",
-        "https://harisenin.com"
+        "https://viding.co/mini-rsvp/1179317",
+        "https://viding.co/mini-rsvp/1179324",
+        "https://viding.co/mini-rsvp/1179333",
+        "https://viding.co/mini-rsvp/1179340",
+        "https://viding.co/mini-rsvp/1220490",
+        "https://viding.co/mini-rsvp/1179422",
+        "https://viding.co/mini-rsvp/1176156",
+        "https://viding.co/mini-rsvp/1176154",
+        "https://viding.co/mini-rsvp/1176152",
+        "https://viding.co/mini-rsvp/1176147"
     ]
     
     # Run the test

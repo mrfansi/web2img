@@ -37,12 +37,16 @@ async def test_browser_pool_under_load():
     
     # Test URLs (mix of regular and complex sites)
     test_urls = [
-        "https://example.com",
-        "https://google.com",
-        "https://github.com",
-        "https://wikipedia.org",
-        "https://youtube.com",  # Complex site
-        "https://linkedin.com",  # Complex site
+        "https://viding.co/mini-rsvp/1179317",
+        "https://viding.co/mini-rsvp/1179324",
+        "https://viding.co/mini-rsvp/1179333",
+        "https://viding.co/mini-rsvp/1179340",
+        "https://viding.co/mini-rsvp/1220490",
+        "https://viding.co/mini-rsvp/1179422",
+        "https://viding.co/mini-rsvp/1176156",
+        "https://viding.co/mini-rsvp/1176154",
+        "https://viding.co/mini-rsvp/1176152",
+        "https://viding.co/mini-rsvp/1176147"
     ]
     
     # Test parameters

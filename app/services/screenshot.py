@@ -12,6 +12,7 @@ from playwright.async_api import async_playwright, Browser, BrowserContext, Page
 from app.core.config import settings
 from app.services.browser_pool import BrowserPool
 from app.services.retry import RetryConfig, CircuitBreaker, RetryManager
+from app.services.throttle import screenshot_throttle
 
 
 class ScreenshotService:
@@ -166,8 +167,21 @@ class ScreenshotService:
         
     async def _return_context(self, context: BrowserContext, browser_index: int):
         """Release a browser context."""
-        # Release the context back to the browser pool
-        await self._browser_pool.release_context(browser_index, context)
+        try:
+            await self._browser_pool.release_context(browser_index, context)
+            self.logger.debug(f"Successfully released browser context for browser {browser_index}")
+        except Exception as e:
+            # Log error but don't raise to avoid disrupting cleanup
+            self.logger.error(f"Error releasing browser context: {str(e)}", {
+                "error": str(e),
+                "error_type": type(e).__name__,
+                "browser_index": browser_index
+            })
+            # Mark the browser as unhealthy to force recycling
+            try:
+                await self._browser_pool.release_browser(browser_index, is_healthy=False)
+            except Exception as inner_e:
+                self.logger.error(f"Error releasing unhealthy browser: {str(inner_e)}")
         
         # Release the browser back to the pool
         await self._browser_pool.release_browser(browser_index)
@@ -222,7 +236,16 @@ class ScreenshotService:
         # Start timer for performance tracking
         start_time = time.time()
         
-        self.logger.info(f"Starting screenshot capture for {url}", context)
+        # Log browser pool stats before starting
+        pool_stats = self._browser_pool.get_stats()
+        self.logger.info(f"Starting screenshot capture for {url}", {
+            **context,
+            "browser_pool": {
+                "size": pool_stats["size"],
+                "available": pool_stats["available"],
+                "in_use": pool_stats["in_use"]
+            }
+        })
         
         # Periodically clean up old temporary files
         current_time = time.time()
@@ -241,6 +264,72 @@ class ScreenshotService:
         browser_index = None
         page = None
         try:
+            # Apply request throttling to prevent overwhelming the browser pool
+            # This will queue the request if too many are already in progress
+            try:
+                # Execute the rest of the function with throttling
+                return await screenshot_throttle.execute(
+                    self._capture_screenshot_impl,
+                    url=url,
+                    width=width,
+                    height=height,
+                    format=format,
+                    filepath=filepath,
+                    start_time=start_time,
+                    context_dict=context
+                )
+            except asyncio.QueueFull:
+                # If the throttle queue is full, raise a custom error
+                from app.core.errors import SystemOverloadedError
+                raise SystemOverloadedError(
+                    message="Too many concurrent screenshot requests",
+                    context={
+                        "url": url,
+                        "throttle_stats": screenshot_throttle.get_stats(),
+                        "browser_pool_stats": self._browser_pool.get_stats()
+                    }
+                )
+        except Exception as e:
+            # Clean up any partially created file
+            if os.path.exists(filepath):
+                os.unlink(filepath)
+            
+            # Log error with structured data
+            duration = time.time() - start_time
+            error_context = {
+                "url": url,
+                "width": width,
+                "height": height,
+                "format": format,
+                "filepath": filepath,
+                "duration": duration,
+                "error": str(e),
+                "error_type": type(e).__name__
+            }
+            
+            self.logger.error(f"Failed to capture screenshot for {url}", error_context)
+            
+            # Use our custom error class for better error messages
+            from app.core.errors import ScreenshotError
+            raise ScreenshotError(url=url, context=error_context, original_exception=e)
+            
+    async def _capture_screenshot_impl(self, url: str, width: int, height: int, format: str, filepath: str, start_time: float, context_dict: dict) -> str:
+        """Implementation of screenshot capture with throttling applied.
+        
+        This is the actual implementation that gets executed by the throttle mechanism.
+        """
+        # Local variables for cleanup in finally block
+        context = None
+        browser_index = None
+        page = None
+        
+        try:
+            # Determine if this is a complex site that needs special handling
+            is_complex = self._is_complex_site(url)
+            
+            # Get navigation strategy based on site complexity
+            wait_until, page_timeout = await self._get_navigation_strategy(url)
+            
             # Select retry configuration based on site complexity
             retry_config = self._retry_config_complex if is_complex else self._retry_config_regular
             
@@ -254,9 +343,36 @@ class ScreenshotService:
             # Get context with retry logic
             async def get_context_with_page():
                 nonlocal context, browser_index, page
-                context, browser_index = await self._get_context(width=width, height=height)
-                page = await context.new_page()
-                return page
+                self.logger.debug(f"Attempting to get browser context for {url}")
+                
+                # Get context with timeout protection
+                try:
+                    context, browser_index = await asyncio.wait_for(
+                        self._get_context(width=width, height=height),
+                        timeout=settings.browser_context_timeout
+                    )
+                    self.logger.debug(f"Got browser context {browser_index} for {url}")
+                    
+                    # Create page with timeout protection
+                    page = await asyncio.wait_for(
+                        context.new_page(),
+                        timeout=settings.page_creation_timeout
+                    )
+                    self.logger.debug(f"Created new page for {url} using browser {browser_index}")
+                    return page
+                except asyncio.TimeoutError:
+                    self.logger.warning(f"Timeout getting browser context or creating page for {url}")
+                    
+                    # Clean up partial resources
+                    if context and browser_index is not None:
+                        self.logger.debug(f"Releasing browser {browser_index} after timeout")
+                        await self._return_context(context, browser_index)
+                        context = None
+                        browser_index = None
+                    
+                    # Re-raise as a custom error for better retry handling
+                    from app.core.errors import BrowserTimeoutError
+                    raise BrowserTimeoutError("Timeout getting browser context or creating page")
             
             # Execute with retry
             page = await retry_manager.execute(get_context_with_page)
@@ -421,11 +537,21 @@ class ScreenshotService:
             
             # Close the page to free resources
             if page and not page.is_closed():
-                await page.close()
-                page = None
+                try:
+                    await asyncio.wait_for(page.close(), timeout=5.0)
+                    self.logger.debug(f"Successfully closed page for {url}")
+                except Exception as e:
+                    self.logger.warning(f"Error closing page: {str(e)}", {
+                        "url": url,
+                        "error": str(e),
+                        "error_type": type(e).__name__
+                    })
+                finally:
+                    page = None
             
             # Return the context to the pool for reuse
             if context and browser_index is not None:
+                self.logger.debug(f"Returning context for browser {browser_index} to pool")
                 await self._return_context(context, browser_index)
                 context = None  # Prevent double return in finally block
                 browser_index = None  # Prevent double return in finally block
@@ -483,7 +609,24 @@ class ScreenshotService:
                     
             # Ensure context is returned to pool even if an error occurs
             if context and browser_index is not None:
-                await self._return_context(context, browser_index)
+                self.logger.debug(f"Returning context for browser {browser_index} to pool in finally block")
+                try:
+                    await asyncio.wait_for(
+                        self._return_context(context, browser_index),
+                        timeout=5.0
+                    )
+                except Exception as e:
+                    self.logger.error(f"Error in finally block when returning context: {str(e)}", {
+                        "url": url,
+                        "browser_index": browser_index,
+                        "error": str(e),
+                        "error_type": type(e).__name__
+                    })
+                    # Force browser recycling as a last resort
+                    try:
+                        await self._browser_pool.release_browser(browser_index, is_healthy=False)
+                    except Exception:
+                        pass  # Last resort failed, just continue
 
     def _cleanup_temp_files(self) -> int:
         """Clean up old temporary files.
@@ -556,7 +699,9 @@ class ScreenshotService:
             "circuit_breakers": {
                 "browser": self._browser_circuit_breaker.get_state(),
                 "navigation": self._navigation_circuit_breaker.get_state()
-            }
+            },
+            "throttle": screenshot_throttle.get_stats(),
+            "browser_pool": self._browser_pool.get_stats()
         }
 
 
