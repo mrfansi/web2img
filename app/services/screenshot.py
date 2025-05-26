@@ -1268,18 +1268,45 @@ class ScreenshotService:
         """Get browser pool statistics."""
         return self._browser_pool.get_stats()
     
-    def get_retry_stats(self):
-        """Get retry and timeout statistics."""
+    def get_retry_stats(self) -> Dict[str, Any]:
+        """Get retry statistics.
+        
+        Returns:
+            Dictionary with retry statistics
+        """
         return {
-            "timeouts": self._timeout_stats,
             "browser_retry": self._browser_retry_manager.get_stats(),
             "circuit_breakers": {
                 "browser": self._browser_circuit_breaker.get_state(),
                 "navigation": self._navigation_circuit_breaker.get_state()
             },
-            "throttle": screenshot_throttle.get_stats(),
-            "browser_pool": self._browser_pool.get_stats()
+            "throttle": {
+                "screenshot": screenshot_throttle.get_stats()
+            }
         }
+        
+    async def reset_circuit_breakers(self):
+        """Reset all circuit breakers to closed state.
+        
+        This is particularly useful for tests to ensure isolation between test cases.
+        """
+        self.logger.info("Resetting all circuit breakers to closed state")
+        
+        # Create new circuit breakers with the same configuration
+        self._browser_circuit_breaker = CircuitBreaker(
+            threshold=settings.circuit_breaker_threshold,
+            reset_time=settings.circuit_breaker_reset_time,
+            name="browser"
+        )
+        
+        self._navigation_circuit_breaker = CircuitBreaker(
+            threshold=settings.circuit_breaker_threshold,
+            reset_time=settings.circuit_breaker_reset_time,
+            name="navigation"
+        )
+        
+        # Update the retry manager with the new circuit breaker
+        self._browser_retry_manager.circuit_breaker = self._browser_circuit_breaker
 
 
 # Helper function for batch processing

@@ -9,6 +9,7 @@ focusing on end-to-end functionality and resource management.
 import asyncio
 import os
 import pytest
+import pytest_asyncio
 import time
 from typing import Dict, Any, List
 import uuid
@@ -19,6 +20,18 @@ from app.core.config import settings
 from tests.utils.async_test_utils import (
     cleanup_async_resources
 )
+
+@pytest_asyncio.fixture(autouse=True)
+async def reset_circuit_breakers_fixture():
+    """Reset circuit breakers before each test to ensure test isolation."""
+    # Reset before test
+    await screenshot_service.reset_circuit_breakers()
+    
+    # Run the test
+    yield
+    
+    # Reset after test
+    await screenshot_service.reset_circuit_breakers()
 
 
 @pytest.mark.asyncio
@@ -146,7 +159,7 @@ async def test_concurrent_screenshot_captures():
 @pytest.mark.asyncio
 async def test_resource_tracking_during_errors():
     """Test resource tracking and cleanup during errors."""
-    # Save initial resource counts
+    # Get initial resource counts
     initial_active_pages = len(screenshot_service._active_resources["pages"])
     initial_active_contexts = len(screenshot_service._active_resources["contexts"])
     
@@ -263,6 +276,42 @@ async def test_retry_mechanism_integration():
     assert "browser_retry" in updated_stats
     assert "circuit_breakers" in updated_stats
     assert "throttle" in updated_stats
+    
+    # Cleanup resources
+    await cleanup_async_resources()
+
+
+@pytest.mark.asyncio
+async def test_circuit_breaker_reset():
+    """Test that circuit breakers can be reset properly."""
+    # Get initial circuit breaker state
+    initial_stats = screenshot_service.get_retry_stats()
+    initial_browser_state = initial_stats["circuit_breakers"]["browser"]["state"]
+    initial_navigation_state = initial_stats["circuit_breakers"]["navigation"]["state"]
+    
+    # Manually trip the circuit breakers by simulating failures
+    threshold = settings.circuit_breaker_threshold
+    
+    # Trip the navigation circuit breaker
+    for _ in range(threshold):
+        await screenshot_service._navigation_circuit_breaker.record_failure()
+    
+    # Trip the browser circuit breaker
+    for _ in range(threshold):
+        await screenshot_service._browser_circuit_breaker.record_failure()
+    
+    # Verify circuit breakers are open
+    tripped_stats = screenshot_service.get_retry_stats()
+    assert tripped_stats["circuit_breakers"]["browser"]["state"] == "open"
+    assert tripped_stats["circuit_breakers"]["navigation"]["state"] == "open"
+    
+    # Reset circuit breakers
+    await screenshot_service.reset_circuit_breakers()
+    
+    # Verify circuit breakers are closed again
+    reset_stats = screenshot_service.get_retry_stats()
+    assert reset_stats["circuit_breakers"]["browser"]["state"] == "closed"
+    assert reset_stats["circuit_breakers"]["navigation"]["state"] == "closed"
     
     # Cleanup resources
     await cleanup_async_resources()
