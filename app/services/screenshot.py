@@ -95,11 +95,14 @@ class ScreenshotService:
             r'instagram\.com',
             r'snapchat\.com',
             r'tiktok\.com',
+            r'viding\.co',
             r'harisenin\.com'
         ]
         
         # Sites where visual content is important and images should be loaded
         self._visual_content_sites = [
+            r'viding\.co',
+            r'harisenin\.com',
             r'instagram\.com',
             r'snapchat\.com',
             r'tiktok\.com'
