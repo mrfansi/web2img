@@ -710,13 +710,25 @@ class ScreenshotService:
             
             return filepath
         except Exception as e:
-            # Log the error with context
-            self.logger.exception(f"Error capturing screenshot for {url}", {
-                "url": url,
-                "error": str(e),
-                "error_type": type(e).__name__,
-                "elapsed_time": time.time() - start_time
-            })
+            # Check for common errors that don't need full traceback
+            from app.core.errors import CircuitBreakerOpenError
+            
+            if isinstance(e, CircuitBreakerOpenError):
+                # For circuit breaker errors, use a more concise log without traceback
+                self.logger.error(f"Circuit breaker open for {url}: {str(e)}", {
+                    "url": url,
+                    "error": str(e),
+                    "error_type": "CircuitBreakerOpenError",
+                    "elapsed_time": time.time() - start_time
+                })
+            else:
+                # For other errors, log with full traceback
+                self.logger.exception(f"Error capturing screenshot for {url}", {
+                    "url": url,
+                    "error": str(e),
+                    "error_type": type(e).__name__,
+                    "elapsed_time": time.time() - start_time
+                })
             
             # Re-raise with our custom error class
             from app.core.errors import ScreenshotError

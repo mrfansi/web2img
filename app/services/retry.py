@@ -336,9 +336,16 @@ class RetryManager:
                 self._stats["circuit_breaker_rejections"] += 1
                 circuit_state = self.circuit_breaker.get_state()
                 
+                # Use a more concise log message for circuit breaker errors
                 self.logger.warning(
-                    f"Circuit breaker is open for {self.name}", 
-                    {**context, "circuit_state": circuit_state}
+                    f"Circuit breaker is open for {self.name} - operation: {operation_name}", 
+                    {
+                        "operation": operation_name,
+                        "manager": self.name,
+                        "circuit_state": circuit_state["state"],
+                        "failure_count": circuit_state["failure_count"],
+                        "threshold": circuit_state["threshold"]
+                    }
                 )
                 
                 # Use our custom error class for better error messages

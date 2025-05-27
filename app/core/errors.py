@@ -209,8 +209,19 @@ class ValidationError(WebToImgError):
 class CircuitBreakerOpenError(WebToImgError):
     """Error when a circuit breaker is open."""
     def __init__(self, name: str, context: Optional[Dict[str, Any]] = None):
+        # Get operation name from context if available for more specific message
+        operation = context.get("operation", "unknown") if context else "unknown"
+        
+        # Create a concise message that will be less verbose in logs
+        message = f"Circuit breaker open: {name}"
+        if operation != "unknown":
+            message += f" (operation: {operation})"
+            
+        # Add user-facing details to the message
+        user_message = f"{message}. Too many errors occurred recently. Please try again later."
+        
         super().__init__(
-            message=f"Service protection activated for {name}. Too many errors occurred recently. Please try again later.",
+            message=user_message,
             error_code="circuit_breaker_open",
             http_status=HTTP_503_SERVICE_UNAVAILABLE,
             context=context

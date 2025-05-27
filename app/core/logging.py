@@ -68,7 +68,37 @@ def get_logger(name: str):
     Returns:
         A logger instance bound with the specified name.
     """
+    # Create a logger with the specified name
     return logger.bind(name=name)
+
+
+def format_exception(record: Dict[str, Any]) -> str:
+    """Format exception traceback more concisely.
+    
+    This formatter is used to make exception logs more concise by:
+    1. Checking if the exception is a common one that doesn't need a full traceback
+    2. Formatting the traceback in a more readable way
+    
+    Args:
+        record: The log record containing exception information
+        
+    Returns:
+        Formatted exception string
+    """
+    # Get exception information
+    exception = record.get("exception")
+    if not exception:
+        return ""
+        
+    # Get exception type and message
+    exc_type, exc_value, _ = exception
+    
+    # Check for common errors that don't need full traceback
+    if exc_type.__name__ == "CircuitBreakerOpenError":
+        return f"\n{exc_type.__name__}: {exc_value}"
+    
+    # For other exceptions, return a simplified traceback
+    return ""  # Return empty string to use default formatting
 
 
 def setup_logging() -> None:
@@ -86,6 +116,7 @@ def setup_logging() -> None:
         level=log_config.LEVEL,
         format=log_config.FORMAT,
         serialize=log_config.JSON_LOGS,
+        format_exc=format_exception,  # Use our custom exception formatter
     )
     
     # Add file logging if needed
@@ -98,6 +129,7 @@ def setup_logging() -> None:
         level=log_config.LEVEL,
         format=log_config.FORMAT,
         serialize=log_config.JSON_LOGS,
+        format_exc=format_exception,  # Use our custom exception formatter
     )
     
     # Intercept standard logging
