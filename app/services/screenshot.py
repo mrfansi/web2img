@@ -676,7 +676,7 @@ class ScreenshotService:
                 return page
             
             # Execute with retry
-            page = await retry_manager.execute(get_context_with_page)
+            page = await retry_manager.execute(get_context_with_page, operation_name="get_context_with_page")
             
             # Set viewport size
             await page.set_viewport_size({"width": width, "height": height})
@@ -690,7 +690,8 @@ class ScreenshotService:
             
             # Navigate to URL with retry logic
             response = await navigation_retry_manager.execute(
-                lambda: self._navigate_to_url(page, url, wait_until, page_timeout, is_complex)
+                lambda: self._navigate_to_url(page, url, wait_until, page_timeout, is_complex),
+                operation_name="navigate_to_url"
             )
             
             # Capture the screenshot with retry logic
@@ -1118,7 +1119,7 @@ class ScreenshotService:
             await asyncio.sleep(1)  # Extra wait for complex sites
         
         # Execute the screenshot capture with retry
-        return await screenshot_retry_manager.execute(capture_screenshot)
+        return await screenshot_retry_manager.execute(capture_screenshot, operation_name="capture_screenshot")
 
     async def _scheduled_cleanup_loop(self):
         """Scheduled cleanup loop that runs periodically."""

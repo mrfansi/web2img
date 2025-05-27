@@ -272,12 +272,13 @@ class RetryManager:
         # Create a logger for this retry manager
         self.logger = get_logger(f"retry.{name}")
     
-    async def execute(self, operation, *args, **kwargs):
+    async def execute(self, operation, *args, operation_name=None, **kwargs):
         """Execute an operation with retry logic and circuit breaker.
         
         Args:
             operation: Async function to execute
             *args: Arguments to pass to operation
+            operation_name: Optional name for the operation (useful for lambda functions)
             **kwargs: Keyword arguments to pass to operation
             
         Returns:
@@ -291,7 +292,30 @@ class RetryManager:
         self._stats["attempts"] += 1
         
         # Get operation name for logging
-        operation_name = getattr(operation, "__name__", "unknown")
+        if operation_name is None:
+            # Try to get a meaningful name from the function
+            operation_name = getattr(operation, "__name__", "unknown")
+            
+            # If it's a lambda, try to get a better name from the function's source
+            if operation_name == "<lambda>":
+                try:
+                    import inspect
+                    # Get the source code of the lambda function
+                    source = inspect.getsource(operation)
+                    # Extract the calling context from the source
+                    # This will show something like 'retry_manager.execute(lambda: func(), ...'
+                    operation_name = f"lambda_in_{source.split('(')[0].strip()}"
+                except Exception:
+                    # If we can't get source, use the module and line number if available
+                    try:
+                        module = inspect.getmodule(operation)
+                        if module:
+                            module_name = module.__name__
+                            line_no = inspect.getsourcelines(operation)[1]
+                            operation_name = f"lambda_at_{module_name}:{line_no}"
+                    except Exception:
+                        # Fall back to the original name
+                        pass
         
         # Create context for logging
         context = {

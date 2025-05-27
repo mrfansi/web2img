@@ -142,8 +142,8 @@ async def test_capture_screenshot_with_retry():
     # Mock RetryManager.execute to directly call our capture function
     original_execute = RetryManager.execute
     
-    async def mock_execute_function(self, func):
-        return await func()
+    async def mock_execute_function(self, func, *args, operation_name=None, **kwargs):
+        return await func(*args, **kwargs)
     
     # Apply the patch
     RetryManager.execute = mock_execute_function
