@@ -132,6 +132,22 @@ class Settings(BaseModel):
         default_factory=lambda: float(os.getenv("RETRY_JITTER", "0.1"))
     )
     
+    # Context Creation Retry Multipliers
+    # These multipliers are applied to the base retry settings for context creation operations
+    # which need more aggressive retry behavior under high load
+    context_retry_max_retries_multiplier: float = Field(
+        default_factory=lambda: float(os.getenv("CONTEXT_RETRY_MAX_RETRIES_MULTIPLIER", "2.0"))
+    )
+    context_retry_base_delay_multiplier: float = Field(
+        default_factory=lambda: float(os.getenv("CONTEXT_RETRY_BASE_DELAY_MULTIPLIER", "2.5"))
+    )
+    context_retry_max_delay_multiplier: float = Field(
+        default_factory=lambda: float(os.getenv("CONTEXT_RETRY_MAX_DELAY_MULTIPLIER", "1.6"))
+    )
+    context_retry_jitter_multiplier: float = Field(
+        default_factory=lambda: float(os.getenv("CONTEXT_RETRY_JITTER_MULTIPLIER", "2.0"))
+    )
+    
     # Circuit Breaker Configuration
     circuit_breaker_threshold: int = Field(
         default_factory=lambda: int(os.getenv("CIRCUIT_BREAKER_THRESHOLD", "5"))

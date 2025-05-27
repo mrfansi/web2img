@@ -446,14 +446,20 @@ class ScreenshotService:
         # For context creation, use a more aggressive retry strategy with longer delays
         # to handle high concurrency better
         if name == "context_creation":
-            # Create a special retry config for browser context creation
-            # Use longer base delay and max delay to reduce contention under high load
+            # Create a special retry config for browser context creation using multipliers
+            # This applies multipliers to the base retry settings for better handling of high concurrency
             from app.services.retry import RetryConfig
+            
+            # Select base retry config based on site complexity
+            base_config = self._retry_config_complex if is_complex else self._retry_config_regular
+            base_max_retries = settings.max_retries_complex if is_complex else settings.max_retries_regular
+            
+            # Apply multipliers to create an optimized config for context creation
             context_retry_config = RetryConfig(
-                max_retries=12,  # More retries for context creation
-                base_delay=0.5,  # Start with a longer delay
-                max_delay=8.0,   # Allow longer max delay
-                jitter=0.2       # More jitter to reduce contention
+                max_retries=int(base_max_retries * settings.context_retry_max_retries_multiplier),
+                base_delay=base_config.base_delay * settings.context_retry_base_delay_multiplier,
+                max_delay=base_config.max_delay * settings.context_retry_max_delay_multiplier,
+                jitter=base_config.jitter * settings.context_retry_jitter_multiplier
             )
             
             # Create a retry manager optimized for high concurrency
