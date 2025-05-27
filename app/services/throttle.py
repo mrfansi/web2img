@@ -144,9 +144,18 @@ class RequestThrottle:
         }
 
 
-# Create a singleton instance for screenshot requests
+# Import settings to access browser pool configuration
+from app.core.config import settings
+
+# Calculate throttle parameters based on browser pool size
+# Use a percentage of the min_size for max_concurrent to ensure we don't overwhelm the pool
+# but still utilize most of the capacity
+MAX_CONCURRENT_RATIO = 0.8  # Use 80% of min_size for concurrent requests
+QUEUE_SIZE_RATIO = 1.5     # Queue size is 1.5x the max_concurrent
+
+# Create a singleton instance for screenshot requests with dynamic sizing
 screenshot_throttle = RequestThrottle(
-    max_concurrent=8,  # Adjust based on browser pool size
-    queue_size=20,
+    max_concurrent=int(settings.browser_pool_min_size * MAX_CONCURRENT_RATIO),
+    queue_size=int(settings.browser_pool_min_size * MAX_CONCURRENT_RATIO * QUEUE_SIZE_RATIO),
     name="screenshot"
 )
