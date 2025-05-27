@@ -41,6 +41,7 @@ R2_SECRET_ACCESS_KEY=your_secret_access_key
 R2_ENDPOINT=https://<accountid>.r2.cloudflarestorage.com
 R2_BUCKET=your_bucket_name
 R2_PUBLIC_URL=https://your-public-url.example.com
+R2_OBJECT_EXPIRATION_DAYS=3  # Number of days before objects are automatically deleted
 
 # imgproxy Configuration
 IMGPROXY_BASE_URL=https://your-imgproxy-url.example.com
@@ -83,6 +84,17 @@ RETRY_JITTER=0.1
 CIRCUIT_BREAKER_THRESHOLD=5
 CIRCUIT_BREAKER_RESET_TIME=300
 ```
+
+### R2 Storage Configuration Options
+
+- `R2_ACCESS_KEY_ID`: Your Cloudflare R2 access key ID
+- `R2_SECRET_ACCESS_KEY`: Your Cloudflare R2 secret access key
+- `R2_ENDPOINT`: Your Cloudflare R2 endpoint URL (https://<accountid>.r2.cloudflarestorage.com)
+- `R2_BUCKET`: The name of your R2 bucket for storing screenshots
+- `R2_PUBLIC_URL`: The public URL for accessing your R2 bucket
+- `R2_OBJECT_EXPIRATION_DAYS`: Number of days before screenshots are automatically deleted (default: `3`)
+
+> **Important**: To use the automatic R2 expiration policy, your R2 API token must have the `PutBucketLifecycleConfiguration` permission. If this permission is missing, the application will still function, but you'll need to configure the lifecycle policy manually through the Cloudflare dashboard.
 
 ### Cache Configuration Options
 

@@ -37,6 +37,9 @@ class Settings(BaseModel):
     r2_public_url: str = Field(
         default_factory=lambda: os.getenv("R2_PUBLIC_URL", "")
     )
+    r2_object_expiration_days: int = Field(
+        default_factory=lambda: int(os.getenv("R2_OBJECT_EXPIRATION_DAYS", "3"))
+    )
     # imgproxy Configuration
     imgproxy_base_url: str = Field(
         default_factory=lambda: os.getenv("IMGPROXY_BASE_URL", "")

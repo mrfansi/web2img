@@ -20,6 +20,15 @@ class StorageService:
         self._last_error_time = 0
         self._error_count = 0
         self._backoff_time = 1  # Initial backoff time in seconds
+        self._logger = None  # Will be initialized later
+        
+    @property
+    def logger(self):
+        """Get or create a logger."""
+        if self._logger is None:
+            from app.core.logging import get_logger
+            self._logger = get_logger("storage_service")
+        return self._logger
 
     @property
     def client(self):
@@ -139,6 +148,122 @@ class StorageService:
                 
                 raise RuntimeError(f"Unexpected error uploading to R2: {str(e)}") from e
 
+    def configure_r2_lifecycle_policy(self) -> bool:
+        """Configure R2 bucket lifecycle policy to expire objects after specified days.
+        
+        Returns:
+            bool: True if configuration was successful, False otherwise
+        """
+        try:
+            # Define lifecycle configuration
+            lifecycle_config = {
+                'Rules': [
+                    {
+                        'ID': f'Delete after {settings.r2_object_expiration_days} days',
+                        'Status': 'Enabled',
+                        'Prefix': '',  # Apply to all objects
+                        'Expiration': {'Days': settings.r2_object_expiration_days},
+                    }
+                ]
+            }
+            
+            # Apply lifecycle configuration to bucket
+            self.client.put_bucket_lifecycle_configuration(
+                Bucket=settings.r2_bucket,
+                LifecycleConfiguration=lifecycle_config
+            )
+            
+            self.logger.info(f"Successfully configured {settings.r2_object_expiration_days}-day expiration policy for bucket {settings.r2_bucket}")
+            return True
+            
+        except Exception as e:
+            error_str = str(e)
+            error_type = type(e).__name__
+            
+            # Provide more specific guidance for common errors
+            if "AccessDenied" in error_str:
+                self.logger.error(
+                    f"Access denied when configuring lifecycle policy. Your R2 credentials need 'PutBucketLifecycleConfiguration' permission.", 
+                    {
+                        "error": error_str,
+                        "error_type": error_type,
+                        "bucket": settings.r2_bucket,
+                        "required_permission": "PutBucketLifecycleConfiguration",
+                        "resolution": "Update your R2 API token permissions in the Cloudflare dashboard or manually configure the lifecycle policy."
+                    }
+                )
+                # Continue application startup despite this error
+                self.logger.warning(
+                    f"Application will continue without automatic expiration. Objects in {settings.r2_bucket} will need to be manually expired or configured through the Cloudflare dashboard."
+                )
+            else:
+                self.logger.error(f"Failed to configure lifecycle policy: {error_str}", {
+                    "error": error_str,
+                    "error_type": error_type,
+                    "bucket": settings.r2_bucket,
+                    "expiration_days": settings.r2_object_expiration_days
+                })
+            return False
+    
+    async def startup(self):
+        """Initialize the storage service and configure lifecycle policies."""
+        self.logger.info("Initializing storage service")
+        
+        # Configure lifecycle policy
+        # Run in a thread to avoid blocking the event loop
+        try:
+            result = await asyncio.to_thread(self.configure_r2_lifecycle_policy)
+            
+            if result:
+                self.logger.info(f"Storage service initialized with {settings.r2_object_expiration_days}-day expiration policy")
+            else:
+                self.logger.warning("Storage service initialized but failed to configure expiration policy")
+        except Exception as e:
+            self.logger.error(f"Error during storage service initialization: {str(e)}", {
+                "error": str(e),
+                "error_type": type(e).__name__
+            })
+            
+    async def get_storage_stats(self):
+        """Get storage statistics including object count and total size."""
+        try:
+            # Run in a thread to avoid blocking the event loop
+            stats = await asyncio.to_thread(self._get_storage_stats_impl)
+            return stats
+        except Exception as e:
+            self.logger.error(f"Error getting storage stats: {str(e)}")
+            return {"error": str(e)}
+
+    def _get_storage_stats_impl(self):
+        """Implementation of storage stats collection."""
+        try:
+            # List all objects in the bucket
+            response = self.client.list_objects_v2(Bucket=settings.r2_bucket)
+            
+            # Calculate statistics
+            object_count = response.get('KeyCount', 0)
+            total_size = sum(obj['Size'] for obj in response.get('Contents', []))
+            
+            # Get lifecycle configuration
+            try:
+                lifecycle = self.client.get_bucket_lifecycle_configuration(Bucket=settings.r2_bucket)
+                expiration_days = lifecycle.get('Rules', [{}])[0].get('Expiration', {}).get('Days', 'Not configured')
+            except Exception:
+                expiration_days = 'Not configured'
+            
+            return {
+                "object_count": object_count,
+                "total_size_bytes": total_size,
+                "expiration_days": expiration_days,
+                "bucket_name": settings.r2_bucket
+            }
+        except Exception as e:
+            self.logger.error(f"Error in _get_storage_stats_impl: {str(e)}")
+            return {
+                "error": str(e),
+                "error_type": type(e).__name__
+            }
+            
     async def cleanup(self):
         """Clean up resources."""
         try:

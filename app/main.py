@@ -51,6 +51,10 @@ async def lifespan(app: FastAPI):
     # Initialize browser pool
     await screenshot_service.startup()
     logger.info("Browser pool initialized")
+    
+    # Initialize storage service and configure R2 lifecycle policy
+    await storage_service.startup()
+    logger.info("Storage service initialized")
 
     # Initialize and start the browser pool watchdog
     watchdog = initialize_watchdog(screenshot_service._browser_pool)
