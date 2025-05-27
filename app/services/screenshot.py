@@ -1180,7 +1180,7 @@ class ScreenshotService:
                 # Perform cleanup operations
                 try:
                     await self._cleanup_resources()
-                    self._cleanup_temp_files()
+                    await self._cleanup_temp_files()
                 except Exception as e:
                     self.logger.error(f"Error in scheduled cleanup: {str(e)}", {
                         "error": str(e),
