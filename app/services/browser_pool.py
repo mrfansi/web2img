@@ -942,3 +942,119 @@ class BrowserPool:
             "current_usage": self._stats["current_usage"],
             "current_size": self._stats["current_size"]
         }
+
+
+    async def force_recycle(self, count: int = 1) -> int:
+        """Force recycle a specific number of browsers, prioritizing in-use ones.
+        
+        This method is used by the watchdog to recover from stuck browser situations.
+        
+        Args:
+            count: Number of browsers to forcibly recycle
+            
+        Returns:
+            Number of browsers actually recycled
+        """
+        from app.core.logging import get_logger
+        logger = get_logger("browser_pool")
+        
+        async with self._lock:
+            # Calculate pool metrics
+            pool_size = len(self._browsers)
+            available_count = len(self._available_browsers)
+            in_use_count = pool_size - available_count
+            
+            # Limit count to actual pool size
+            count = min(count, pool_size)
+            
+            if count <= 0:
+                return 0
+                
+            logger.info(f"Force recycling {count} browsers", {
+                "requested_count": count,
+                "pool_size": pool_size,
+                "in_use": in_use_count
+            })
+            
+            # First, identify browsers that are in use (not in available_browsers)
+            in_use_browsers = [i for i in range(len(self._browsers)) if i not in self._available_browsers]
+            
+            # Prioritize in-use browsers, but fall back to available ones if needed
+            browsers_to_recycle = []
+            
+            # Add in-use browsers first
+            browsers_to_recycle.extend(in_use_browsers[:count])
+            
+            # If we need more, add available browsers
+            if len(browsers_to_recycle) < count:
+                remaining = count - len(browsers_to_recycle)
+                browsers_to_recycle.extend(self._available_browsers[:remaining])
+            
+            # Sort in reverse order for safe removal
+            browsers_to_recycle.sort(reverse=True)
+            
+            # Track how many we actually recycled
+            recycled_count = 0
+            
+            # Process browsers to recycle
+            for i in browsers_to_recycle:
+                try:
+                    # Close all contexts
+                    for context in self._browsers[i]["contexts"]:
+                        try:
+                            await context.close()
+                        except Exception as e:
+                            logger.debug(f"Error closing context during force recycling: {str(e)}")
+                    
+                    # Close the browser
+                    await self._browsers[i]["browser"].close()
+                    
+                    # Stop playwright
+                    await self._browsers[i]["playwright"].stop()
+                    
+                    # Remove from browsers list
+                    self._browsers.pop(i)
+                    
+                    # Update available_browsers list
+                    if i in self._available_browsers:
+                        self._available_browsers.remove(i)
+                    
+                    # Update indices in available_browsers
+                    for j, idx in enumerate(self._available_browsers):
+                        if idx > i:
+                            self._available_browsers[j] = idx - 1
+                    
+                    # Update stats
+                    self._stats["current_size"] = len(self._browsers)
+                    self._stats["recycled"] += 1
+                    recycled_count += 1
+                    
+                    logger.info(f"Force recycled browser {i}")
+                except Exception as e:
+                    logger.error(f"Error during force recycling of browser {i}: {str(e)}")
+            
+            # Create replacement browsers to maintain minimum pool size
+            current_size = len(self._browsers)
+            if current_size < self._min_size:
+                browsers_to_create = self._min_size - current_size
+                logger.info(f"Creating {browsers_to_create} browsers to maintain minimum pool size")
+                
+                for _ in range(browsers_to_create):
+                    browser_data = await self._create_browser_instance()
+                    if browser_data:
+                        self._browsers.append(browser_data)
+                        self._available_browsers.append(len(self._browsers) - 1)
+            
+            return recycled_count
+
+    async def get_browser_ages(self) -> dict:
+        """Get the age of each browser in the pool.
+        
+        Returns:
+            Dictionary mapping browser index to age in seconds
+        """
+        async with self._lock:
+            current_time = time.time()
+            return {i: current_time - browser_data["created_at"] 
+                for i, browser_data in enumerate(self._browsers)}
+

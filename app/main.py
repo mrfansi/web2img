@@ -25,6 +25,7 @@ from app.services.screenshot import screenshot_service
 from app.services.storage import storage_service
 from app.services.cache import cache_service
 from app.services.batch import batch_service
+from app.services.pool_watchdog import initialize_watchdog
 
 
 @asynccontextmanager
@@ -50,6 +51,11 @@ async def lifespan(app: FastAPI):
     # Initialize browser pool
     await screenshot_service.startup()
     logger.info("Browser pool initialized")
+
+    # Initialize and start the browser pool watchdog
+    watchdog = initialize_watchdog(screenshot_service._browser_pool)
+    await watchdog.start()
+    logger.info("Browser pool watchdog started")
     
     # Start monitoring system
     await start_monitoring()

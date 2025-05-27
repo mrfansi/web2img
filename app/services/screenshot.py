@@ -339,6 +339,10 @@ class ScreenshotService:
         Returns:
             Path to the saved screenshot file
         """
+        from app.services.pool_watchdog import pool_watchdog
+        if pool_watchdog:
+            pool_watchdog.record_request()
+        
         # Generate a unique filename
         filename = f"{uuid.uuid4()}.{format}"
         filepath = os.path.join(settings.screenshot_dir, filename)
