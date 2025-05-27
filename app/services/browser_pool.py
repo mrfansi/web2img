@@ -48,19 +48,46 @@ class BrowserPool:
         
     async def initialize(self):
         """Initialize the pool with minimum number of browsers."""
+        from app.core.logging import get_logger
+        logger = get_logger("browser_pool")
+        
+        logger.info(f"Initializing browser pool with {self._min_size} browsers (max: {self._max_size})")
+        
+        # Track initialization success rate
+        success_count = 0
+        
         async with self._lock:
-            # Create initial browser instances
+            # Create initial browser instances in parallel for faster startup
+            # This helps ensure we're ready for concurrent requests right away
+            tasks = []
             for _ in range(self._min_size):
-                browser_data = await self._create_browser_instance()
-                if browser_data:
-                    self._browsers.append(browser_data)
+                tasks.append(self._create_browser_instance())
+            
+            # Wait for all browsers to be created
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            
+            # Process results
+            for result in results:
+                if isinstance(result, Exception):
+                    logger.warning(f"Failed to create browser during initialization: {str(result)}")
+                    continue
+                    
+                if result:  # result is browser_data
+                    self._browsers.append(result)
                     self._available_browsers.append(len(self._browsers) - 1)
+                    success_count += 1
             
             # Start cleanup task
             self._cleanup_task = asyncio.create_task(self._cleanup_loop())
             
             # Update stats
             self._stats["current_size"] = len(self._browsers)
+            
+            # Log initialization results
+            logger.info(f"Browser pool initialized with {success_count}/{self._min_size} browsers", {
+                "success_rate": f"{success_count}/{self._min_size}",
+                "success_percentage": round(success_count / self._min_size * 100) if self._min_size > 0 else 0
+            })
     
     async def _cleanup_loop(self):
         """Background task for cleaning up idle browsers."""
@@ -188,21 +215,38 @@ class BrowserPool:
                     
                     return browser_data["browser"], browser_index
             
-            # If we've reached max size, wait for a browser to become available
+            # If we've reached max size, implement a more sophisticated waiting strategy
             # Log the issue and update error stats
             self._stats["errors"] += 1
+            
+            # Import logger here to avoid circular imports
+            from app.core.logging import get_logger
+            logger = get_logger("browser_pool")
+            logger.warning(f"Browser pool at capacity ({self._max_size}/{self._max_size}), waiting for an available browser", {
+                "pool_size": len(self._browsers),
+                "max_size": self._max_size,
+                "available": len(self._available_browsers),
+                "in_use": len(self._browsers) - len(self._available_browsers)
+            })
         
-            # Wait a short time and try again - maybe a browser will be released
-            # This is better than immediately failing
-            for retry in range(3):
-                # Update stats to indicate we're waiting
-                print(f"Browser pool exhausted, waiting for an available browser (attempt {retry+1}/3)")
+            # Use exponential backoff for waiting to reduce contention
+            max_wait_attempts = 5  # Increase from 3 to 5 for more patience under load
+            base_wait_time = 0.2  # Start with a short wait
+            
+            for retry in range(max_wait_attempts):
+                # Calculate wait time with exponential backoff
+                wait_time = min(5.0, base_wait_time * (2 ** retry))
+                
+                # Add jitter to prevent thundering herd problem
+                jitter = wait_time * 0.1  # 10% jitter
+                wait_time = wait_time + (random.random() * 2 - 1) * jitter
                 
                 # Release the lock while waiting to allow other operations
                 self._lock.release()
                 
-                # Wait a bit
-                await asyncio.sleep(1)
+                # Wait with backoff
+                logger.debug(f"Waiting {wait_time:.2f}s for an available browser (attempt {retry+1}/{max_wait_attempts})")
+                await asyncio.sleep(wait_time)
                 
                 # Re-acquire the lock
                 await self._lock.acquire()
@@ -221,6 +265,7 @@ class BrowserPool:
                     self._stats["current_usage"] = len(self._browsers) - len(self._available_browsers)
                     self._stats["peak_usage"] = max(self._stats["peak_usage"], self._stats["current_usage"])
                     
+                    logger.info(f"Successfully acquired browser after waiting (attempt {retry+1})")
                     return browser_data["browser"], browser_index
         
             # If we still don't have an available browser, raise a detailed error
@@ -389,11 +434,67 @@ class BrowserPool:
                 browser_data["contexts"].remove(context)
     
     async def cleanup(self):
-        """Clean up idle browsers."""
+        """Clean up idle browsers and manage pool size based on load."""
+        from app.core.logging import get_logger
+        logger = get_logger("browser_pool")
+        
         async with self._lock:
             current_time = time.time()
             
-            # Check each browser
+            # Log current pool status
+            logger.debug(f"Browser pool status: {len(self._browsers)} browsers, {len(self._available_browsers)} available", {
+                "pool_size": len(self._browsers),
+                "available": len(self._available_browsers),
+                "in_use": len(self._browsers) - len(self._available_browsers),
+                "min_size": self._min_size,
+                "max_size": self._max_size
+            })
+            
+            # Check for browsers that need to be recycled due to age
+            browsers_to_recycle = []
+            for i, browser_data in enumerate(self._browsers):
+                # Check if browser is too old (exceeds max age)
+                browser_age = current_time - browser_data["created"]
+                if browser_age > self._max_age and i in self._available_browsers:
+                    browsers_to_recycle.append(i)
+                    logger.debug(f"Marking browser {i} for recycling due to age: {browser_age:.1f}s > {self._max_age}s")
+            
+            # Process browsers marked for recycling
+            for i in sorted(browsers_to_recycle, reverse=True):
+                try:
+                    # Close all contexts
+                    for context in self._browsers[i]["contexts"]:
+                        try:
+                            await context.close()
+                        except Exception as e:
+                            logger.debug(f"Error closing context during recycling: {str(e)}")
+                    
+                    # Close the browser
+                    await self._browsers[i]["browser"].close()
+                    
+                    # Stop playwright
+                    await self._browsers[i]["playwright"].stop()
+                    
+                    logger.debug(f"Recycled browser {i} due to age")
+                except Exception as e:
+                    logger.warning(f"Error recycling browser {i}: {str(e)}")
+                
+                # Remove from browsers list
+                self._browsers.pop(i)
+                
+                # Remove from available browsers
+                self._available_browsers.remove(i)
+                
+                # Update indices in available_browsers
+                for j, idx in enumerate(self._available_browsers):
+                    if idx > i:
+                        self._available_browsers[j] = idx - 1
+                
+                # Update stats
+                self._stats["current_size"] = len(self._browsers)
+                self._stats["recycled"] += 1
+            
+            # Now check for idle browsers that can be closed
             i = 0
             while i < len(self._browsers):
                 browser_data = self._browsers[i]
@@ -402,8 +503,8 @@ class BrowserPool:
                 idle_time = current_time - browser_data["last_used"]
                 is_available = i in self._available_browsers
                 
+                # Only close idle browsers if we're above min_size and they've been idle for a while
                 if is_available and idle_time > self._idle_timeout and len(self._browsers) > self._min_size:
-                    # Close the browser
                     try:
                         # Close all contexts
                         for context in browser_data["contexts"]:
@@ -417,8 +518,10 @@ class BrowserPool:
                         
                         # Stop playwright
                         await browser_data["playwright"].stop()
-                    except Exception:
-                        pass  # Ignore errors during cleanup
+                        
+                        logger.debug(f"Closed idle browser {i} (idle for {idle_time:.1f}s)")
+                    except Exception as e:
+                        logger.warning(f"Error closing idle browser {i}: {str(e)}")
                     
                     # Remove from browsers list
                     self._browsers.pop(i)

@@ -434,7 +434,7 @@ class ScreenshotService:
             raise ScreenshotError(url=url, context=error_context, original_exception=e)
             
     async def _create_retry_manager(self, is_complex: bool, name: str) -> RetryManager:
-        """Create a retry manager based on site complexity.
+        """Create a retry manager based on site complexity and operation type.
         
         Args:
             is_complex: Whether the site is complex and needs special handling
@@ -443,15 +443,35 @@ class ScreenshotService:
         Returns:
             A configured RetryManager instance
         """
-        # Select retry configuration based on site complexity
-        retry_config = self._retry_config_complex if is_complex else self._retry_config_regular
-        
-        # Create a retry manager for this operation
-        return RetryManager(
-            retry_config=retry_config,
-            circuit_breaker=None,  # No circuit breaker for context creation
-            name=name
-        )
+        # For context creation, use a more aggressive retry strategy with longer delays
+        # to handle high concurrency better
+        if name == "context_creation":
+            # Create a special retry config for browser context creation
+            # Use longer base delay and max delay to reduce contention under high load
+            from app.services.retry import RetryConfig
+            context_retry_config = RetryConfig(
+                max_retries=12,  # More retries for context creation
+                base_delay=0.5,  # Start with a longer delay
+                max_delay=8.0,   # Allow longer max delay
+                jitter=0.2       # More jitter to reduce contention
+            )
+            
+            # Create a retry manager optimized for high concurrency
+            return RetryManager(
+                retry_config=context_retry_config,
+                circuit_breaker=None,  # No circuit breaker for context creation
+                name=f"context_creation_{"complex" if is_complex else "regular"}"
+            )
+        else:
+            # For other operations, use standard retry configuration based on complexity
+            retry_config = self._retry_config_complex if is_complex else self._retry_config_regular
+            
+            # Create a retry manager for this operation
+            return RetryManager(
+                retry_config=retry_config,
+                circuit_breaker=None,  # Circuit breakers are set separately if needed
+                name=name
+            )
     
     async def _configure_page_for_site(self, page: Page, url: str, is_complex: bool) -> None:
         """Configure page settings based on site complexity.
