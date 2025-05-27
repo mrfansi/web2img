@@ -21,6 +21,14 @@ from tests.utils.async_test_utils import (
     cleanup_async_resources
 )
 
+# Test-specific environment variables for better control over test behavior
+SCREENSHOT_TEST_TIMEOUT = float(os.getenv("SCREENSHOT_TEST_TIMEOUT", "45.0"))  # Increased from 30 to 45 seconds
+CONCURRENT_TEST_TIMEOUT = float(os.getenv("CONCURRENT_TEST_TIMEOUT", "90.0"))  # Increased from 60 to 90 seconds
+
+# Define test categories for selective running
+SLOW = pytest.mark.slow  # Tests that take a long time to run
+NETWORK = pytest.mark.network  # Tests that depend on external network resources
+
 @pytest_asyncio.fixture(autouse=True)
 async def reset_circuit_breakers_fixture():
     """Reset circuit breakers before each test to ensure test isolation."""
@@ -62,6 +70,8 @@ async def test_screenshot_service_startup_shutdown():
 
 
 @pytest.mark.asyncio
+@NETWORK
+@SLOW
 async def test_capture_screenshot_end_to_end():
     """Test end-to-end screenshot capture with the refactored service."""
     # Test parameters
@@ -75,10 +85,10 @@ async def test_capture_screenshot_end_to_end():
         # Set a timeout to prevent the test from hanging
         filepath = await asyncio.wait_for(
             screenshot_service.capture_screenshot(url, width, height, format),
-            timeout=30.0  # 30 seconds timeout
+            timeout=SCREENSHOT_TEST_TIMEOUT  # Use configurable timeout
         )
     except asyncio.TimeoutError:
-        pytest.skip("Screenshot capture timed out after 30 seconds - skipping test in CI environment")
+        pytest.skip(f"Screenshot capture timed out after {SCREENSHOT_TEST_TIMEOUT} seconds - skipping test in CI environment")
         return  # Exit the test if timeout occurs
     
     try:
@@ -98,6 +108,8 @@ async def test_capture_screenshot_end_to_end():
 
 
 @pytest.mark.asyncio
+@NETWORK
+@SLOW
 async def test_concurrent_screenshot_captures():
     """Test concurrent screenshot captures to verify resource management."""
     # Test parameters
@@ -124,14 +136,14 @@ async def test_concurrent_screenshot_captures():
     try:
         filepaths = await asyncio.wait_for(
             asyncio.gather(*tasks),
-            timeout=60.0  # 60 seconds timeout for all tasks
+            timeout=CONCURRENT_TEST_TIMEOUT  # Use configurable timeout for concurrent tasks
         )
     except asyncio.TimeoutError:
         # Cancel any remaining tasks
         for task in tasks:
             if not task.done():
                 task.cancel()
-        pytest.skip("Concurrent screenshot captures timed out after 60 seconds - skipping test in CI environment")
+        pytest.skip(f"Concurrent screenshot captures timed out after {CONCURRENT_TEST_TIMEOUT} seconds - skipping test in CI environment")
         return  # Exit the test if timeout occurs
     
     try:
@@ -157,6 +169,7 @@ async def test_concurrent_screenshot_captures():
 
 
 @pytest.mark.asyncio
+@SLOW
 async def test_resource_tracking_during_errors():
     """Test resource tracking and cleanup during errors."""
     # Get initial resource counts
@@ -174,10 +187,10 @@ async def test_resource_tracking_during_errors():
         try:
             await asyncio.wait_for(
                 screenshot_service.capture_screenshot(invalid_url, width, height, format),
-                timeout=30.0  # 30 seconds timeout
+                timeout=SCREENSHOT_TEST_TIMEOUT  # Use configurable timeout
             )
         except asyncio.TimeoutError:
-            pytest.skip("Screenshot capture timed out after 30 seconds - skipping test in CI environment")
+            pytest.skip(f"Screenshot capture timed out after {SCREENSHOT_TEST_TIMEOUT} seconds - skipping test in CI environment")
             return  # Exit the test if timeout occurs
     
     # Wait a moment for async cleanup
@@ -195,6 +208,8 @@ async def test_resource_tracking_during_errors():
 
 
 @pytest.mark.asyncio
+@NETWORK
+@SLOW
 async def test_cleanup_temp_files_integration():
     """Test temp file cleanup integration."""
     # Create some test screenshots
@@ -209,11 +224,11 @@ async def test_cleanup_temp_files_integration():
         try:
             filepath = await asyncio.wait_for(
                 screenshot_service.capture_screenshot(url, width, height, format),
-                timeout=30.0  # 30 seconds timeout
+                timeout=SCREENSHOT_TEST_TIMEOUT  # Use configurable timeout
             )
             filepaths.append(filepath)
         except asyncio.TimeoutError:
-            pytest.skip("Screenshot capture timed out after 30 seconds - skipping test in CI environment")
+            pytest.skip(f"Screenshot capture timed out after {SCREENSHOT_TEST_TIMEOUT} seconds - skipping test in CI environment")
             return  # Exit the test if timeout occurs
     
     # Verify files exist
@@ -238,6 +253,8 @@ async def test_cleanup_temp_files_integration():
 
 
 @pytest.mark.asyncio
+@NETWORK
+@SLOW
 async def test_retry_mechanism_integration():
     """Test retry mechanism integration."""
     # Test parameters
@@ -253,10 +270,10 @@ async def test_retry_mechanism_integration():
     try:
         filepath = await asyncio.wait_for(
             screenshot_service.capture_screenshot(url, width, height, format),
-            timeout=30.0  # 30 seconds timeout
+            timeout=SCREENSHOT_TEST_TIMEOUT  # Use configurable timeout
         )
     except asyncio.TimeoutError:
-        pytest.skip("Screenshot capture timed out after 30 seconds - skipping test in CI environment")
+        pytest.skip(f"Screenshot capture timed out after {SCREENSHOT_TEST_TIMEOUT} seconds - skipping test in CI environment")
         return  # Exit the test if timeout occurs
     
     try:

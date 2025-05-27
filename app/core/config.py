@@ -68,10 +68,10 @@ class Settings(BaseModel):
     
     # Browser Pool Configuration
     browser_pool_min_size: int = Field(
-        default_factory=lambda: int(os.getenv("BROWSER_POOL_MIN_SIZE", "2"))
+        default_factory=lambda: int(os.getenv("BROWSER_POOL_MIN_SIZE", "4"))  # Increased from 2 to 4
     )
     browser_pool_max_size: int = Field(
-        default_factory=lambda: int(os.getenv("BROWSER_POOL_MAX_SIZE", "10"))
+        default_factory=lambda: int(os.getenv("BROWSER_POOL_MAX_SIZE", "12"))  # Increased from 10 to 12
     )
     browser_pool_idle_timeout: int = Field(
         default_factory=lambda: int(os.getenv("BROWSER_POOL_IDLE_TIMEOUT", "300"))
