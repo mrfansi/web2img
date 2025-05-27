@@ -429,38 +429,116 @@ class BrowserPool:
             except Exception:
                 pass  # Ignore errors during cleanup
             
+        
+        browser_data = self._browsers[browser_index]
+        
+        try:
+            # Create a new context
+            context = await browser_data["browser"].new_context(**kwargs)
+            
+            # Add to contexts list
+            browser_data["contexts"].append(context)
+            
+            return context
+        except Exception as e:
+            # Update stats
+            self._stats["errors"] += 1
+            print(f"Error creating browser context: {str(e)}")
+            return None
+
+    async def release_context(self, browser_index: int, context: BrowserContext):
+        """Release a browser context.
+        
+        Args:
+            browser_index: Index of the browser in the pool
+            context: The browser context to release
+        """
+        async with self._lock:
+            # Check if the browser index is valid
+            if browser_index < 0 or browser_index >= len(self._browsers):
+                return
+            
+            browser_data = self._browsers[browser_index]
+            
+            # Close all pages
+            try:
+                pages = context.pages
+                for page in pages:
+                    if not page.is_closed():
+                        await page.close()
+            except Exception:
+                pass  # Ignore errors during cleanup
+            
+            # Close the context
+            try:
+                await context.close()
+            except Exception:
+                pass  # Ignore errors during cleanup
+            
             # Remove from contexts list
             if context in browser_data["contexts"]:
                 browser_data["contexts"].remove(context)
-    
     async def cleanup(self):
-        """Clean up idle browsers and manage pool size based on load."""
-        from app.core.logging import get_logger
-        logger = get_logger("browser_pool")
-        
+        """Cleanup idle browsers and manage pool size based on load conditions."""
         async with self._lock:
             current_time = time.time()
             
-            # Log current pool status
-            logger.debug(f"Browser pool status: {len(self._browsers)} browsers, {len(self._available_browsers)} available", {
-                "pool_size": len(self._browsers),
-                "available": len(self._available_browsers),
-                "in_use": len(self._browsers) - len(self._available_browsers),
+            # Import logger here to avoid circular imports
+            from app.core.logging import get_logger
+            logger = get_logger("browser_pool")
+        
+            # Calculate pool metrics
+            pool_size = len(self._browsers)
+            available_count = len(self._available_browsers)
+            in_use_count = pool_size - available_count
+            usage_ratio = in_use_count / max(pool_size, 1)  # Avoid division by zero
+            
+            # Log current pool status with more detailed metrics
+            logger.debug(f"Browser pool status: {pool_size} browsers, {available_count} available, {usage_ratio:.2f} usage ratio", {
+                "pool_size": pool_size,
+                "available": available_count,
+                "in_use": in_use_count,
+                "usage_ratio": usage_ratio,
                 "min_size": self._min_size,
                 "max_size": self._max_size
             })
             
-            # Check for browsers that need to be recycled due to age
+            # Determine if we're under high load (more than 80% of browsers in use)
+            high_load = usage_ratio > 0.8
+            
+            # Browsers to recycle based on various criteria
             browsers_to_recycle = []
+        
+            # Check each browser against recycling criteria
             for i, browser_data in enumerate(self._browsers):
-                # Check if browser is too old (exceeds max age)
+                # Only consider browsers that are available for recycling
+                if i not in self._available_browsers:
+                    continue
+                    
+                # Calculate age and idle time
                 browser_age = current_time - browser_data["created_at"]
-                if browser_age > self._max_age and i in self._available_browsers:
-                    browsers_to_recycle.append(i)
+                idle_time = current_time - browser_data["last_used"]
+                usage_count = browser_data["usage_count"]
+                
+                # Criteria for recycling:
+                # 1. Browser exceeds maximum age
+                if browser_age > self._max_age:
+                    browsers_to_recycle.append((i, "age", browser_age))
                     logger.debug(f"Marking browser {i} for recycling due to age: {browser_age:.1f}s > {self._max_age}s")
+                # 2. Browser has been idle for too long
+                elif idle_time > self._idle_timeout:
+                    browsers_to_recycle.append((i, "idle", idle_time))
+                    logger.debug(f"Marking browser {i} for recycling due to idle time: {idle_time:.1f}s > {self._idle_timeout}s")
+                # 3. Under high load, recycle browsers with high usage count to prevent memory leaks
+                elif high_load and usage_count > 50:
+                    browsers_to_recycle.append((i, "usage", usage_count))
+                    logger.debug(f"Marking browser {i} for recycling due to high usage count: {usage_count} > 50")
+            
+            # Sort browsers to recycle by priority (age first, then idle time, then usage count)
+            browsers_to_recycle.sort(key=lambda x: x[0], reverse=True)  # Sort by index in reverse order for safe removal
             
             # Process browsers marked for recycling
-            for i in sorted(browsers_to_recycle, reverse=True):
+            for i, reason, value in browsers_to_recycle:
                 try:
                     # Close all contexts
                     for context in self._browsers[i]["contexts"]:
@@ -475,7 +553,7 @@ class BrowserPool:
                     # Stop playwright
                     await self._browsers[i]["playwright"].stop()
                     
-                    logger.debug(f"Recycled browser {i} due to age")
+                    logger.debug(f"Recycled browser {i} due to {reason}: {value:.1f}")
                 except Exception as e:
                     logger.warning(f"Error recycling browser {i}: {str(e)}")
                 
@@ -489,56 +567,33 @@ class BrowserPool:
                 for j, idx in enumerate(self._available_browsers):
                     if idx > i:
                         self._available_browsers[j] = idx - 1
-                
+            
                 # Update stats
                 self._stats["current_size"] = len(self._browsers)
                 self._stats["recycled"] += 1
             
-            # Now check for idle browsers that can be closed
-            i = 0
-            while i < len(self._browsers):
-                browser_data = self._browsers[i]
+            # Proactive scaling: If we're under high load and have capacity, create new browsers
+            if high_load and pool_size < self._max_size:
+                browsers_to_add = min(5, self._max_size - pool_size)  # Add up to 5 browsers at once
+                logger.info(f"High load detected ({usage_ratio:.2f}), proactively adding {browsers_to_add} browsers")
                 
-                # Check if browser is idle and not in use
-                idle_time = current_time - browser_data["last_used"]
-                is_available = i in self._available_browsers
-                
-                # Only close idle browsers if we're above min_size and they've been idle for a while
-                if is_available and idle_time > self._idle_timeout and len(self._browsers) > self._min_size:
-                    try:
-                        # Close all contexts
-                        for context in browser_data["contexts"]:
-                            try:
-                                await context.close()
-                            except Exception:
-                                pass  # Ignore errors during cleanup
-                        
-                        # Close the browser
-                        await browser_data["browser"].close()
-                        
-                        # Stop playwright
-                        await browser_data["playwright"].stop()
-                        
-                        logger.debug(f"Closed idle browser {i} (idle for {idle_time:.1f}s)")
-                    except Exception as e:
-                        logger.warning(f"Error closing idle browser {i}: {str(e)}")
-                    
-                    # Remove from browsers list
-                    self._browsers.pop(i)
-                    
-                    # Remove from available browsers
-                    self._available_browsers.remove(i)
-                    
-                    # Update indices in available_browsers
-                    for j, idx in enumerate(self._available_browsers):
-                        if idx > i:
-                            self._available_browsers[j] = idx - 1
-                    
-                    # Update stats
-                    self._stats["current_size"] = len(self._browsers)
-                    self._stats["recycled"] += 1
-                else:
-                    i += 1
+                for _ in range(browsers_to_add):
+                    browser_data = await self._create_browser_instance()
+                    if browser_data:
+                        self._browsers.append(browser_data)
+                        browser_index = len(self._browsers) - 1
+                        self._available_browsers.append(browser_index)
+                        logger.debug(f"Proactively added browser {browser_index}")
+                    else:
+                        logger.warning("Failed to create browser instance for proactive scaling")
+            
+            # If we have too many browsers and low usage, scale down to save resources
+            elif pool_size > self._min_size and usage_ratio < 0.3:
+                # Keep at least min_size browsers, but reduce excess if usage is low
+                excess_browsers = min(pool_size - self._min_size, 3)  # Remove up to 3 at once
+                if excess_browsers > 0:
+                    logger.info(f"Low usage detected ({usage_ratio:.2f}), removing {excess_browsers} excess browsers")
+                    # We'll let the next cleanup cycle handle the actual removal based on idle time
             
             # Create browsers if below min_size
             while len(self._browsers) < self._min_size:
@@ -549,8 +604,10 @@ class BrowserPool:
                     
                     # Update stats
                     self._stats["current_size"] = len(self._browsers)
+                    logger.debug(f"Created new browser to maintain minimum pool size: {len(self._browsers)}/{self._min_size}")
                 else:
                     # If we couldn't create a browser, break to avoid infinite loop
+                    logger.warning("Failed to create browser to maintain minimum pool size")
                     break
     
     async def shutdown(self):
@@ -726,20 +783,32 @@ class BrowserPool:
                         logger.error(f"Failed to recycle browser {browser_index} during cleanup")
     
     def get_stats(self) -> Dict[str, Any]:
-        """Get pool statistics.
+        """Get pool statistics with detailed metrics.
         
         Returns:
-            Dictionary with pool statistics
+            Dictionary with comprehensive pool statistics including usage ratio
         """
+        # Calculate current metrics
+        pool_size = len(self._browsers)
+        available_count = len(self._available_browsers)
+        in_use_count = pool_size - available_count
+        usage_ratio = in_use_count / max(pool_size, 1)  # Avoid division by zero
+        
         return {
-            "size": len(self._browsers),
-            "available": len(self._available_browsers),
-            "in_use": len(self._browsers) - len(self._available_browsers),
+            # Size metrics
+            "size": pool_size,
+            "available": available_count,
+            "in_use": in_use_count,
+            "usage_ratio": usage_ratio,
             "min_size": self._min_size,
             "max_size": self._max_size,
+            
+            # Activity metrics
             "created": self._stats["created"],
             "reused": self._stats["reused"],
             "errors": self._stats["errors"],
             "recycled": self._stats["recycled"],
-            "peak_usage": self._stats["peak_usage"]
+            "peak_usage": self._stats["peak_usage"],
+            "current_usage": self._stats["current_usage"],
+            "current_size": self._stats["current_size"]
         }
