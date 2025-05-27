@@ -81,12 +81,20 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
             # Log response body if enabled
             if settings.log_response_body and response.status_code >= 400:
                 # Only log response bodies for error responses
-                response_body = response.body
-                if response_body:
-                    try:
-                        response_info["body"] = response_body.decode("utf-8")
-                    except Exception as e:
-                        logger.warning(f"Failed to log response body: {str(e)}")
+                try:
+                    # Check if the response has a body attribute (not streaming)
+                    if hasattr(response, 'body'):
+                        response_body = response.body
+                        if response_body:
+                            try:
+                                response_info["body"] = response_body.decode("utf-8")
+                            except Exception as e:
+                                logger.warning(f"Failed to decode response body: {str(e)}")
+                    else:
+                        # For streaming responses, we can't access the body directly
+                        logger.debug("Skipping response body logging for streaming response")
+                except Exception as e:
+                    logger.warning(f"Failed to log response body: {str(e)}")
             
             # Log the response
             log_level = "error" if response.status_code >= 500 else \
