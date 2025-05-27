@@ -454,7 +454,7 @@ class BrowserPool:
             browsers_to_recycle = []
             for i, browser_data in enumerate(self._browsers):
                 # Check if browser is too old (exceeds max age)
-                browser_age = current_time - browser_data["created"]
+                browser_age = current_time - browser_data["created_at"]
                 if browser_age > self._max_age and i in self._available_browsers:
                     browsers_to_recycle.append(i)
                     logger.debug(f"Marking browser {i} for recycling due to age: {browser_age:.1f}s > {self._max_age}s")
