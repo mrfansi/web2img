@@ -1,9 +1,11 @@
 import asyncio
 import time
+import random
 from typing import Dict, List, Optional, Tuple, Any, AsyncGenerator
 
 from playwright.async_api import async_playwright, Browser, BrowserContext, Page
 from app.core.config import settings
+from app.core.logging import get_logger
 
 
 class BrowserPool:
@@ -11,11 +13,11 @@ class BrowserPool:
 
     def __init__(
         self,
-        min_size: int = 2,
-        max_size: int = 10,
-        idle_timeout: int = 300,
-        max_age: int = 3600,
-        cleanup_interval: int = 60
+        min_size: int = None,
+        max_size: int = None,
+        idle_timeout: int = None,
+        max_age: int = None,
+        cleanup_interval: int = None
     ):
         """Initialize the browser pool.
         
@@ -25,16 +27,37 @@ class BrowserPool:
             idle_timeout: Time in seconds after which an idle browser is closed
             max_age: Maximum age in seconds for a browser instance before forced recycling
             cleanup_interval: Interval in seconds for running cleanup tasks
+            
+        Note:
+            If any parameter is None, it will be loaded from settings.
+            This allows dynamic reconfiguration by updating the settings.
         """
+        # Initialize logger
+        self.logger = get_logger("browser_pool")
+        
+        # Initialize pool parameters from settings if not provided
+        self._min_size = min_size if min_size is not None else settings.browser_pool_min_size
+        self._max_size = max_size if max_size is not None else settings.browser_pool_max_size
+        self._idle_timeout = idle_timeout if idle_timeout is not None else settings.browser_pool_idle_timeout
+        self._max_age = max_age if max_age is not None else settings.browser_pool_max_age
+        self._cleanup_interval = cleanup_interval if cleanup_interval is not None else settings.browser_pool_cleanup_interval
+        
+        # Log configuration
+        self.logger.info("Initializing browser pool", {
+            "min_size": self._min_size,
+            "max_size": self._max_size,
+            "idle_timeout": self._idle_timeout,
+            "max_age": self._max_age,
+            "cleanup_interval": self._cleanup_interval
+        })
+        
+        # Initialize pool data structures
         self._browsers: List[Dict[str, Any]] = []  # List of browser instances with metadata
         self._available_browsers: List[int] = []  # Indices of available browsers
         self._lock = asyncio.Lock()
-        self._min_size = min_size
-        self._max_size = max_size
-        self._idle_timeout = idle_timeout
-        self._max_age = max_age
-        self._cleanup_interval = cleanup_interval
         self._last_cleanup = time.time()
+        
+        # Initialize statistics
         self._stats = {
             "created": 0,
             "reused": 0,
@@ -48,46 +71,82 @@ class BrowserPool:
         
     async def initialize(self):
         """Initialize the pool with minimum number of browsers."""
-        from app.core.logging import get_logger
-        logger = get_logger("browser_pool")
+        self.logger.info("Starting browser pool initialization", {
+            "min_size": self._min_size,
+            "max_size": self._max_size,
+            "current_size": len(self._browsers)
+        })
         
-        logger.info(f"Initializing browser pool with {self._min_size} browsers (max: {self._max_size})")
-        
-        # Track initialization success rate
+        # Track initialization metrics
+        start_time = time.time()
         success_count = 0
+        failure_count = 0
         
         async with self._lock:
-            # Create initial browser instances in parallel for faster startup
-            # This helps ensure we're ready for concurrent requests right away
-            tasks = []
-            for _ in range(self._min_size):
-                tasks.append(self._create_browser_instance())
+            # Check if we need to adjust pool size based on current state
+            current_size = len(self._browsers)
+            browsers_to_create = max(0, self._min_size - current_size)
             
-            # Wait for all browsers to be created
-            results = await asyncio.gather(*tasks, return_exceptions=True)
+            if browsers_to_create > 0:
+                self.logger.info(f"Creating {browsers_to_create} browsers to reach minimum pool size")
+                
+                # Create initial browser instances in parallel for faster startup
+                # This helps ensure we're ready for concurrent requests right away
+                tasks = []
+                for _ in range(browsers_to_create):
+                    tasks.append(self._create_browser_instance())
+                
+                # Wait for all browsers to be created
+                results = await asyncio.gather(*tasks, return_exceptions=True)
+                
+                # Process results
+                for result in results:
+                    if isinstance(result, Exception):
+                        self.logger.warning(f"Failed to create browser during initialization: {str(result)}", {
+                            "error": str(result),
+                            "error_type": type(result).__name__
+                        })
+                        failure_count += 1
+                        continue
+                        
+                    if result:  # result is browser_data
+                        self._browsers.append(result)
+                        self._available_browsers.append(len(self._browsers) - 1)
+                        success_count += 1
+            else:
+                self.logger.info("Pool already at or above minimum size, skipping browser creation")
             
-            # Process results
-            for result in results:
-                if isinstance(result, Exception):
-                    logger.warning(f"Failed to create browser during initialization: {str(result)}")
-                    continue
-                    
-                if result:  # result is browser_data
-                    self._browsers.append(result)
-                    self._available_browsers.append(len(self._browsers) - 1)
-                    success_count += 1
-            
-            # Start cleanup task
-            self._cleanup_task = asyncio.create_task(self._cleanup_loop())
+            # Start cleanup task if not already running
+            if self._cleanup_task is None or self._cleanup_task.done():
+                self._cleanup_task = asyncio.create_task(self._cleanup_loop())
+                self.logger.debug("Started browser pool cleanup task")
             
             # Update stats
             self._stats["current_size"] = len(self._browsers)
             
+            # Calculate initialization metrics
+            duration = time.time() - start_time
+            total_attempted = browsers_to_create
+            success_rate = success_count / total_attempted if total_attempted > 0 else 1.0
+            
             # Log initialization results
-            logger.info(f"Browser pool initialized with {success_count}/{self._min_size} browsers", {
-                "success_rate": f"{success_count}/{self._min_size}",
-                "success_percentage": round(success_count / self._min_size * 100) if self._min_size > 0 else 0
+            self.logger.info("Browser pool initialization completed", {
+                "duration": round(duration, 2),
+                "success_count": success_count,
+                "failure_count": failure_count,
+                "total_attempted": total_attempted,
+                "success_rate": round(success_rate * 100, 1),
+                "current_size": len(self._browsers),
+                "available": len(self._available_browsers)
             })
+            
+            # If we couldn't create enough browsers, log a warning
+            if len(self._browsers) < self._min_size:
+                self.logger.warning("Browser pool initialized below minimum size", {
+                    "current_size": len(self._browsers),
+                    "min_size": self._min_size,
+                    "deficit": self._min_size - len(self._browsers)
+                })
     
     async def _cleanup_loop(self):
         """Background task for cleaning up idle browsers."""
@@ -183,6 +242,9 @@ class BrowserPool:
             It's recommended to use the browser_context() context manager instead
             of calling get_browser() and release_browser() directly.
         """
+        # Get current pool configuration from settings in case it was updated
+        dynamic_max_size = settings.browser_pool_max_size
+        
         async with self._lock:
             # Check if we have an available browser
             if self._available_browsers:
@@ -199,11 +261,26 @@ class BrowserPool:
                 self._stats["current_usage"] = len(self._browsers) - len(self._available_browsers)
                 self._stats["peak_usage"] = max(self._stats["peak_usage"], self._stats["current_usage"])
                 
+                # Log browser reuse at debug level
+                self.logger.debug(f"Reusing browser {browser_index}", {
+                    "browser_index": browser_index,
+                    "usage_count": browser_data["usage_count"],
+                    "age": round(time.time() - browser_data["created_at"], 1)
+                })
+                
                 return browser_data["browser"], browser_index
             
             # If we don't have an available browser and haven't reached max size, create a new one
-            if len(self._browsers) < self._max_size:
+            # Use the dynamic max size from settings in case it was updated
+            if len(self._browsers) < dynamic_max_size:
+                # Update our internal max_size to match the current setting
+                if dynamic_max_size != self._max_size:
+                    self.logger.info(f"Updating browser pool max size from {self._max_size} to {dynamic_max_size}")
+                    self._max_size = dynamic_max_size
+                
+                self.logger.debug(f"Creating new browser (current pool size: {len(self._browsers)}/{self._max_size})")
                 browser_data = await self._create_browser_instance()
+                
                 if browser_data:
                     self._browsers.append(browser_data)
                     browser_index = len(self._browsers) - 1
@@ -213,39 +290,58 @@ class BrowserPool:
                     self._stats["current_usage"] = len(self._browsers) - len(self._available_browsers)
                     self._stats["peak_usage"] = max(self._stats["peak_usage"], self._stats["current_usage"])
                     
+                    self.logger.debug(f"Created new browser {browser_index}", {
+                        "browser_index": browser_index,
+                        "pool_size": len(self._browsers),
+                        "max_size": self._max_size
+                    })
+                    
                     return browser_data["browser"], browser_index
+                else:
+                    self.logger.warning("Failed to create new browser instance")
             
             # If we've reached max size, implement a more sophisticated waiting strategy
             # Log the issue and update error stats
             self._stats["errors"] += 1
             
-            # Import logger here to avoid circular imports
-            from app.core.logging import get_logger
-            logger = get_logger("browser_pool")
-            logger.warning(f"Browser pool at capacity ({self._max_size}/{self._max_size}), waiting for an available browser", {
-                "pool_size": len(self._browsers),
+            # Calculate pool utilization metrics
+            pool_size = len(self._browsers)
+            available_count = len(self._available_browsers)
+            in_use_count = pool_size - available_count
+            utilization_pct = round((in_use_count / pool_size) * 100, 1) if pool_size > 0 else 0
+            
+            self.logger.warning(f"Browser pool at capacity ({pool_size}/{self._max_size}), waiting for an available browser", {
+                "pool_size": pool_size,
                 "max_size": self._max_size,
-                "available": len(self._available_browsers),
-                "in_use": len(self._browsers) - len(self._available_browsers)
+                "available": available_count,
+                "in_use": in_use_count,
+                "utilization_pct": utilization_pct
             })
         
-            # Use exponential backoff for waiting to reduce contention
-            max_wait_attempts = 5  # Increase from 3 to 5 for more patience under load
-            base_wait_time = 0.2  # Start with a short wait
+            # Use adaptive exponential backoff for waiting to reduce contention
+            # Increase max attempts and base wait time based on pool utilization
+            utilization_factor = in_use_count / max(1, pool_size)  # Avoid division by zero
+            max_wait_attempts = min(10, 5 + int(5 * utilization_factor))  # 5-10 attempts based on utilization
+            base_wait_time = 0.2 * (1 + utilization_factor)  # 0.2-0.4s based on utilization
             
             for retry in range(max_wait_attempts):
                 # Calculate wait time with exponential backoff
-                wait_time = min(5.0, base_wait_time * (2 ** retry))
+                wait_time = min(8.0, base_wait_time * (2 ** retry))
                 
                 # Add jitter to prevent thundering herd problem
-                jitter = wait_time * 0.1  # 10% jitter
+                jitter = wait_time * 0.2  # 20% jitter
                 wait_time = wait_time + (random.random() * 2 - 1) * jitter
                 
                 # Release the lock while waiting to allow other operations
                 self._lock.release()
                 
                 # Wait with backoff
-                logger.debug(f"Waiting {wait_time:.2f}s for an available browser (attempt {retry+1}/{max_wait_attempts})")
+                self.logger.debug(f"Waiting {wait_time:.2f}s for an available browser (attempt {retry+1}/{max_wait_attempts})", {
+                    "retry": retry + 1,
+                    "max_attempts": max_wait_attempts,
+                    "wait_time": round(wait_time, 2)
+                })
+                
                 await asyncio.sleep(wait_time)
                 
                 # Re-acquire the lock
@@ -265,18 +361,52 @@ class BrowserPool:
                     self._stats["current_usage"] = len(self._browsers) - len(self._available_browsers)
                     self._stats["peak_usage"] = max(self._stats["peak_usage"], self._stats["current_usage"])
                     
-                    logger.info(f"Successfully acquired browser after waiting (attempt {retry+1})")
+                    self.logger.info(f"Successfully acquired browser after waiting (attempt {retry+1}/{max_wait_attempts})", {
+                        "browser_index": browser_index,
+                        "wait_attempts": retry + 1,
+                        "wait_time_total": round(sum([min(8.0, base_wait_time * (2 ** r)) for r in range(retry + 1)]), 2)
+                    })
+                    
                     return browser_data["browser"], browser_index
+                
+                # Check if the max size has been increased while we were waiting
+                current_dynamic_max_size = settings.browser_pool_max_size
+                if current_dynamic_max_size > self._max_size and len(self._browsers) < current_dynamic_max_size:
+                    # Max size has been increased, try to create a new browser
+                    self.logger.info(f"Max size increased from {self._max_size} to {current_dynamic_max_size}, creating new browser")
+                    self._max_size = current_dynamic_max_size
+                    
+                    browser_data = await self._create_browser_instance()
+                    if browser_data:
+                        self._browsers.append(browser_data)
+                        browser_index = len(self._browsers) - 1
+                        
+                        # Update stats
+                        self._stats["current_size"] = len(self._browsers)
+                        self._stats["current_usage"] = len(self._browsers) - len(self._available_browsers)
+                        self._stats["peak_usage"] = max(self._stats["peak_usage"], self._stats["current_usage"])
+                        
+                        self.logger.info(f"Created new browser {browser_index} after max size increase")
+                        return browser_data["browser"], browser_index
         
             # If we still don't have an available browser, raise a detailed error
             from app.core.errors import BrowserPoolExhaustedError
+            
+            # Get detailed stats for error reporting
+            detailed_stats = self.get_stats()
+            
             context = {
                 "pool_size": len(self._browsers),
                 "max_size": self._max_size,
                 "available": len(self._available_browsers),
                 "in_use": len(self._browsers) - len(self._available_browsers),
-                "stats": self.get_stats()
+                "utilization_pct": utilization_pct,
+                "wait_attempts": max_wait_attempts,
+                "total_wait_time": round(sum([min(8.0, base_wait_time * (2 ** r)) for r in range(max_wait_attempts)]), 2),
+                "stats": detailed_stats
             }
+            
+            self.logger.error("Browser pool exhausted after maximum wait attempts", context)
             raise BrowserPoolExhaustedError(context=context)
     
     async def release_browser(self, browser_index: int, is_healthy: bool = True):

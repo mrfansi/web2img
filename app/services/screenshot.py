@@ -714,9 +714,24 @@ class ScreenshotService:
             navigation_retry_manager = await self._create_retry_manager(is_complex, "navigation")
             navigation_retry_manager.circuit_breaker = self._navigation_circuit_breaker
             
+            # During high load, we'll use a more aggressive timeout strategy
+            pool_stats = self._browser_pool.get_stats()
+            pool_load = pool_stats["in_use"] / max(pool_stats["size"], 1)  # Avoid division by zero
+            
+            # Adjust timeout based on pool load - reduce timeout when load is high
+            adaptive_timeout = page_timeout
+            if pool_load > 0.8:  # High load (>80% of pool in use)
+                # Reduce timeout by up to 30% based on load
+                reduction_factor = min(0.3, (pool_load - 0.8) * 1.5)  # Scale between 0-30%
+                adaptive_timeout = int(page_timeout * (1 - reduction_factor))
+                self.logger.info(
+                    f"Adjusting navigation timeout for {url} due to high load",
+                    {"original_timeout": page_timeout, "adaptive_timeout": adaptive_timeout, "pool_load": pool_load}
+                )
+            
             # Navigate to URL with retry logic
             response = await navigation_retry_manager.execute(
-                lambda: self._navigate_to_url(page, url, wait_until, page_timeout, is_complex),
+                lambda: self._navigate_to_url(page, url, wait_until, adaptive_timeout, is_complex),
                 operation_name="navigate_to_url"
             )
             

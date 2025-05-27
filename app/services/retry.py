@@ -181,51 +181,83 @@ class CircuitBreaker:
             True if operation can be executed, False otherwise
         """
         async with self._lock:
-            previous_state = self.state
             current_time = time.time()
             
+            # If circuit is closed, allow execution
             if self.state == "closed":
-                self.logger.debug(
-                    f"Circuit breaker {self.name} allowing execution (state: closed)",
-                    {"state": self.state}
-                )
                 return True
-            elif self.state == "half-open":
-                self.logger.debug(
-                    f"Circuit breaker {self.name} allowing execution (state: half-open)",
-                    {"state": self.state}
-                )
-                return True
-            else:  # open
-                elapsed = current_time - self.last_failure_time
                 
-                if elapsed > self.reset_time:
+            # If circuit is open, check if reset timeout has elapsed
+            if self.state == "open":
+                time_since_failure = current_time - self.last_failure_time
+                
+                # Implement progressive recovery - allow some requests through even before full reset
+                # This helps prevent all-or-nothing behavior during high load
+                if time_since_failure >= self.reset_time:
+                    # Transition to half-open state
+                    previous_state = self.state
                     self.state = "half-open"
                     
                     # Log state transition
                     self.logger.info(
-                        f"Circuit breaker {self.name} state changed: {previous_state} -> {self.state} (reset time elapsed)",
+                        f"Circuit breaker {self.name} state changed: {previous_state} -> {self.state}",
                         {
                             "previous_state": previous_state,
                             "new_state": self.state,
-                            "reason": "reset_time_elapsed",
-                            "elapsed_time": elapsed,
+                            "time_since_last_failure": time_since_failure,
                             "reset_time": self.reset_time
                         }
                     )
+                    
                     return True
+                elif time_since_failure >= (self.reset_time * 0.5):
+                    # Progressive recovery: Allow some requests through with probability
+                    # that increases as we get closer to reset_time
+                    recovery_progress = (time_since_failure - (self.reset_time * 0.5)) / (self.reset_time * 0.5)
+                    allow_request = random.random() < recovery_progress
+                    
+                    if allow_request:
+                        self.logger.debug(
+                            f"Circuit breaker {self.name} allowing request during progressive recovery",
+                            {
+                                "state": self.state,
+                                "time_since_last_failure": time_since_failure,
+                                "reset_time": self.reset_time,
+                                "recovery_progress": recovery_progress
+                            }
+                        )
+                        return True
                 
-                # Still open, log rejection
+                # Circuit is still fully open
                 self.logger.debug(
-                    f"Circuit breaker {self.name} blocking execution (state: open)",
+                    f"Circuit breaker {self.name} blocking execution (state: {self.state})",
                     {
                         "state": self.state,
-                        "elapsed_time": elapsed,
+                        "time_since_last_failure": time_since_failure,
                         "reset_time": self.reset_time,
-                        "remaining_time": self.reset_time - elapsed
+                        "remaining_time": self.reset_time - time_since_failure
                     }
                 )
+                
                 return False
+            
+            # If circuit is half-open, allow execution (test if system has recovered)
+            # But limit the rate of requests in half-open state to prevent overwhelming the system
+            if self.state == "half-open":
+                # Allow only a percentage of requests through in half-open state
+                # This prevents overwhelming the system during recovery
+                allow_request = random.random() < 0.3  # 30% of requests allowed through
+                
+                if not allow_request:
+                    self.logger.debug(
+                        f"Circuit breaker {self.name} limiting requests in half-open state",
+                        {
+                            "state": self.state,
+                            "time_since_last_failure": current_time - self.last_failure_time
+                        }
+                    )
+                
+                return allow_request
     
     def get_state(self) -> Dict[str, Any]:
         """Get current circuit breaker state.
@@ -336,24 +368,44 @@ class RetryManager:
                 self._stats["circuit_breaker_rejections"] += 1
                 circuit_state = self.circuit_breaker.get_state()
                 
-                # Use a more concise log message for circuit breaker errors
-                self.logger.warning(
-                    f"Circuit breaker is open for {self.name} - operation: {operation_name}", 
-                    {
-                        "operation": operation_name,
-                        "manager": self.name,
-                        "circuit_state": circuit_state["state"],
-                        "failure_count": circuit_state["failure_count"],
-                        "threshold": circuit_state["threshold"]
-                    }
-                )
+                # Check if this is a navigation operation (which tends to be problematic under load)
+                is_navigation = operation_name and ("navigate" in operation_name.lower())
                 
-                # Use our custom error class for better error messages
-                from app.core.errors import CircuitBreakerOpenError
-                raise CircuitBreakerOpenError(
-                    name=self.name,
-                    context={**context, "circuit_state": circuit_state}
-                )
+                # For navigation operations, we'll fail fast to prevent cascading failures
+                if is_navigation:
+                    self.logger.warning(
+                        f"Circuit breaker is open for {self.name} - operation: {operation_name}",
+                        {
+                            "operation": operation_name,
+                            "manager": self.name,
+                            "circuit_state": circuit_state["state"],
+                            "failure_count": circuit_state["failure_count"],
+                            "threshold": circuit_state["threshold"]
+                        }
+                    )
+                    
+                    # Use our custom error class for better error messages
+                    from app.core.errors import CircuitBreakerOpenError
+                    raise CircuitBreakerOpenError(
+                        name=self.name,
+                        context={**context, "circuit_state": circuit_state}
+                    )
+                else:
+                    # For other operations, we'll try with limited retries
+                    self.logger.warning(
+                        f"Circuit breaker is open for {self.name}, but attempting operation: {operation_name} with limited retries",
+                        {
+                            "operation": operation_name,
+                            "manager": self.name,
+                            "circuit_state": circuit_state["state"],
+                            "failure_count": circuit_state["failure_count"],
+                            "threshold": circuit_state["threshold"]
+                        }
+                    )
+                    
+                    # Limit max retries to 1 when circuit is open
+                    original_max_retries = self.retry_config.max_retries
+                    self.retry_config.max_retries = min(1, original_max_retries)
             
             attempt_start = time.time()
             attempt_number = retry_count + 1  # 1-based for logging
@@ -373,6 +425,10 @@ class RetryManager:
                 if self.circuit_breaker:
                     await self.circuit_breaker.record_success()
                 self._stats["successes"] += 1
+                
+                # Restore original max retries if it was modified due to circuit breaker
+                if self.circuit_breaker and not await self.circuit_breaker.can_execute() and "original_max_retries" in locals():
+                    self.retry_config.max_retries = original_max_retries
                 
                 # Log success
                 duration = time.time() - attempt_start
@@ -395,6 +451,10 @@ class RetryManager:
                 # Record failure
                 if self.circuit_breaker:
                     await self.circuit_breaker.record_failure()
+                
+                # Restore original max retries if it was modified due to circuit breaker
+                if "original_max_retries" in locals():
+                    self.retry_config.max_retries = original_max_retries
                 
                 last_error = e
                 duration = time.time() - attempt_start

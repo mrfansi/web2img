@@ -1,10 +1,18 @@
 import http from "k6/http";
 import { check, sleep } from "k6";
-import { Rate } from "k6/metrics";
+import { Rate, Counter, Trend } from "k6/metrics";
 
-// Custom metrics
+// Custom metrics for detailed analysis
 const errorRate = new Rate("errors");
 const successRate = new Rate("success");
+const throttledCounter = new Counter("throttled_requests");
+const serverErrorCounter = new Counter("server_errors");
+const clientErrorCounter = new Counter("client_errors");
+const timeoutCounter = new Counter("timeouts");
+const successCounter = new Counter("successful_requests");
+const failureCounter = new Counter("failed_requests");
+const responseTimeTrend = new Trend("response_time");
+const successResponseTimeTrend = new Trend("success_response_time");
 
 // Test configuration
 export const options = {
@@ -90,85 +98,151 @@ export const options = {
   },
 };
 
-// Test URLs (mix of simple and complex sites)
-const TEST_URLS = [
-  "https://viding.co/mini-rsvp/1223551",
-  "https://viding.co/mini-rsvp/1223556",
-  "https://viding.co/mini-rsvp/1223558",
-  "https://viding.co/mini-rsvp/1223562",
+// Base URL patterns for generating random test URLs
+const URL_PATTERNS = [
+  { base: "https://viding.co/mini-rsvp/", idRange: [1195000, 1196000] },
 ];
+
+// Function to generate a random integer between min and max (inclusive)
+function getRandomInt(min, max) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+// Function to generate a random URL from the patterns
+function generateRandomUrl() {
+  // Select a random pattern
+  const pattern = URL_PATTERNS[Math.floor(Math.random() * URL_PATTERNS.length)];
+  
+  // Generate a random ID within the specified range
+  const randomId = getRandomInt(pattern.idRange[0], pattern.idRange[1]);
+  
+  // Combine the base URL with the random ID
+  return `${pattern.base}${randomId}`;
+}
 
 // Common request parameters
 const BASE_URL = "http://localhost:8000";
 const HEADERS = { "Content-Type": "application/json" };
 
-// Helper function to create a screenshot request payload
-function createPayload(url, width = 1280, height = 720, format = "jpeg") {
-  return JSON.stringify({
-    url: url,
-    width: width,
-    height: height,
-    format: format,
-    cache: false, // Disable caching to ensure we're testing the screenshot service
-  });
-}
-
-// Helper function to make a screenshot request
+// Helper function to make a screenshot request with retry logic
 function makeScreenshotRequest(url) {
-  const payload = createPayload(url);
-  const response = http.post(`${BASE_URL}/screenshot`, payload, {
-    headers: HEADERS,
-  });
-
-  // Check if request was successful
-  const success = check(response, {
-    "status is 200": (r) => r.status === 200,
-    "response has screenshot_url": (r) =>
-      r.json("screenshot_url") !== undefined,
-  });
-
-  // Record success/failure metrics
-  errorRate.add(!success);
-  successRate.add(success);
-
-  // Log detailed info for failed requests
-  if (!success) {
-    console.log(
-      `Failed request for ${url}: ${response.status} - ${response.body}`
-    );
+  const maxRetries = 2;
+  let retries = 0;
+  let lastError = null;
+  let startTime = new Date().getTime();
+  
+  // Add jitter to prevent thundering herd problem
+  const jitter = Math.random() * 500; // 0-500ms jitter
+  if (jitter > 0) {
+    sleep(jitter / 1000); // k6 sleep takes seconds
   }
-
-  return response;
+  
+  while (retries <= maxRetries) {
+    try {
+      // Adaptive timeout based on system load
+      // Start with a reasonable timeout and increase it with each retry
+      const baseTimeout = 60000; // 60 seconds
+      const timeout = baseTimeout * (1 + (retries * 0.5)); // Increase by 50% each retry
+      
+      const res = http.post(`${BASE_URL}/api/v1/screenshot`, {
+        url: url,
+        width: 1280,
+        height: 800,
+        format: "png"
+      }, {
+        headers: { 'Content-Type': 'application/json' },
+        timeout: timeout
+      });
+      
+      // Track response time metrics
+      const responseTime = new Date().getTime() - startTime;
+      responseTimeTrend.add(responseTime);
+      
+      // Track success/failure metrics
+      if (res.status === 200) {
+        successCounter.add(1);
+        // Track response time by result
+        successResponseTimeTrend.add(responseTime);
+        return res;
+      } else if (res.status === 429 || res.status >= 500) {
+        // For throttling (429) or server errors (5xx), we'll retry
+        failureCounter.add(1);
+        retries++;
+        lastError = res;
+        
+        if (res.status === 429) {
+          throttledCounter.add(1);
+        } else {
+          serverErrorCounter.add(1);
+        }
+        
+        // Add backoff between retries
+        if (retries <= maxRetries) {
+          const backoff = (Math.pow(2, retries) * 1000) + (Math.random() * 1000);
+          console.log(`Request throttled/failed for ${url} with status ${res.status}. Retrying in ${backoff}ms...`);
+          sleep(backoff / 1000); // k6 sleep takes seconds
+        }
+      } else {
+        // For other errors, don't retry
+        failureCounter.add(1);
+        clientErrorCounter.add(1);
+        console.log(`Request failed for ${url} with status ${res.status}`);
+        return res;
+      }
+    } catch (error) {
+      // For exceptions (like timeouts), we'll retry
+      failureCounter.add(1);
+      timeoutCounter.add(1);
+      retries++;
+      lastError = error;
+      
+      // Add backoff between retries
+      if (retries <= maxRetries) {
+        const backoff = (Math.pow(2, retries) * 1000) + (Math.random() * 1000);
+        console.log(`Request exception for ${url}: ${error}. Retrying in ${backoff}ms...`);
+        sleep(backoff / 1000); // k6 sleep takes seconds
+      }
+    }
+  }
+  
+  // If we've exhausted all retries, return the last error
+  console.log(`All retries exhausted for ${url}`);
+  return lastError;
 }
 
+// Test functions that will be executed by k6
 // Constant load test function
 export function constantLoad() {
-  // Select a random URL from the test set
-  const url = TEST_URLS[Math.floor(Math.random() * TEST_URLS.length)];
+  // Generate a random URL for each request
+  const url = generateRandomUrl();
+  // Make a request with the random URL
   makeScreenshotRequest(url);
   sleep(1); // 1 second pause between requests
 }
 
 // Ramp-up test function
 export function rampUpTest() {
-  // Select a random URL from the test set
-  const url = TEST_URLS[Math.floor(Math.random() * TEST_URLS.length)];
+  // Generate a random URL for each request
+  const url = generateRandomUrl();
+  // Make a request with the random URL
   makeScreenshotRequest(url);
   sleep(0.5); // 0.5 second pause between requests
 }
 
 // Stress test function
 export function stressTest() {
-  // Select a random URL from the test set
-  const url = TEST_URLS[Math.floor(Math.random() * TEST_URLS.length)];
+  // Generate a random URL for each request
+  const url = generateRandomUrl();
+  // Make a request with the random URL
   makeScreenshotRequest(url);
   // No sleep - we want to stress the system
 }
 
 // Spike test function
 export function spikeTest() {
-  // Select a random URL from the test set
-  const url = TEST_URLS[Math.floor(Math.random() * TEST_URLS.length)];
+  // Generate a random URL for each request
+  const url = generateRandomUrl();
+  // Make a request with the random URL
   makeScreenshotRequest(url);
   // No sleep - we want to create a sudden spike
 }
@@ -176,7 +250,8 @@ export function spikeTest() {
 // Optional setup function that runs before the test
 export function setup() {
   // Make a single request to warm up the system
-  const response = makeScreenshotRequest("https://example.com");
+  const url = generateRandomUrl();
+  const response = makeScreenshotRequest(url);
   console.log("Setup complete, system warmed up");
   return { setupCompleted: true };
 }
