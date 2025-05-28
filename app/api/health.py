@@ -8,7 +8,6 @@ from fastapi import APIRouter, status
 from app.schemas.health import HealthResponse
 from app.services.screenshot import screenshot_service
 from app.services.storage import storage_service
-from app.services.imgproxy import imgproxy_service
 from app.services.cache import cache_service
 from app.models.job import job_store
 from app.core.config import settings

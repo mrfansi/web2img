@@ -2,7 +2,7 @@ import os
 import time
 import asyncio
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Optional
 
 import boto3
 import botocore.config

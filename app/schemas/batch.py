@@ -1,5 +1,5 @@
-from typing import List, Dict, Any, Optional
-from pydantic import BaseModel, Field, HttpUrl, root_validator, field_validator
+from typing import List, Optional
+from pydantic import BaseModel, Field, HttpUrl, field_validator
 from datetime import datetime, timezone
 
 from app.schemas.screenshot import ScreenshotRequest

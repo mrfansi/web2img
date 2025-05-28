@@ -1,6 +1,6 @@
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, Optional
 
-from fastapi import APIRouter, HTTPException, Path, Query, BackgroundTasks, Header, Depends
+from fastapi import APIRouter, HTTPException, Path, Header, Depends
 from pydantic import ValidationError
 
 from app.schemas.batch import (
@@ -19,7 +19,6 @@ from app.core.errors import (
     HTTP_400_BAD_REQUEST,
     HTTP_404_NOT_FOUND,
     HTTP_202_ACCEPTED,
-    HTTP_429_TOO_MANY_REQUESTS,
     HTTP_500_INTERNAL_SERVER_ERROR
 )
 

@@ -3,11 +3,11 @@ import os
 import re
 import time
 import uuid
-from typing import Dict, List, Optional, Tuple, Any, AsyncGenerator, ContextManager
+from typing import Dict, Optional, Tuple, Any, AsyncGenerator
 
 from app.core.logging import get_logger
 
-from playwright.async_api import async_playwright, Browser, BrowserContext, Page, TimeoutError as PlaywrightTimeoutError
+from playwright.async_api import BrowserContext, Page, TimeoutError as PlaywrightTimeoutError
 
 from app.core.config import settings
 from app.services.browser_pool import BrowserPool
@@ -21,7 +21,7 @@ class ScreenshotService:
     def __init__(self):
         # Initialize logger
         self.logger = get_logger("screenshot_service")
-        
+
         # Initialize the browser pool with configuration from settings
         self._browser_pool = BrowserPool(
             min_size=settings.browser_pool_min_size,
@@ -32,18 +32,18 @@ class ScreenshotService:
         )
         self._last_cleanup = time.time()
         self._lock = asyncio.Lock()
-        
+
         # Resource tracking for automatic cleanup
         self._active_resources = {
             "contexts": set(),  # Set of (browser_index, context) tuples
             "pages": set()     # Set of page objects
         }
         self._resource_lock = asyncio.Lock()
-        
+
         # Cleanup task
         self._cleanup_task = None
         self._cleanup_interval = settings.screenshot_cleanup_interval or 300  # 5 minutes default
-        
+
         # Create retry configurations
         self._retry_config_regular = RetryConfig(
             max_retries=settings.max_retries_regular,
@@ -51,32 +51,32 @@ class ScreenshotService:
             max_delay=settings.retry_max_delay,
             jitter=settings.retry_jitter
         )
-        
+
         self._retry_config_complex = RetryConfig(
             max_retries=settings.max_retries_complex,
             base_delay=settings.retry_base_delay,
             max_delay=settings.retry_max_delay,
             jitter=settings.retry_jitter
         )
-        
+
         # Create circuit breakers
         self._browser_circuit_breaker = CircuitBreaker(
             threshold=settings.circuit_breaker_threshold,
             reset_time=settings.circuit_breaker_reset_time
         )
-        
+
         self._navigation_circuit_breaker = CircuitBreaker(
             threshold=settings.circuit_breaker_threshold,
             reset_time=settings.circuit_breaker_reset_time
         )
-        
+
         # Create retry managers
         self._browser_retry_manager = RetryManager(
             retry_config=self._retry_config_regular,
             circuit_breaker=self._browser_circuit_breaker,
             name="browser_operations"
         )
-        
+
         # Statistics
         self._timeout_stats = {
             "navigation": 0,
@@ -85,7 +85,7 @@ class ScreenshotService:
             "page": 0,
             "screenshot": 0
         }
-        
+
         # Complex site patterns that need special handling
         self._complex_sites = [
             r'linkedin\.com',
@@ -98,7 +98,7 @@ class ScreenshotService:
             r'viding\.co',
             r'harisenin\.com'
         ]
-        
+
         # Sites where visual content is important and images should be loaded
         self._visual_content_sites = [
             r'viding\.co',
@@ -107,7 +107,7 @@ class ScreenshotService:
             r'snapchat\.com',
             r'tiktok\.com'
         ]
-        
+
         # Ensure screenshot directory exists
         os.makedirs(settings.screenshot_dir, exist_ok=True)
 
@@ -134,18 +134,18 @@ class ScreenshotService:
             },
             "cleanup_interval": self._cleanup_interval
         })
-        
+
         # Initialize the browser pool
         await self._browser_pool.initialize()
-        
+
         # Start the scheduled cleanup task
         self._start_cleanup_task()
-        
+
         self.logger.info("Screenshot service initialized successfully")
 
     async def _get_context(self, width: int = 1280, height: int = 720) -> Tuple[Optional[BrowserContext], Optional[int]]:
         """Get a browser context from the pool.
-        
+
         Note:
             It's recommended to use the managed_context() context manager instead
             of calling _get_context() and _return_context() directly.
@@ -155,7 +155,7 @@ class ScreenshotService:
         if browser is None or browser_index is None:
             self.logger.error("Failed to get browser from pool")
             return None, None
-            
+
         # Create a new context with the specified viewport size
         try:
             context = await self._browser_pool.create_context(
@@ -164,15 +164,15 @@ class ScreenshotService:
                 user_agent=settings.user_agent,
                 ignore_https_errors=True
             )
-            
+
             if context is None:
                 self.logger.error(f"Failed to create context for browser {browser_index}")
                 await self._browser_pool.release_browser(browser_index, is_healthy=False)
                 return None, None
-            
+
             # Track the context for automatic cleanup
             await self._track_resource("context", (browser_index, context))
-                
+
             return context, browser_index
         except Exception as e:
             self.logger.error(f"Error creating context: {str(e)}", {
@@ -182,16 +182,16 @@ class ScreenshotService:
             })
             await self._browser_pool.release_browser(browser_index, is_healthy=False)
             return None, None
-            
+
     async def _return_context(self, context: BrowserContext, browser_index: int, is_healthy: bool = True) -> None:
         """Return a browser context to the pool and untrack it."""
         try:
             # Untrack the context from resource tracking
             await self._untrack_resource("context", (browser_index, context))
-            
+
             # Release the context back to the browser pool
             await self._browser_pool.release_context(browser_index, context)
-            
+
             if not is_healthy:
                 # If the context is not healthy, release the browser as unhealthy
                 await self._browser_pool.release_browser(browser_index, is_healthy=False)
@@ -207,37 +207,37 @@ class ScreenshotService:
                 await self._browser_pool.release_browser(browser_index, is_healthy=False)
             except Exception as release_error:
                 self.logger.error(f"Failed to release browser {browser_index} after context error: {str(release_error)}")
-            
+
     async def managed_context(self, width: int = 1280, height: int = 720) -> AsyncGenerator[Tuple[BrowserContext, int, Page], None]:
         """Context manager for safely using a browser context and page.
-        
+
         This is the recommended way to get and use a browser context and page, as it ensures
         proper cleanup even in case of exceptions.
-        
+
         Example:
             ```python
             async with screenshot_service.managed_context(width=1280, height=720) as (context, browser_index, page):
                 # Use the context and page...
             # Context, page, and browser are automatically cleaned up
             ```
-            
+
         Args:
             width: The viewport width
             height: The viewport height
-            
+
         Yields:
             Tuple of (context, browser_index, page)
         """
         context = None
         browser_index = None
         page = None
-        
+
         try:
             # Get a context from the pool
             context, browser_index = await self._get_context(width, height)
             if context is None or browser_index is None:
                 raise RuntimeError("Failed to get browser context")
-                
+
             # Create a new page
             try:
                 page = await asyncio.wait_for(
@@ -257,7 +257,7 @@ class ScreenshotService:
                 })
                 await self._return_context(context, browser_index, is_healthy=False)
                 raise RuntimeError(f"Error creating new page: {str(e)}")
-                
+
             # Yield the context, browser index, and page
             yield context, browser_index, page
         except Exception as e:
@@ -267,7 +267,7 @@ class ScreenshotService:
                 "error_type": type(e).__name__,
                 "browser_index": browser_index
             })
-            
+
             # Clean up if needed
             if page is not None and not page.is_closed():
                 try:
@@ -275,13 +275,13 @@ class ScreenshotService:
                     await self._untrack_resource("page", page)
                 except Exception as cleanup_error:
                     self.logger.warning(f"Error closing page during exception handling: {str(cleanup_error)}")
-                    
+
             if context is not None and browser_index is not None:
                 try:
                     await self._return_context(context, browser_index, is_healthy=False)
                 except Exception as cleanup_error:
                     self.logger.error(f"Error returning context during exception handling: {str(cleanup_error)}")
-                    
+
             # Re-raise the original exception
             raise
         finally:
@@ -295,7 +295,7 @@ class ScreenshotService:
                         "error": str(e),
                         "error_type": type(e).__name__
                     })
-                    
+
             if context is not None and browser_index is not None:
                 try:
                     await self._return_context(context, browser_index)
@@ -309,14 +309,14 @@ class ScreenshotService:
     def _is_complex_site(self, url: str) -> bool:
         """Check if the URL is for a complex site that needs special handling."""
         return any(re.search(pattern, url, re.IGNORECASE) for pattern in self._complex_sites)
-        
+
     def _is_visual_content_site(self, url: str) -> bool:
         """Check if the URL is for a site where visual content is important."""
         return any(re.search(pattern, url, re.IGNORECASE) for pattern in self._visual_content_sites)
-    
+
     async def _get_navigation_strategy(self, url: str) -> Tuple[str, int]:
         """Determine the optimal navigation strategy for a URL.
-        
+
         Returns:
             Tuple of (wait_until, timeout_ms)
         """
@@ -326,7 +326,7 @@ class ScreenshotService:
         else:
             # For regular sites, use the standard strategy
             return "networkidle", settings.navigation_timeout_regular  # Wait for network idle
-    
+
     async def capture_screenshot(self, url: str, width: int, height: int, format: str) -> str:
         """Capture a screenshot of the given URL.
 
@@ -342,11 +342,11 @@ class ScreenshotService:
         from app.services.pool_watchdog import pool_watchdog
         if pool_watchdog:
             pool_watchdog.record_request()
-        
+
         # Generate a unique filename
         filename = f"{uuid.uuid4()}.{format}"
         filepath = os.path.join(settings.screenshot_dir, filename)
-        
+
         # Create context for logging
         context = {
             "url": url,
@@ -356,10 +356,10 @@ class ScreenshotService:
             "filepath": filepath,
             "request_id": str(uuid.uuid4())  # Generate a unique ID for this request
         }
-        
+
         # Start timer for performance tracking
         start_time = time.time()
-        
+
         # Log browser pool stats before starting
         pool_stats = self._browser_pool.get_stats()
         self.logger.info(f"Starting screenshot capture for {url}", {
@@ -370,19 +370,19 @@ class ScreenshotService:
                 "in_use": pool_stats["in_use"]
             }
         })
-        
+
         # Periodically clean up old temporary files
         current_time = time.time()
         if current_time - self._last_cleanup > 3600:  # 1 hour
             await self._cleanup_temp_files()
             self._last_cleanup = current_time
-            
+
         # Determine if this is a complex site that needs special handling
         is_complex = self._is_complex_site(url)
-        
+
         # Get navigation strategy based on site complexity
         wait_until, page_timeout = await self._get_navigation_strategy(url)
-            
+
         # Get a browser context
         context_dict: Dict[str, Any] = {}  # Initialize as empty dict instead of None
         browser_index = None
@@ -417,7 +417,7 @@ class ScreenshotService:
             # Clean up any partially created file
             if os.path.exists(filepath):
                 os.unlink(filepath)
-            
+
             # Log error with structured data
             duration = time.time() - start_time
             error_context = {
@@ -430,20 +430,20 @@ class ScreenshotService:
                 "error": str(e),
                 "error_type": type(e).__name__
             }
-            
+
             self.logger.error(f"Failed to capture screenshot for {url}", error_context)
-            
+
             # Use our custom error class for better error messages
             from app.core.errors import ScreenshotError
             raise ScreenshotError(url=url, context=error_context, original_exception=e)
-            
+
     async def _create_retry_manager(self, is_complex: bool, name: str) -> RetryManager:
         """Create a retry manager based on site complexity and operation type.
-        
+
         Args:
             is_complex: Whether the site is complex and needs special handling
             name: Name for the retry manager
-            
+
         Returns:
             A configured RetryManager instance
         """
@@ -453,11 +453,11 @@ class ScreenshotService:
             # Create a special retry config for browser context creation using multipliers
             # This applies multipliers to the base retry settings for better handling of high concurrency
             from app.services.retry import RetryConfig
-            
+
             # Select base retry config based on site complexity
             base_config = self._retry_config_complex if is_complex else self._retry_config_regular
             base_max_retries = settings.max_retries_complex if is_complex else settings.max_retries_regular
-            
+
             # Apply multipliers to create an optimized config for context creation
             context_retry_config = RetryConfig(
                 max_retries=int(base_max_retries * settings.context_retry_max_retries_multiplier),
@@ -465,7 +465,7 @@ class ScreenshotService:
                 max_delay=base_config.max_delay * settings.context_retry_max_delay_multiplier,
                 jitter=base_config.jitter * settings.context_retry_jitter_multiplier
             )
-            
+
             # Create a retry manager optimized for high concurrency
             return RetryManager(
                 retry_config=context_retry_config,
@@ -475,17 +475,17 @@ class ScreenshotService:
         else:
             # For other operations, use standard retry configuration based on complexity
             retry_config = self._retry_config_complex if is_complex else self._retry_config_regular
-            
+
             # Create a retry manager for this operation
             return RetryManager(
                 retry_config=retry_config,
                 circuit_breaker=None,  # Circuit breakers are set separately if needed
                 name=name
             )
-    
+
     async def _configure_page_for_site(self, page: Page, url: str, is_complex: bool) -> None:
         """Configure page settings based on site complexity.
-        
+
         Args:
             page: The page to configure
             url: The URL to capture
@@ -493,7 +493,7 @@ class ScreenshotService:
         """
         # Check if this is a site where visual content is important
         is_visual_site = self._is_visual_content_site(url)
-        
+
         # Configure page based on site complexity and visual content importance
         if not is_complex and not is_visual_site:
             # For regular sites without important visual content, block unnecessary resources
@@ -508,7 +508,7 @@ class ScreenshotService:
         else:
             # For complex sites, only block media files to ensure proper rendering
             await page.route('**/*.{mp3,mp4,ogg,webm,wav}', lambda route: route.abort())
-            
+
             # Set extra headers for complex sites to appear more like a real browser
             await page.set_extra_http_headers({
                 'Accept-Language': 'en-US,en;q=0.9',
@@ -519,56 +519,56 @@ class ScreenshotService:
                 'Sec-Fetch-User': '?1',
                 'Sec-Fetch-Dest': 'document',
             })
-    
+
     async def _navigate_to_url(self, page: Page, url: str, wait_until: str, page_timeout: int, is_complex: bool) -> Any:
         """Navigate to a URL with proper error handling.
-        
+
         Args:
             page: The page to navigate with
             url: The URL to navigate to
             wait_until: The wait_until strategy for navigation
             page_timeout: The timeout for navigation in milliseconds
             is_complex: Whether the site is complex and needs special handling
-            
+
         Returns:
             The navigation response or None for partial success
-            
+
         Raises:
             NavigationError: If navigation fails
         """
         try:
             # Navigate to the URL
             response = await page.goto(
-                url, 
+                url,
                 wait_until=wait_until,
                 timeout=page_timeout
             )
-            
+
             if is_complex:
                 # For complex sites, wait a bit more after navigation to ensure content loads
                 await asyncio.sleep(2)
-                
+
                 # Scroll down slightly to trigger lazy loading content if needed
                 await page.evaluate("window.scrollBy(0, 250)")
-                
+
                 # Wait a bit more for lazy loaded content
                 await asyncio.sleep(1)
-            
+
             # Check if navigation was successful
             if not response:
                 raise Exception("Navigation resulted in null response")
-                
+
             # Check response status
             status = response.status
             if status >= 400:
                 raise Exception(f"Navigation failed with status {status}")
-                
+
             return response
-            
+
         except PlaywrightTimeoutError as e:
             # Increment timeout counter
             self._timeout_stats["navigation"] += 1
-            
+
             # Log the timeout with context
             self.logger.warning(f"Navigation timeout for {url}", {
                 "url": url,
@@ -576,7 +576,7 @@ class ScreenshotService:
                 "wait_until": wait_until,
                 "error": str(e)
             })
-            
+
             # If the context is still valid, try to get the page content anyway
             # This can help in cases where the page loaded but some resources timed out
             try:
@@ -586,7 +586,7 @@ class ScreenshotService:
                     return None  # Return None to indicate partial success
             except Exception as content_error:
                 self.logger.debug(f"Failed to get content after timeout: {str(content_error)}")
-            
+
             # For complex sites, try with a simpler strategy before giving up
             if is_complex and "timeout" in str(e).lower():
                 # Try with a simpler strategy
@@ -594,7 +594,7 @@ class ScreenshotService:
                     try:
                         # Try with domcontentloaded and longer timeout
                         response = await page.goto(
-                            url, 
+                            url,
                             wait_until="domcontentloaded",  # Simpler strategy
                             timeout=page_timeout * 1.5  # 50% longer timeout
                         )
@@ -607,7 +607,7 @@ class ScreenshotService:
                             "error": str(inner_e),
                             "error_type": type(inner_e).__name__
                         })
-            
+
             # If we get here, the simpler strategy failed or wasn't attempted
             # Use our custom error class for better error messages
             from app.core.errors import NavigationError
@@ -618,23 +618,23 @@ class ScreenshotService:
                 "is_complex_site": is_complex
             }
             raise NavigationError(url=url, context=nav_context, original_exception=e)
-            
+
     async def _create_context_and_page(self, url: str, width: int, height: int) -> Tuple[BrowserContext, int, Page]:
         """Create a browser context and page with timeout protection.
-        
+
         Args:
             url: The URL to capture
             width: The viewport width
             height: The viewport height
-            
+
         Returns:
             A tuple of (context, browser_index, page)
-            
+
         Raises:
             BrowserTimeoutError: If a timeout occurs during context or page creation
         """
         self.logger.debug(f"Attempting to get browser context for {url}")
-        
+
         # Get context with timeout protection
         try:
             context, browser_index = await asyncio.wait_for(
@@ -642,36 +642,36 @@ class ScreenshotService:
                 timeout=settings.browser_context_timeout
             )
             self.logger.debug(f"Got browser context {browser_index} for {url}")
-            
+
             # Create page with timeout protection
             page = await asyncio.wait_for(
                 context.new_page(),
                 timeout=settings.page_creation_timeout
             )
             self.logger.debug(f"Created new page for {url} using browser {browser_index}")
-            
+
             # Track the page resource
             await self._track_resource("page", page)
-            
+
             return context, browser_index, page
-            
+
         except asyncio.TimeoutError:
             self.logger.warning(f"Timeout getting browser context or creating page for {url}")
-            
+
             # Clean up partial resources
             if 'context' in locals() and 'browser_index' in locals() and context and browser_index is not None:
                 self.logger.debug(f"Releasing browser {browser_index} after timeout")
                 await self._return_context(context, browser_index)
-            
+
             # Re-raise as a custom error for better retry handling
             from app.core.errors import BrowserTimeoutError
             raise BrowserTimeoutError("Timeout getting browser context or creating page")
-    
+
     async def _capture_screenshot_impl(self, url: str, width: int, height: int, format: str, filepath: str, start_time: float, context_dict: dict) -> str:
         """Implementation of screenshot capture with throttling applied.
-        
+
         This is the actual implementation that gets executed by the throttle mechanism.
-        
+
         Args:
             url: The URL to capture
             width: The viewport width
@@ -680,7 +680,7 @@ class ScreenshotService:
             filepath: Path to save the screenshot
             start_time: Time when the capture was started
             context_dict: Dictionary for context sharing between retries
-            
+
         Returns:
             Path to the saved screenshot file
         """
@@ -688,40 +688,40 @@ class ScreenshotService:
         context = None
         browser_index = None
         page = None
-        
+
         try:
             # Determine if this is a complex site that needs special handling
             is_complex = self._is_complex_site(url)
-            
+
             # Get navigation strategy based on site complexity
             wait_until, page_timeout = await self._get_navigation_strategy(url)
-            
+
             # Create a retry manager for context creation
             retry_manager = await self._create_retry_manager(is_complex, "context_creation")
-            
+
             # Get context with retry logic
             async def get_context_with_page():
                 nonlocal context, browser_index, page
                 context, browser_index, page = await self._create_context_and_page(url, width, height)
                 return page
-            
+
             # Execute with retry
             page = await retry_manager.execute(get_context_with_page, operation_name="get_context_with_page")
-            
+
             # Set viewport size
             await page.set_viewport_size({"width": width, "height": height})
-            
+
             # Configure page and navigate to URL
             await self._configure_page_for_site(page, url, is_complex)
-            
+
             # Create a retry manager for navigation
             navigation_retry_manager = await self._create_retry_manager(is_complex, "navigation")
             navigation_retry_manager.circuit_breaker = self._navigation_circuit_breaker
-            
+
             # During high load, we'll use a more aggressive timeout strategy
             pool_stats = self._browser_pool.get_stats()
             pool_load = pool_stats["in_use"] / max(pool_stats["size"], 1)  # Avoid division by zero
-            
+
             # Adjust timeout based on pool load - reduce timeout when load is high
             adaptive_timeout = page_timeout
             if pool_load > 0.8:  # High load (>80% of pool in use)
@@ -732,16 +732,16 @@ class ScreenshotService:
                     f"Adjusting navigation timeout for {url} due to high load",
                     {"original_timeout": page_timeout, "adaptive_timeout": adaptive_timeout, "pool_load": pool_load}
                 )
-            
+
             # Navigate to URL with retry logic
             response = await navigation_retry_manager.execute(
                 lambda: self._navigate_to_url(page, url, wait_until, adaptive_timeout, is_complex),
                 operation_name="navigate_to_url"
             )
-            
+
             # Capture the screenshot with retry logic
             filepath = await self._capture_screenshot_with_retry(page, filepath, format, is_complex)
-            
+
             # Log successful screenshot capture
             capture_time = time.time() - start_time
             self.logger.info(f"Screenshot captured for {url}", {
@@ -752,19 +752,41 @@ class ScreenshotService:
                 "height": height,
                 "format": format
             })
-            
+
             return filepath
         except Exception as e:
             # Check for common errors that don't need full traceback
-            from app.core.errors import CircuitBreakerOpenError
-            
+            from app.core.errors import CircuitBreakerOpenError, MaxRetriesExceededError
+
+            elapsed_time = time.time() - start_time
+
             if isinstance(e, CircuitBreakerOpenError):
                 # For circuit breaker errors, use a more concise log without traceback
                 self.logger.error(f"Circuit breaker open for {url}: {str(e)}", {
                     "url": url,
                     "error": str(e),
                     "error_type": "CircuitBreakerOpenError",
-                    "elapsed_time": time.time() - start_time
+                    "elapsed_time": elapsed_time
+                })
+            elif isinstance(e, MaxRetriesExceededError):
+                # For max retries exceeded, provide helpful troubleshooting info
+                self.logger.error(f"Screenshot capture failed after all retries for {url}", {
+                    "url": url,
+                    "error": str(e),
+                    "error_type": "MaxRetriesExceededError",
+                    "elapsed_time": elapsed_time,
+                    "retry_config": {
+                        "max_retries": settings.screenshot_max_retries,
+                        "base_delay": settings.screenshot_base_delay,
+                        "max_delay": settings.screenshot_max_delay
+                    },
+                    "troubleshooting_tips": [
+                        "Check if the URL is accessible",
+                        "Verify browser pool health",
+                        "Consider increasing SCREENSHOT_MAX_RETRIES environment variable",
+                        "Check system resources (memory, CPU)",
+                        "Review browser timeout settings"
+                    ]
                 })
             else:
                 # For other errors, log with full traceback
@@ -772,9 +794,9 @@ class ScreenshotService:
                     "url": url,
                     "error": str(e),
                     "error_type": type(e).__name__,
-                    "elapsed_time": time.time() - start_time
+                    "elapsed_time": elapsed_time
                 })
-            
+
             # Re-raise with our custom error class
             from app.core.errors import ScreenshotError
             error_context = {
@@ -782,7 +804,12 @@ class ScreenshotService:
                 "width": width,
                 "height": height,
                 "format": format,
-                "elapsed_time": time.time() - start_time
+                "elapsed_time": elapsed_time,
+                "retry_config": {
+                    "max_retries": settings.screenshot_max_retries,
+                    "base_delay": settings.screenshot_base_delay,
+                    "max_delay": settings.screenshot_max_delay
+                }
             }
             raise ScreenshotError(url=url, context=error_context, original_exception=e)
         finally:
@@ -798,7 +825,7 @@ class ScreenshotService:
                         "error": str(e),
                         "error_type": type(e).__name__
                     })
-            
+
             # Return context to the pool if it was obtained
             if context and browser_index is not None:
                 try:
@@ -814,42 +841,42 @@ class ScreenshotService:
 
     async def _cleanup_temp_files(self) -> int:
         """Clean up old temporary files.
-        
+
         Returns:
             Number of files removed
         """
         # Get the screenshot directory from settings
         screenshot_dir = settings.screenshot_dir
-        
+
         # Ensure the directory exists
         if not os.path.exists(screenshot_dir):
             return 0
-            
+
         # Get current time
         now = time.time()
-        
+
         # Maximum age of files to keep (in seconds)
         max_age = settings.temp_file_max_age or 3600  # 1 hour default
-        
+
         # Count of removed files
         removed_count = 0
-        
+
         # Iterate through files in the directory
         for filename in os.listdir(screenshot_dir):
             filepath = os.path.join(screenshot_dir, filename)
-            
+
             # Skip directories
             if os.path.isdir(filepath):
                 continue
-                
+
             # Check if file is a temporary screenshot
             if not filename.startswith('screenshot_'):
                 continue
-                
+
             try:
                 # Get file modification time
                 file_mtime = os.path.getmtime(filepath)
-                
+
                 # Remove file if it's older than max_age
                 if now - file_mtime > max_age:
                     os.unlink(filepath)
@@ -860,9 +887,9 @@ class ScreenshotService:
                     "error": str(e),
                     "error_type": type(e).__name__
                 })
-                
+
         return removed_count
-    
+
     async def _start_cleanup_task(self):
         """Start the scheduled cleanup task."""
         self._cleanup_task = asyncio.create_task(self._scheduled_cleanup_loop())
@@ -891,17 +918,17 @@ class ScreenshotService:
     async def _scheduled_cleanup_loop(self):
         """Scheduled cleanup loop that runs periodically."""
         self.logger.info("Starting scheduled cleanup loop")
-        
+
         try:
             while True:
                 # Perform cleanup operations
                 try:
                     # Clean up temporary files
                     files_removed = await self._cleanup_temp_files()
-                    
+
                     # Clean up tracked resources
                     resources_cleaned = await self._cleanup_resources()
-                    
+
                     # Log cleanup results
                     self.logger.info("Scheduled cleanup completed", {
                         "temp_files_removed": files_removed,
@@ -912,7 +939,7 @@ class ScreenshotService:
                         "error": str(e),
                         "error_type": type(e).__name__
                     })
-                
+
                 # Wait for next cleanup interval
                 await asyncio.sleep(self._cleanup_interval)
         except asyncio.CancelledError:
@@ -920,7 +947,7 @@ class ScreenshotService:
             raise
     async def _cleanup_resources(self) -> Dict[str, int]:
         """Clean up tracked resources that may have been leaked.
-        
+
         Returns:
             Dictionary with counts of cleaned up resources
         """
@@ -928,17 +955,17 @@ class ScreenshotService:
             "contexts": 0,
             "pages": 0
         }
-        
+
         # Clean up tracked pages
         async with self._resource_lock:
             pages_to_close = list(self._active_resources["pages"])
-            
+
         for page in pages_to_close:
             try:
                 if not page.is_closed():
                     await asyncio.wait_for(page.close(), timeout=3.0)
                     cleanup_stats["pages"] += 1
-                    
+
                 async with self._resource_lock:
                     self._active_resources["pages"].discard(page)
             except Exception as e:
@@ -946,11 +973,11 @@ class ScreenshotService:
                     "error": str(e),
                     "error_type": type(e).__name__
                 })
-        
+
         # Clean up tracked contexts
         async with self._resource_lock:
             contexts_to_close = list(self._active_resources["contexts"])
-            
+
         for browser_index, context in contexts_to_close:
             try:
                 await asyncio.wait_for(
@@ -964,16 +991,16 @@ class ScreenshotService:
                     "error": str(e),
                     "error_type": type(e).__name__
                 })
-        
+
         # Log cleanup results if any resources were cleaned up
         if cleanup_stats["contexts"] > 0 or cleanup_stats["pages"] > 0:
             self.logger.info(f"Cleaned up {cleanup_stats['contexts']} contexts and {cleanup_stats['pages']} pages")
-            
+
         return cleanup_stats
-        
+
     async def _track_resource(self, resource_type: str, resource):
         """Track a resource for automatic cleanup.
-        
+
         Args:
             resource_type: The type of resource (page or context)
             resource: The resource to track
@@ -984,10 +1011,10 @@ class ScreenshotService:
             elif resource_type == "context":
                 browser_index, context = resource
                 self._active_resources["contexts"].add((browser_index, context))
-    
+
     async def _untrack_resource(self, resource_type: str, resource):
         """Remove a resource from tracking.
-        
+
         Args:
             resource_type: The type of resource (page or context)
             resource: The resource to untrack
@@ -998,15 +1025,15 @@ class ScreenshotService:
             elif resource_type == "context":
                 browser_index, context = resource
                 self._active_resources["contexts"].discard((browser_index, context))
-    
+
     async def cleanup(self):
         """Clean up resources.
-        
+
         This method should be called when shutting down the service to ensure
         all resources are properly released.
         """
         self.logger.info("Cleaning up screenshot service resources")
-        
+
         # Cancel the cleanup task if it's running
         if self._cleanup_task and not self._cleanup_task.done():
             self._cleanup_task.cancel()
@@ -1014,53 +1041,53 @@ class ScreenshotService:
                 await self._cleanup_task
             except asyncio.CancelledError:
                 pass
-        
+
         # Clean up tracked resources
         await self._cleanup_resources()
-        
+
         # Shutdown the browser pool
         start_time = time.time()
         await self._browser_pool.shutdown()
         browser_pool_shutdown_time = time.time() - start_time
-        
+
         # Clean up temporary files
         temp_files_start = time.time()
         files_removed = await self._cleanup_temp_files()
         temp_files_cleanup_time = time.time() - temp_files_start
-        
+
         self.logger.info("Screenshot service resources cleaned up", {
             "browser_pool_shutdown_time": browser_pool_shutdown_time,
             "temp_files_cleanup_time": temp_files_cleanup_time,
             "temp_files_removed": files_removed
         })
-    
+
     async def _cleanup_temp_files(self) -> int:
         """Clean up temporary screenshot files that are older than the retention period.
-        
+
         Returns:
             Number of files removed
         """
         temp_dir = settings.screenshot_dir
         if not temp_dir or not os.path.exists(temp_dir):
             return 0
-            
+
         now = time.time()
         retention_seconds = settings.temp_file_retention_hours * 3600
         removed_count = 0
-        
+
         try:
             # Get all files in the temp directory
             for filename in os.listdir(temp_dir):
                 filepath = os.path.join(temp_dir, filename)
-                
+
                 # Skip directories
                 if not os.path.isfile(filepath):
                     continue
-                    
+
                 # Check if file is older than retention period
                 file_mod_time = os.path.getmtime(filepath)
                 age_seconds = now - file_mod_time
-                
+
                 if age_seconds > retention_seconds:
                     try:
                         os.remove(filepath)
@@ -1077,12 +1104,12 @@ class ScreenshotService:
                 "error_type": type(e).__name__,
                 "temp_dir": self._temp_dir
             })
-            
+
         return removed_count
 
     def _cleanup_temp_files_sync(self) -> int:
         """Synchronous version of cleanup_temp_files for backward compatibility.
-        
+
         This method is deprecated and will be removed in a future version.
         Use the async version with asyncio.run() if needed in a sync context.
 
@@ -1090,7 +1117,7 @@ class ScreenshotService:
             Number of files removed
         """
         self.logger.warning("Using deprecated synchronous _cleanup_temp_files_sync method")
-        
+
         files_removed = 0
         try:
             # Create an event loop if one doesn't exist
@@ -1099,7 +1126,7 @@ class ScreenshotService:
             except RuntimeError:
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
-                
+
             # Run the async version in the event loop
             if loop.is_running():
                 self.logger.warning("Cannot run async _cleanup_temp_files in a running event loop synchronously")
@@ -1113,7 +1140,7 @@ class ScreenshotService:
                 "directory": settings.screenshot_dir
             })
             return files_removed
-    
+
     def _start_cleanup_task(self):
         """Start the scheduled cleanup task."""
         if self._cleanup_task is None or self._cleanup_task.done():
@@ -1121,7 +1148,7 @@ class ScreenshotService:
             self._cleanup_task = asyncio.create_task(self._scheduled_cleanup_loop())
             # Add error handling for the cleanup task
             self._cleanup_task.add_done_callback(self._handle_cleanup_task_done)
-    
+
     def _handle_cleanup_task_done(self, task):
         """Handle completion of the cleanup task."""
         try:
@@ -1141,16 +1168,16 @@ class ScreenshotService:
                 "error": str(e),
                 "error_type": type(e).__name__
             })
-            
+
     async def _capture_screenshot_with_retry(self, page: Page, filepath: str, format: str, is_complex: bool) -> str:
         """Capture a screenshot with retry logic.
-        
+
         Args:
             page: The page to capture
             filepath: Path where the screenshot should be saved
             format: Image format (png, jpeg, webp)
             is_complex: Whether the site is complex and needs special handling
-            
+
         Returns:
             Path to the saved screenshot file
         """
@@ -1159,39 +1186,40 @@ class ScreenshotService:
             # Take the screenshot
             await page.screenshot(path=filepath, type=format, full_page=True)
             return filepath
-            
-        # Create a screenshot retry manager
+
+        # Create a screenshot retry manager with configurable settings
         screenshot_retry_manager = RetryManager(
             retry_config=RetryConfig(
-                max_retries=2,  # Fewer retries for screenshot capture
-                base_delay=0.5,
-                max_delay=2.0,
-                jitter=0.1
+                max_retries=settings.screenshot_max_retries,
+                base_delay=settings.screenshot_base_delay,
+                max_delay=settings.screenshot_max_delay,
+                jitter=settings.screenshot_jitter
             ),
+            circuit_breaker=self._browser_circuit_breaker,
             name="screenshot_capture"
         )
-        
+
         # Take the screenshot with a slight delay for complex sites
         if is_complex:
             await asyncio.sleep(1)  # Extra wait for complex sites
-        
+
         # Execute the screenshot capture with retry
         return await screenshot_retry_manager.execute(capture_screenshot, operation_name="capture_screenshot")
 
     async def _scheduled_cleanup_loop(self):
         """Scheduled cleanup loop that runs periodically."""
         self.logger.info("Starting scheduled cleanup loop")
-        
+
         try:
             while True:
                 # Perform cleanup operations
                 try:
                     # Clean up temporary files
                     files_removed = await self._cleanup_temp_files()
-                    
+
                     # Clean up tracked resources
                     resources_cleaned = await self._cleanup_resources()
-                    
+
                     # Log cleanup results
                     self.logger.info("Scheduled cleanup completed", {
                         "temp_files_removed": files_removed,
@@ -1202,7 +1230,7 @@ class ScreenshotService:
                         "error": str(e),
                         "error_type": type(e).__name__
                     })
-                
+
                 # Wait for next cleanup interval
                 await asyncio.sleep(self._cleanup_interval)
         except asyncio.CancelledError:
@@ -1214,14 +1242,14 @@ class ScreenshotService:
                 "error": str(e),
                 "error_type": type(e).__name__
             })
-    
+
     async def _scheduled_cleanup_loop(self):
         """Scheduled cleanup loop that runs periodically."""
         try:
             while True:
                 # Sleep for the cleanup interval
                 await asyncio.sleep(self._cleanup_interval)
-                
+
                 # Perform cleanup operations
                 try:
                     await self._cleanup_resources()
@@ -1242,7 +1270,7 @@ class ScreenshotService:
             })
             # Re-raise to trigger the done callback
             raise
-    
+
     async def _cleanup_resources(self):
         """Clean up tracked resources that may have been leaked."""
         async with self._resource_lock:
@@ -1256,7 +1284,7 @@ class ScreenshotService:
                 except Exception as e:
                     self.logger.warning(f"Error closing tracked page: {str(e)}")
                 self._active_resources["pages"].discard(page)
-            
+
             # Clean up tracked contexts
             contexts_closed = 0
             for browser_index, context in list(self._active_resources["contexts"]):
@@ -1266,13 +1294,13 @@ class ScreenshotService:
                 except Exception as e:
                     self.logger.warning(f"Error releasing tracked context: {str(e)}")
                 self._active_resources["contexts"].discard((browser_index, context))
-            
+
             if pages_closed > 0 or contexts_closed > 0:
                 self.logger.info(f"Cleaned up tracked resources", {
                     "pages_closed": pages_closed,
                     "contexts_closed": contexts_closed
                 })
-    
+
     async def _track_resource(self, resource_type: str, resource):
         """Track a resource for automatic cleanup."""
         async with self._resource_lock:
@@ -1281,7 +1309,7 @@ class ScreenshotService:
             elif resource_type == "context":
                 browser_index, context = resource
                 self._active_resources["contexts"].add((browser_index, context))
-    
+
     async def _untrack_resource(self, resource_type: str, resource):
         """Remove a resource from tracking."""
         async with self._resource_lock:
@@ -1290,11 +1318,11 @@ class ScreenshotService:
             elif resource_type == "context":
                 browser_index, context = resource
                 self._active_resources["contexts"].discard((browser_index, context))
-    
+
     async def cleanup(self):
         """Clean up resources."""
         self.logger.info("Cleaning up screenshot service resources")
-        
+
         # Cancel the cleanup task if it's running
         if self._cleanup_task and not self._cleanup_task.done():
             self._cleanup_task.cancel()
@@ -1302,33 +1330,33 @@ class ScreenshotService:
                 await self._cleanup_task
             except asyncio.CancelledError:
                 pass
-        
+
         # Clean up tracked resources
         await self._cleanup_resources()
-        
+
         # Shutdown the browser pool
         start_time = time.time()
         await self._browser_pool.shutdown()
         browser_pool_shutdown_time = time.time() - start_time
-        
+
         # Clean up temporary files
         temp_files_start = time.time()
         files_removed = await self._cleanup_temp_files()
         temp_files_cleanup_time = time.time() - temp_files_start
-        
+
         self.logger.info("Screenshot service resources cleaned up", {
             "browser_pool_shutdown_time": browser_pool_shutdown_time,
             "temp_files_cleanup_time": temp_files_cleanup_time,
             "temp_files_removed": files_removed
         })
-        
+
     def get_pool_stats(self):
         """Get browser pool statistics."""
         return self._browser_pool.get_stats()
-    
+
     def get_retry_stats(self) -> Dict[str, Any]:
         """Get retry statistics.
-        
+
         Returns:
             Dictionary with retry statistics
         """
@@ -1342,27 +1370,27 @@ class ScreenshotService:
                 "screenshot": screenshot_throttle.get_stats()
             }
         }
-        
+
     async def reset_circuit_breakers(self):
         """Reset all circuit breakers to closed state.
-        
+
         This is particularly useful for tests to ensure isolation between test cases.
         """
         self.logger.info("Resetting all circuit breakers to closed state")
-        
+
         # Create new circuit breakers with the same configuration
         self._browser_circuit_breaker = CircuitBreaker(
             threshold=settings.circuit_breaker_threshold,
             reset_time=settings.circuit_breaker_reset_time,
             name="browser"
         )
-        
+
         self._navigation_circuit_breaker = CircuitBreaker(
             threshold=settings.circuit_breaker_threshold,
             reset_time=settings.circuit_breaker_reset_time,
             name="navigation"
         )
-        
+
         # Update the retry manager with the new circuit breaker
         self._browser_retry_manager.circuit_breaker = self._browser_circuit_breaker
 
@@ -1370,40 +1398,40 @@ class ScreenshotService:
 # Helper function for batch processing
 async def capture_screenshot_with_options(url: str, width: int = 1280, height: int = 720, format: str = "png") -> Dict[str, Any]:
     """Capture a screenshot with the given options and return the result as a dictionary.
-    
+
     This is a helper function used by the batch processing service.
-    
+
     Args:
         url: The URL to capture
         width: The viewport width
         height: The viewport height
         format: The image format (png, jpeg, webp)
-        
+
     Returns:
         Dictionary with the URL to the processed image
     """
     from app.services.storage import storage_service
     from app.services.imgproxy import imgproxy_service
-    
+
     # Capture the screenshot
     filepath = await screenshot_service.capture_screenshot(url, width, height, format)
-    
+
     try:
         # Upload to R2
         r2_key = await storage_service.upload_file(filepath)
-        
+
         # Generate imgproxy URL
         # Ensure width and height are integers before passing to generate_url
         img_width = int(width) if not isinstance(width, int) else width
         img_height = int(height) if not isinstance(height, int) else height
-        
+
         imgproxy_url = imgproxy_service.generate_url(
             r2_key,
             width=img_width,
             height=img_height,
             format=format
         )
-        
+
         return {"url": imgproxy_url}
     finally:
         # Clean up the temporary file

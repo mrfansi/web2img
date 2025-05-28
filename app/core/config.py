@@ -20,7 +20,7 @@ class Settings(BaseModel):
     cache_max_items: int = Field(
         default_factory=lambda: int(os.getenv("CACHE_MAX_ITEMS", "100"))
     )
-    
+
     # R2 Storage Configuration
     r2_access_key_id: str = Field(
         default_factory=lambda: os.getenv("R2_ACCESS_KEY_ID", "")
@@ -55,7 +55,7 @@ class Settings(BaseModel):
     screenshot_dir: str = Field(
         default_factory=lambda: os.getenv("SCREENSHOT_DIR", "/tmp/web2img")
     )
-    
+
     # Browser user agent string
     user_agent: str = Field(
         default_factory=lambda: os.getenv("USER_AGENT", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
@@ -63,12 +63,12 @@ class Settings(BaseModel):
 
     # API settings
     api_prefix: str = ""
-    
+
     # Server settings
     workers: int = Field(
         default_factory=lambda: int(os.getenv("WORKERS", "4"))
     )
-    
+
     # Browser Pool Configuration
     browser_pool_min_size: int = Field(
         default_factory=lambda: int(os.getenv("BROWSER_POOL_MIN_SIZE", "2"))
@@ -85,7 +85,7 @@ class Settings(BaseModel):
     browser_pool_cleanup_interval: int = Field(
         default_factory=lambda: int(os.getenv("BROWSER_POOL_CLEANUP_INTERVAL", "120"))
     )
-    
+
     # Screenshot Service Configuration
     screenshot_cleanup_interval: int = Field(
         default_factory=lambda: int(os.getenv("SCREENSHOT_CLEANUP_INTERVAL", "30"))
@@ -93,7 +93,7 @@ class Settings(BaseModel):
     temp_file_retention_hours: int = Field(
         default_factory=lambda: int(os.getenv("TEMP_FILE_RETENTION_HOURS", "24"))
     )
-    
+
     # Timeout Configuration
     navigation_timeout_regular: int = Field(
         default_factory=lambda: int(os.getenv("NAVIGATION_TIMEOUT_REGULAR", "30000"))
@@ -117,7 +117,7 @@ class Settings(BaseModel):
     screenshot_timeout: int = Field(
         default_factory=lambda: int(os.getenv("SCREENSHOT_TIMEOUT", "30000"))
     )
-    
+
     # Retry Configuration
     max_retries_regular: int = Field(
         default_factory=lambda: int(os.getenv("MAX_RETRIES_REGULAR", "8"))
@@ -134,7 +134,7 @@ class Settings(BaseModel):
     retry_jitter: float = Field(
         default_factory=lambda: float(os.getenv("RETRY_JITTER", "0.2"))
     )
-    
+
     # Context Creation Retry Multipliers
     # These multipliers are applied to the base retry settings for context creation operations
     # which need more aggressive retry behavior under high load
@@ -150,7 +150,21 @@ class Settings(BaseModel):
     context_retry_jitter_multiplier: float = Field(
         default_factory=lambda: float(os.getenv("CONTEXT_RETRY_JITTER_MULTIPLIER", "2.0"))
     )
-    
+
+    # Screenshot Capture Retry Configuration
+    screenshot_max_retries: int = Field(
+        default_factory=lambda: int(os.getenv("SCREENSHOT_MAX_RETRIES", "5"))
+    )
+    screenshot_base_delay: float = Field(
+        default_factory=lambda: float(os.getenv("SCREENSHOT_BASE_DELAY", "1.0"))
+    )
+    screenshot_max_delay: float = Field(
+        default_factory=lambda: float(os.getenv("SCREENSHOT_MAX_DELAY", "10.0"))
+    )
+    screenshot_jitter: float = Field(
+        default_factory=lambda: float(os.getenv("SCREENSHOT_JITTER", "0.3"))
+    )
+
     # Circuit Breaker Configuration
     circuit_breaker_threshold: int = Field(
         default_factory=lambda: int(os.getenv("CIRCUIT_BREAKER_THRESHOLD", "15"))
@@ -158,7 +172,7 @@ class Settings(BaseModel):
     circuit_breaker_reset_time: int = Field(
         default_factory=lambda: int(os.getenv("CIRCUIT_BREAKER_RESET_TIME", "120"))
     )
-    
+
     # Logging Configuration
     log_level: str = Field(
         default_factory=lambda: os.getenv("LOG_LEVEL", "INFO")
@@ -172,9 +186,9 @@ class Settings(BaseModel):
     log_response_body: bool = Field(
         default_factory=lambda: os.getenv("LOG_RESPONSE_BODY", "False").lower() in ("true", "1", "t")
     )
-    
+
     # Use model_config instead of class Config to fix Pydantic v2 deprecation warning
-    model_config = ConfigDict(env_file=".env")
+    model_config = ConfigDict()
 
 
 # Create global settings instance

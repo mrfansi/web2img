@@ -1,6 +1,6 @@
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 
-from fastapi import APIRouter, HTTPException, status, Query, Path
+from fastapi import APIRouter, status, Query
 
 from app.services.cache import cache_service
 

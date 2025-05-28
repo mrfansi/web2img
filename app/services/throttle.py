@@ -1,6 +1,6 @@
 import asyncio
 import time
-from typing import Dict, Any, Optional, List, Callable, Awaitable, TypeVar, Union
+from typing import Dict, Any, Callable, Awaitable
 
 from app.core.logging import get_logger
 

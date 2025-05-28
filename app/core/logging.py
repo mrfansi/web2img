@@ -1,6 +1,6 @@
 import logging
 import sys
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict
 
 from loguru import logger
 # In Pydantic v2, BaseSettings has moved to pydantic-settings package

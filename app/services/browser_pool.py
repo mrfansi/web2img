@@ -3,7 +3,7 @@ import time
 import random
 from typing import Dict, List, Optional, Tuple, Any, AsyncGenerator
 
-from playwright.async_api import async_playwright, Browser, BrowserContext, Page
+from playwright.async_api import async_playwright, Browser, BrowserContext
 from app.core.config import settings
 from app.core.logging import get_logger
 

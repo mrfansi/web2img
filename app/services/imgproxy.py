@@ -1,7 +1,6 @@
 import base64
 import hashlib
 import hmac
-from typing import Optional
 
 from app.core.config import settings
 

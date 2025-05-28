@@ -1,10 +1,8 @@
 import asyncio
 import time
-import uuid
-from typing import Dict, List, Any, Optional, Tuple, Set, AsyncGenerator, ContextManager
+from typing import Dict, List, Any, Optional, Tuple, Set, AsyncGenerator
 import httpx
 from datetime import datetime, timezone
-from collections import defaultdict
 from contextlib import asynccontextmanager
 
 from app.models.job import job_store, BatchJob, JobItem, RecurrencePattern
