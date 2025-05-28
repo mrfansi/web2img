@@ -44,9 +44,5 @@ COPY . .
 # Create directory for temporary screenshots
 RUN mkdir -p /tmp/web2img
 
-# Expose the port the app runs on
-EXPOSE 8000
-
-# Command to run the application with Gunicorn and Uvicorn workers
 # Uses the WORKERS environment variable for the number of workers
-CMD python main.py
+CMD ["python", "main.py"]
