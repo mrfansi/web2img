@@ -154,8 +154,14 @@ MAX_CONCURRENT_RATIO = 0.8  # Use 80% of min_size for concurrent requests
 QUEUE_SIZE_RATIO = 1.5     # Queue size is 1.5x the max_concurrent
 
 # Create a singleton instance for screenshot requests with dynamic sizing
+# Ensure throttle doesn't exceed browser pool capacity
+calculated_max_concurrent = max(1, int(settings.browser_pool_min_size * MAX_CONCURRENT_RATIO))
+if calculated_max_concurrent > settings.browser_pool_min_size:
+    logger = get_logger("throttle.config")
+    logger.warning(f"Throttle max_concurrent ({calculated_max_concurrent}) exceeds browser_pool_min_size ({settings.browser_pool_min_size})")
+
 screenshot_throttle = RequestThrottle(
-    max_concurrent=max(10, int(settings.browser_pool_min_size * MAX_CONCURRENT_RATIO)),
-    queue_size=max(10, int(settings.browser_pool_min_size * MAX_CONCURRENT_RATIO * QUEUE_SIZE_RATIO)),
+    max_concurrent=calculated_max_concurrent,
+    queue_size=max(1, int(settings.browser_pool_min_size * MAX_CONCURRENT_RATIO * QUEUE_SIZE_RATIO)),
     name="screenshot"
 )
