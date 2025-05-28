@@ -559,52 +559,6 @@ class BrowserPool:
             except Exception:
                 pass  # Ignore errors during cleanup
             
-        
-        browser_data = self._browsers[browser_index]
-        
-        try:
-            # Create a new context
-            context = await browser_data["browser"].new_context(**kwargs)
-            
-            # Add to contexts list
-            browser_data["contexts"].append(context)
-            
-            return context
-        except Exception as e:
-            # Update stats
-            self._stats["errors"] += 1
-            print(f"Error creating browser context: {str(e)}")
-            return None
-
-    async def release_context(self, browser_index: int, context: BrowserContext):
-        """Release a browser context.
-        
-        Args:
-            browser_index: Index of the browser in the pool
-            context: The browser context to release
-        """
-        async with self._lock:
-            # Check if the browser index is valid
-            if browser_index < 0 or browser_index >= len(self._browsers):
-                return
-            
-            browser_data = self._browsers[browser_index]
-            
-            # Close all pages
-            try:
-                pages = context.pages
-                for page in pages:
-                    if not page.is_closed():
-                        await page.close()
-            except Exception:
-                pass  # Ignore errors during cleanup
-            
-            # Close the context
-            try:
-                await context.close()
-            except Exception:
-                pass  # Ignore errors during cleanup
-            
             # Remove from contexts list
             if context in browser_data["contexts"]:
                 browser_data["contexts"].remove(context)
@@ -911,7 +865,7 @@ class BrowserPool:
                         await asyncio.wait_for(self.release_browser(browser_index, is_healthy=False), timeout=5.0)
                     except Exception:
                         logger.error(f"Failed to recycle browser {browser_index} during cleanup")
-    
+
     def get_stats(self) -> Dict[str, Any]:
         """Get pool statistics with detailed metrics.
         
