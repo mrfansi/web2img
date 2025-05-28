@@ -374,7 +374,7 @@ class ScreenshotService:
         # Periodically clean up old temporary files
         current_time = time.time()
         if current_time - self._last_cleanup > 3600:  # 1 hour
-            self._cleanup_temp_files()
+            await self._cleanup_temp_files()
             self._last_cleanup = current_time
             
         # Determine if this is a complex site that needs special handling
