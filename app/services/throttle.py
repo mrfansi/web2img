@@ -155,7 +155,7 @@ QUEUE_SIZE_RATIO = 1.5     # Queue size is 1.5x the max_concurrent
 
 # Create a singleton instance for screenshot requests with dynamic sizing
 screenshot_throttle = RequestThrottle(
-    max_concurrent=int(settings.browser_pool_min_size * MAX_CONCURRENT_RATIO),
-    queue_size=int(settings.browser_pool_min_size * MAX_CONCURRENT_RATIO * QUEUE_SIZE_RATIO),
+    max_concurrent=max(1, int(settings.browser_pool_min_size * MAX_CONCURRENT_RATIO)),
+    queue_size=max(1, int(settings.browser_pool_min_size * MAX_CONCURRENT_RATIO * QUEUE_SIZE_RATIO)),
     name="screenshot"
 )

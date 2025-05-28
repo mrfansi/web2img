@@ -71,24 +71,24 @@ class Settings(BaseModel):
     
     # Browser Pool Configuration
     browser_pool_min_size: int = Field(
-        default_factory=lambda: int(os.getenv("BROWSER_POOL_MIN_SIZE", "4"))  # Increased from 2 to 4
+        default_factory=lambda: int(os.getenv("BROWSER_POOL_MIN_SIZE", "2"))
     )
     browser_pool_max_size: int = Field(
-        default_factory=lambda: int(os.getenv("BROWSER_POOL_MAX_SIZE", "12"))  # Increased from 10 to 12
+        default_factory=lambda: int(os.getenv("BROWSER_POOL_MAX_SIZE", "150"))
     )
     browser_pool_idle_timeout: int = Field(
-        default_factory=lambda: int(os.getenv("BROWSER_POOL_IDLE_TIMEOUT", "300"))
+        default_factory=lambda: int(os.getenv("BROWSER_POOL_IDLE_TIMEOUT", "150"))
     )
     browser_pool_max_age: int = Field(
-        default_factory=lambda: int(os.getenv("BROWSER_POOL_MAX_AGE", "3600"))
+        default_factory=lambda: int(os.getenv("BROWSER_POOL_MAX_AGE", "1200"))
     )
     browser_pool_cleanup_interval: int = Field(
-        default_factory=lambda: int(os.getenv("BROWSER_POOL_CLEANUP_INTERVAL", "60"))
+        default_factory=lambda: int(os.getenv("BROWSER_POOL_CLEANUP_INTERVAL", "120"))
     )
     
     # Screenshot Service Configuration
     screenshot_cleanup_interval: int = Field(
-        default_factory=lambda: int(os.getenv("SCREENSHOT_CLEANUP_INTERVAL", "300"))
+        default_factory=lambda: int(os.getenv("SCREENSHOT_CLEANUP_INTERVAL", "30"))
     )
     temp_file_retention_hours: int = Field(
         default_factory=lambda: int(os.getenv("TEMP_FILE_RETENTION_HOURS", "24"))
@@ -105,13 +105,13 @@ class Settings(BaseModel):
         default_factory=lambda: int(os.getenv("BROWSER_LAUNCH_TIMEOUT", "60000"))
     )
     context_creation_timeout: int = Field(
-        default_factory=lambda: int(os.getenv("CONTEXT_CREATION_TIMEOUT", "30000"))
+        default_factory=lambda: int(os.getenv("CONTEXT_CREATION_TIMEOUT", "60000"))
     )
     browser_context_timeout: int = Field(
-        default_factory=lambda: int(os.getenv("BROWSER_CONTEXT_TIMEOUT", "15000"))
+        default_factory=lambda: int(os.getenv("BROWSER_CONTEXT_TIMEOUT", "60000"))
     )
     page_creation_timeout: int = Field(
-        default_factory=lambda: int(os.getenv("PAGE_CREATION_TIMEOUT", "10000"))
+        default_factory=lambda: int(os.getenv("PAGE_CREATION_TIMEOUT", "60000"))
     )
 
     screenshot_timeout: int = Field(
@@ -120,19 +120,19 @@ class Settings(BaseModel):
     
     # Retry Configuration
     max_retries_regular: int = Field(
-        default_factory=lambda: int(os.getenv("MAX_RETRIES_REGULAR", "3"))
+        default_factory=lambda: int(os.getenv("MAX_RETRIES_REGULAR", "8"))
     )
     max_retries_complex: int = Field(
-        default_factory=lambda: int(os.getenv("MAX_RETRIES_COMPLEX", "5"))
+        default_factory=lambda: int(os.getenv("MAX_RETRIES_COMPLEX", "12"))
     )
     retry_base_delay: float = Field(
-        default_factory=lambda: float(os.getenv("RETRY_BASE_DELAY", "0.5"))
+        default_factory=lambda: float(os.getenv("RETRY_BASE_DELAY", "0.1"))
     )
     retry_max_delay: float = Field(
-        default_factory=lambda: float(os.getenv("RETRY_MAX_DELAY", "10.0"))
+        default_factory=lambda: float(os.getenv("RETRY_MAX_DELAY", "8.0"))
     )
     retry_jitter: float = Field(
-        default_factory=lambda: float(os.getenv("RETRY_JITTER", "0.1"))
+        default_factory=lambda: float(os.getenv("RETRY_JITTER", "0.2"))
     )
     
     # Context Creation Retry Multipliers
@@ -153,10 +153,10 @@ class Settings(BaseModel):
     
     # Circuit Breaker Configuration
     circuit_breaker_threshold: int = Field(
-        default_factory=lambda: int(os.getenv("CIRCUIT_BREAKER_THRESHOLD", "5"))
+        default_factory=lambda: int(os.getenv("CIRCUIT_BREAKER_THRESHOLD", "15"))
     )
     circuit_breaker_reset_time: int = Field(
-        default_factory=lambda: int(os.getenv("CIRCUIT_BREAKER_RESET_TIME", "300"))
+        default_factory=lambda: int(os.getenv("CIRCUIT_BREAKER_RESET_TIME", "120"))
     )
     
     # Logging Configuration
