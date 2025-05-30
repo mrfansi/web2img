@@ -66,7 +66,6 @@ SCREENSHOT_BASE_DELAY=3.0
 ```bash
 BROWSER_POOL_MAX_SIZE=8
 BROWSER_POOL_IDLE_TIMEOUT=180
-THROTTLE_MAX_CONCURRENT=3
 ```
 
 #### 3. **Complex Websites**
@@ -82,11 +81,9 @@ MAX_RETRIES_COMPLEX=15
 #### 4. **High Load**
 
 - **Symptoms**: Failures during peak usage
-- **Solution**: Implement better throttling and increase pool size
+- **Solution**: Increase pool size and optimize browser settings
 
 ```bash
-THROTTLE_MAX_CONCURRENT=8
-THROTTLE_QUEUE_SIZE=100
 BROWSER_POOL_MAX_SIZE=20
 ```
 
@@ -166,14 +163,6 @@ BROWSER_POOL_MIN_SIZE=3
 BROWSER_POOL_MAX_SIZE=12
 BROWSER_POOL_IDLE_TIMEOUT=240
 BROWSER_POOL_MAX_AGE=1800
-```
-
-#### 2. Throttling Configuration
-
-```bash
-# Balance throughput and stability
-THROTTLE_MAX_CONCURRENT=6
-THROTTLE_QUEUE_SIZE=75
 ```
 
 ### Environment-Specific Recommendations

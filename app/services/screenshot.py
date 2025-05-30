@@ -12,7 +12,7 @@ from playwright.async_api import BrowserContext, Page, TimeoutError as Playwrigh
 from app.core.config import settings
 from app.services.browser_pool import BrowserPool
 from app.services.retry import RetryConfig, CircuitBreaker, RetryManager
-from app.services.throttle import screenshot_throttle
+
 
 
 class ScreenshotService:
@@ -388,31 +388,16 @@ class ScreenshotService:
         browser_index = None
         page = None
         try:
-            # Apply request throttling to prevent overwhelming the browser pool
-            # This will queue the request if too many are already in progress
-            try:
-                # Execute the rest of the function with throttling
-                return await screenshot_throttle.execute(
-                    self._capture_screenshot_impl,
-                    url=url,
-                    width=width,
-                    height=height,
-                    format=format,
-                    filepath=filepath,
-                    start_time=start_time,
-                    context_dict=context_dict
-                )
-            except asyncio.QueueFull:
-                # If the throttle queue is full, raise a custom error
-                from app.core.errors import SystemOverloadedError
-                raise SystemOverloadedError(
-                    message="Too many concurrent screenshot requests",
-                    context={
-                        "url": url,
-                        "throttle_stats": screenshot_throttle.get_stats(),
-                        "browser_pool_stats": self._browser_pool.get_stats()
-                    }
-                )
+            # Execute screenshot capture directly without throttling
+            return await self._capture_screenshot_impl(
+                url=url,
+                width=width,
+                height=height,
+                format=format,
+                filepath=filepath,
+                start_time=start_time,
+                context_dict=context_dict
+            )
         except Exception as e:
             # Clean up any partially created file
             if os.path.exists(filepath):
@@ -668,9 +653,7 @@ class ScreenshotService:
             raise BrowserTimeoutError("Timeout getting browser context or creating page")
 
     async def _capture_screenshot_impl(self, url: str, width: int, height: int, format: str, filepath: str, start_time: float, context_dict: dict) -> str:
-        """Implementation of screenshot capture with throttling applied.
-
-        This is the actual implementation that gets executed by the throttle mechanism.
+        """Implementation of screenshot capture.
 
         Args:
             url: The URL to capture
@@ -1365,9 +1348,6 @@ class ScreenshotService:
             "circuit_breakers": {
                 "browser": self._browser_circuit_breaker.get_state(),
                 "navigation": self._navigation_circuit_breaker.get_state()
-            },
-            "throttle": {
-                "screenshot": screenshot_throttle.get_stats()
             }
         }
 
