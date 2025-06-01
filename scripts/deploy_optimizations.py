@@ -6,7 +6,6 @@ This script helps you safely deploy the optimizations step by step,
 with validation and rollback capabilities.
 """
 
-import os
 import sys
 import shutil
 import asyncio
@@ -164,9 +163,6 @@ class OptimizationDeployer:
             "IMGPROXY_BASE_URL=https://your-imgproxy-url.example.com",
             "IMGPROXY_KEY=your_imgproxy_key",
             "IMGPROXY_SALT=your_imgproxy_salt",
-            "",
-            "PORT=8000",
-            "RELOAD=True",
             ""
         ]
         

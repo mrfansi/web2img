@@ -49,9 +49,7 @@ IMGPROXY_KEY=your_imgproxy_key
 IMGPROXY_SALT=your_imgproxy_salt
 
 # Server Configuration
-PORT=8000
 WORKERS=4
-RELOAD=True
 
 # Cache Configuration
 CACHE_ENABLED=True
@@ -153,9 +151,7 @@ python main.py
 
 The server configuration is controlled by environment variables:
 
-- `PORT`: The port to run the server on (default: 8000)
 - `WORKERS`: The number of worker processes (default: 4)
-- `RELOAD`: Whether to reload the server on code changes (default: True for development, False for production)
 
 You can also run with uvicorn directly, specifying the environment variables:
 
@@ -168,6 +164,8 @@ For production, use gunicorn with uvicorn workers:
 ```bash
 WORKERS=8 PORT=9000 gunicorn app.main:app -k uvicorn.workers.UvicornWorker -w $WORKERS -b 0.0.0.0:$PORT
 ```
+
+Note: `PORT` and `RELOAD` are handled directly in `main.py` and don't need to be defined in the config.
 
 ### API Endpoints
 
@@ -496,7 +494,7 @@ python tests/load_test.py --concurrency 10 --requests 50
 
 The script supports the following options:
 
-- `--url`: API base URL (default: http://localhost:8000)
+- `--url`: API base URL (default: <http://localhost:8000>)
 - `--concurrency`: Number of concurrent requests (default: 10)
 - `--requests`: Total number of requests to make (default: 50)
 - `--output`: Optional JSON file to save detailed results
@@ -511,7 +509,7 @@ python tests/test_batch.py --parallel 3
 
 The script supports the following options:
 
-- `--url`: API base URL (default: http://localhost:8000)
+- `--url`: API base URL (default: <http://localhost:8000>)
 - `--parallel`: Number of parallel requests (default: 3)
 - `--no-cache`: Disable caching
 
@@ -533,7 +531,7 @@ python tests/test_cache.py --iterations 3
 
 The script supports the following options:
 
-- `--url`: API base URL (default: http://localhost:8000)
+- `--url`: API base URL (default: <http://localhost:8000>)
 - `--iterations`: Number of times to request each URL (default: 3)
 
 ## License

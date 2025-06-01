@@ -172,6 +172,26 @@ class Settings(BaseModel):
         default_factory=lambda: int(os.getenv("CIRCUIT_BREAKER_RESET_TIME", "300"))  # Increased from 120
     )
 
+    # Performance Optimization Configuration
+    disable_images: bool = Field(
+        default_factory=lambda: os.getenv("DISABLE_IMAGES", "False").lower() in ("true", "1", "t")
+    )
+    disable_javascript: bool = Field(
+        default_factory=lambda: os.getenv("DISABLE_JAVASCRIPT", "False").lower() in ("true", "1", "t")
+    )
+    disable_css: bool = Field(
+        default_factory=lambda: os.getenv("DISABLE_CSS", "False").lower() in ("true", "1", "t")
+    )
+    disable_fonts: bool = Field(
+        default_factory=lambda: os.getenv("DISABLE_FONTS", "True").lower() in ("true", "1", "t")
+    )
+    disable_media: bool = Field(
+        default_factory=lambda: os.getenv("DISABLE_MEDIA", "True").lower() in ("true", "1", "t")
+    )
+    disable_analytics: bool = Field(
+        default_factory=lambda: os.getenv("DISABLE_ANALYTICS", "True").lower() in ("true", "1", "t")
+    )
+
     # Logging Configuration
     log_level: str = Field(
         default_factory=lambda: os.getenv("LOG_LEVEL", "INFO")

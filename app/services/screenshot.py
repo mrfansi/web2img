@@ -291,8 +291,9 @@ class ScreenshotService:
         Returns:
             Tuple of (wait_until, timeout_ms)
         """
-        # Use a balanced strategy that works well for most sites
-        return "networkidle", settings.navigation_timeout_regular
+        # Use domcontentloaded for faster, more reliable navigation
+        # This is more resilient to slow-loading resources and network issues
+        return "domcontentloaded", settings.navigation_timeout_regular
 
     async def capture_screenshot(self, url: str, width: int, height: int, format: str) -> str:
         """Capture a screenshot of the given URL.
@@ -425,18 +426,43 @@ class ScreenshotService:
             )
 
     async def _configure_page_for_site(self, page: Page) -> None:
-        """Configure page settings for optimal performance.
+        """Configure page settings for optimal performance and faster loading.
 
         Args:
             page: The page to configure
         """
-        # Block unnecessary resources to improve performance
-        await page.route('**/*.{mp3,mp4,ogg,webm,wav}', lambda route: route.abort())
+        # Configure resource blocking based on settings
+        if settings.disable_media:
+            await page.route('**/*.{mp3,mp4,ogg,webm,wav,avi,mov,wmv,flv}', lambda route: route.abort())
+
+        if settings.disable_fonts:
+            await page.route('**/*.{woff,woff2,ttf,otf,eot}', lambda route: route.abort())
+
+        if settings.disable_images:
+            await page.route('**/*.{png,jpg,jpeg,gif,webp,svg,ico,bmp,tiff}', lambda route: route.abort())
+
+        # Always block documents for performance
+        await page.route('**/*.{pdf,doc,docx,xls,xlsx,ppt,pptx,zip,rar}', lambda route: route.abort())
+
+        # Block analytics and tracking based on settings
+        if settings.disable_analytics:
+            await page.route('**/analytics.js', lambda route: route.abort())
+            await page.route('**/gtag/**', lambda route: route.abort())
+            await page.route('**/google-analytics.com/**', lambda route: route.abort())
+            await page.route('**/googletagmanager.com/**', lambda route: route.abort())
+            await page.route('**/facebook.com/tr/**', lambda route: route.abort())
+            await page.route('**/doubleclick.net/**', lambda route: route.abort())
+            await page.route('**/googleadservices.com/**', lambda route: route.abort())
+            await page.route('**/googlesyndication.com/**', lambda route: route.abort())
+
+        # Disable JavaScript if configured
+        if settings.disable_javascript:
+            await page.set_javascript_enabled(False)
 
         # Set headers to appear more like a real browser
         await page.set_extra_http_headers({
             'Accept-Language': 'en-US,en;q=0.9',
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            'User-Agent': settings.user_agent,
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
             'Sec-Fetch-Site': 'none',
             'Sec-Fetch-Mode': 'navigate',
@@ -444,8 +470,18 @@ class ScreenshotService:
             'Sec-Fetch-Dest': 'document',
         })
 
+        # Log the configuration being used
+        self.logger.debug("Page configuration applied", {
+            "disable_images": settings.disable_images,
+            "disable_javascript": settings.disable_javascript,
+            "disable_css": settings.disable_css,
+            "disable_fonts": settings.disable_fonts,
+            "disable_media": settings.disable_media,
+            "disable_analytics": settings.disable_analytics
+        })
+
     async def _navigate_to_url(self, page: Page, url: str, wait_until: str, page_timeout: int) -> Any:
-        """Navigate to a URL with proper error handling.
+        """Navigate to a URL with robust error handling and fallback strategies.
 
         Args:
             page: The page to navigate with
@@ -457,82 +493,91 @@ class ScreenshotService:
             The navigation response or None for partial success
 
         Raises:
-            NavigationError: If navigation fails
+            NavigationError: If navigation fails after all fallback attempts
         """
-        try:
-            # Navigate to the URL
-            response = await page.goto(
-                url,
-                wait_until=wait_until,
-                timeout=page_timeout
-            )
+        # Define fallback strategies in order of preference
+        strategies = [
+            ("domcontentloaded", page_timeout),
+            ("load", int(page_timeout * 0.8)),  # Shorter timeout for load event
+            ("commit", int(page_timeout * 0.6))  # Even shorter for commit
+        ]
 
-            # Wait a bit after navigation to ensure content loads
-            await asyncio.sleep(1)
+        last_error = None
 
-            # Check if navigation was successful
-            if not response:
-                raise Exception("Navigation resulted in null response")
-
-            # Check response status
-            status = response.status
-            if status >= 400:
-                raise Exception(f"Navigation failed with status {status}")
-
-            return response
-
-        except PlaywrightTimeoutError as e:
-            # Increment timeout counter
-            self._timeout_stats["navigation"] += 1
-
-            # Log the timeout with context
-            self.logger.warning(f"Navigation timeout for {url}", {
-                "url": url,
-                "timeout": page_timeout,
-                "wait_until": wait_until,
-                "error": str(e)
-            })
-
-            # If the context is still valid, try to get the page content anyway
-            # This can help in cases where the page loaded but some resources timed out
+        for strategy_index, (strategy, timeout) in enumerate(strategies):
             try:
-                content = await page.content()
-                if len(content) > 100:  # If we have some meaningful content
-                    self.logger.info(f"Got partial content despite timeout for {url}")
-                    return None  # Return None to indicate partial success
-            except Exception as content_error:
-                self.logger.debug(f"Failed to get content after timeout: {str(content_error)}")
+                self.logger.debug(f"Attempting navigation to {url} with strategy {strategy} (timeout: {timeout}ms)")
 
-            # Try with a simpler strategy before giving up
-            if "timeout" in str(e).lower():
-                # Try with a simpler strategy
-                if page and not page.is_closed():
-                    try:
-                        # Try with domcontentloaded and longer timeout
-                        response = await page.goto(
-                            url,
-                            wait_until="domcontentloaded",  # Simpler strategy
-                            timeout=page_timeout * 1.5  # 50% longer timeout
-                        )
-                        await asyncio.sleep(2)  # Wait after load
-                        return response
-                    except Exception as inner_e:
-                        # Log the fallback attempt failure
-                        self.logger.warning(f"Fallback navigation strategy also failed for {url}", {
-                            "url": url,
-                            "error": str(inner_e),
-                            "error_type": type(inner_e).__name__
-                        })
+                # Navigate to the URL
+                response = await page.goto(
+                    url,
+                    wait_until=strategy,
+                    timeout=timeout
+                )
 
-            # If we get here, the simpler strategy failed or wasn't attempted
-            # Use our custom error class for better error messages
-            from app.core.errors import NavigationError
-            nav_context = {
-                "url": url,
-                "wait_until": wait_until,
-                "timeout": page_timeout
-            }
-            raise NavigationError(url=url, context=nav_context, original_exception=e)
+                # Wait a bit after navigation to ensure content loads
+                await asyncio.sleep(0.5)
+
+                # Check if navigation was successful
+                if not response:
+                    raise Exception("Navigation resulted in null response")
+
+                # Check response status
+                status = response.status
+                if status >= 400:
+                    raise Exception(f"Navigation failed with status {status}")
+
+                # Success! Log and return
+                if strategy_index > 0:
+                    self.logger.info(f"Navigation succeeded with fallback strategy {strategy} for {url}")
+
+                return response
+
+            except PlaywrightTimeoutError as e:
+                last_error = e
+                self._timeout_stats["navigation"] += 1
+
+                self.logger.warning(f"Navigation timeout with strategy {strategy} for {url}", {
+                    "url": url,
+                    "timeout": timeout,
+                    "wait_until": strategy,
+                    "strategy_index": strategy_index,
+                    "error": str(e)
+                })
+
+                # If this isn't the last strategy, continue to next one
+                if strategy_index < len(strategies) - 1:
+                    continue
+
+                # This was the last strategy, try to get partial content
+                try:
+                    content = await page.content()
+                    if len(content) > 100:  # If we have some meaningful content
+                        self.logger.info(f"Got partial content despite all timeouts for {url}")
+                        return None  # Return None to indicate partial success
+                except Exception as content_error:
+                    self.logger.debug(f"Failed to get content after all timeouts: {str(content_error)}")
+
+            except Exception as e:
+                last_error = e
+                self.logger.warning(f"Navigation failed with strategy {strategy} for {url}: {str(e)}")
+
+                # If this isn't the last strategy, continue to next one
+                if strategy_index < len(strategies) - 1:
+                    continue
+
+                # This was the last strategy, break out
+                break
+
+        # All strategies failed, raise error
+        from app.core.errors import NavigationError
+        nav_context = {
+            "url": url,
+            "strategies_attempted": len(strategies),
+            "final_wait_until": wait_until,
+            "final_timeout": page_timeout
+        }
+        raise NavigationError(url=url, context=nav_context, original_exception=last_error)
 
     async def _create_context_and_page(self, url: str, width: int, height: int) -> Tuple[BrowserContext, int, Page]:
         """Create a browser context and page with timeout protection.
@@ -605,8 +650,10 @@ class ScreenshotService:
             # Get navigation strategy
             wait_until, page_timeout = await self._get_navigation_strategy()
 
-            # Create a retry manager for context creation
+            # Create a retry manager for context creation with reduced retries
             retry_manager = await self._create_retry_manager(False, "context_creation")
+            # Override retry config for faster failure detection
+            retry_manager.retry_config.max_retries = 2  # Reduce from default
 
             # Get context with retry logic
             async def get_context_with_page():
@@ -623,24 +670,29 @@ class ScreenshotService:
             # Configure page and navigate to URL
             await self._configure_page_for_site(page)
 
-            # Create a retry manager for navigation
+            # Create a retry manager for navigation with reduced retries
             navigation_retry_manager = await self._create_retry_manager(False, "navigation")
             navigation_retry_manager.circuit_breaker = self._navigation_circuit_breaker
+            # Override retry config for faster failure detection
+            navigation_retry_manager.retry_config.max_retries = 1  # Only 1 retry for navigation
 
-            # During high load, we'll use a more aggressive timeout strategy
+            # Use more aggressive timeout strategy for faster failure detection
             pool_stats = self._browser_pool.get_stats()
             pool_load = pool_stats["in_use"] / max(pool_stats["size"], 1)  # Avoid division by zero
 
-            # Adjust timeout based on pool load - reduce timeout when load is high
-            adaptive_timeout = page_timeout
-            if pool_load > 0.8:  # High load (>80% of pool in use)
-                # Reduce timeout by up to 30% based on load
-                reduction_factor = min(0.3, (pool_load - 0.8) * 1.5)  # Scale between 0-30%
-                adaptive_timeout = int(page_timeout * (1 - reduction_factor))
-                self.logger.info(
-                    f"Adjusting navigation timeout for {url} due to high load",
-                    {"original_timeout": page_timeout, "adaptive_timeout": adaptive_timeout, "pool_load": pool_load}
-                )
+            # Reduce timeout significantly for faster failure detection
+            adaptive_timeout = int(page_timeout * 0.6)  # Always use 60% of original timeout
+
+            # Further reduce timeout under high load
+            if pool_load > 0.7:  # High load (>70% of pool in use)
+                # Additional reduction up to 50% based on load
+                additional_reduction = min(0.5, (pool_load - 0.7) * 1.67)  # Scale between 0-50%
+                adaptive_timeout = int(adaptive_timeout * (1 - additional_reduction))
+
+            self.logger.debug(
+                f"Using adaptive timeout for {url}",
+                {"original_timeout": page_timeout, "adaptive_timeout": adaptive_timeout, "pool_load": pool_load}
+            )
 
             # Navigate to URL with retry logic
             await navigation_retry_manager.execute(
