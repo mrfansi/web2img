@@ -580,7 +580,7 @@ class ScreenshotService:
         raise NavigationError(url=url, context=nav_context, original_exception=last_error)
 
     async def _create_context_and_page(self, url: str, width: int, height: int) -> Tuple[BrowserContext, int, Page]:
-        """Create a browser context and page with timeout protection.
+        """Create a browser context and page with timeout protection and fallback strategies.
 
         Args:
             url: The URL to capture
@@ -595,37 +595,88 @@ class ScreenshotService:
         """
         self.logger.debug(f"Attempting to get browser context for {url}")
 
-        # Get context with timeout protection
-        try:
-            context, browser_index = await asyncio.wait_for(
-                self._get_context(width=width, height=height),
-                timeout=settings.browser_context_timeout
-            )
-            self.logger.debug(f"Got browser context {browser_index} for {url}")
+        # Try multiple timeout strategies for better reliability
+        timeout_strategies = [
+            ("normal", settings.browser_context_timeout, settings.page_creation_timeout),
+            ("extended", int(settings.browser_context_timeout * 1.5), int(settings.page_creation_timeout * 1.5)),
+            ("minimal", int(settings.browser_context_timeout * 0.7), int(settings.page_creation_timeout * 0.7))
+        ]
 
-            # Create page with timeout protection
-            page = await asyncio.wait_for(
-                context.new_page(),
-                timeout=settings.page_creation_timeout
-            )
-            self.logger.debug(f"Created new page for {url} using browser {browser_index}")
+        last_error = None
 
-            # Track the page resource
-            await self._track_resource("page", page)
+        for strategy_name, context_timeout, page_timeout in timeout_strategies:
+            try:
+                self.logger.debug(f"Trying {strategy_name} timeout strategy for {url}", {
+                    "context_timeout": context_timeout,
+                    "page_timeout": page_timeout
+                })
 
-            return context, browser_index, page
+                # Get context with timeout protection
+                context, browser_index = await asyncio.wait_for(
+                    self._get_context(width=width, height=height),
+                    timeout=context_timeout / 1000.0  # Convert to seconds
+                )
 
-        except asyncio.TimeoutError:
-            self.logger.warning(f"Timeout getting browser context or creating page for {url}")
+                if context is None or browser_index is None:
+                    raise Exception("Failed to get browser context from pool")
 
-            # Clean up partial resources
-            if 'context' in locals() and 'browser_index' in locals() and context and browser_index is not None:
-                self.logger.debug(f"Releasing browser {browser_index} after timeout")
-                await self._return_context(context, browser_index)
+                self.logger.debug(f"Got browser context {browser_index} for {url}")
 
-            # Re-raise as a custom error for better retry handling
-            from app.core.errors import BrowserTimeoutError
-            raise BrowserTimeoutError("Timeout getting browser context or creating page")
+                # Create page with timeout protection
+                page = await asyncio.wait_for(
+                    context.new_page(),
+                    timeout=page_timeout / 1000.0  # Convert to seconds
+                )
+                self.logger.debug(f"Created new page for {url} using browser {browser_index}")
+
+                # Track the page resource
+                await self._track_resource("page", page)
+
+                # Success! Log if we used a fallback strategy
+                if strategy_name != "normal":
+                    self.logger.info(f"Context creation succeeded with {strategy_name} strategy for {url}")
+
+                return context, browser_index, page
+
+            except asyncio.TimeoutError as e:
+                last_error = e
+                self.logger.warning(f"Timeout with {strategy_name} strategy for {url}", {
+                    "strategy": strategy_name,
+                    "context_timeout": context_timeout,
+                    "page_timeout": page_timeout
+                })
+
+                # Clean up partial resources
+                if 'context' in locals() and 'browser_index' in locals() and context and browser_index is not None:
+                    self.logger.debug(f"Releasing browser {browser_index} after timeout")
+                    try:
+                        await self._return_context(context, browser_index, is_healthy=False)
+                    except Exception as cleanup_error:
+                        self.logger.error(f"Error during cleanup: {str(cleanup_error)}")
+
+                # Continue to next strategy
+                continue
+
+            except Exception as e:
+                last_error = e
+                self.logger.warning(f"Error with {strategy_name} strategy for {url}: {str(e)}")
+
+                # Clean up partial resources
+                if 'context' in locals() and 'browser_index' in locals() and context and browser_index is not None:
+                    try:
+                        await self._return_context(context, browser_index, is_healthy=False)
+                    except Exception as cleanup_error:
+                        self.logger.error(f"Error during cleanup: {str(cleanup_error)}")
+
+                # Continue to next strategy
+                continue
+
+        # All strategies failed
+        self.logger.error(f"All context creation strategies failed for {url}")
+
+        # Re-raise as a custom error for better retry handling
+        from app.core.errors import BrowserTimeoutError
+        raise BrowserTimeoutError(f"Failed to create browser context after trying all strategies: {str(last_error)}")
 
     async def _capture_screenshot_impl(self, url: str, width: int, height: int, format: str, filepath: str, start_time: float) -> str:
         """Implementation of screenshot capture.
@@ -650,10 +701,10 @@ class ScreenshotService:
             # Get navigation strategy
             wait_until, page_timeout = await self._get_navigation_strategy()
 
-            # Create a retry manager for context creation with reduced retries
+            # Create a retry manager for context creation with more retries for stability
             retry_manager = await self._create_retry_manager(False, "context_creation")
-            # Override retry config for faster failure detection
-            retry_manager.retry_config.max_retries = 2  # Reduce from default
+            # Use more retries for context creation since it's critical
+            retry_manager.retry_config.max_retries = 5  # Increase for better reliability
 
             # Get context with retry logic
             async def get_context_with_page():

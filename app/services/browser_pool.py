@@ -516,18 +516,53 @@ class BrowserPool:
             
             browser_data = self._browsers[browser_index]
             
+            # Check if browser is still healthy
+            if not browser_data.get("browser") or browser_data["browser"].is_closed():
+                from app.core.logging import get_logger
+                logger = get_logger("browser_pool")
+                logger.warning(f"Browser {browser_index} is closed, marking as unhealthy")
+                self._stats["errors"] += 1
+                return None
+
             try:
-                # Create a new context
-                context = await browser_data["browser"].new_context(**kwargs)
-                
+                # Create a new context with timeout protection
+                context = await asyncio.wait_for(
+                    browser_data["browser"].new_context(**kwargs),
+                    timeout=10.0  # 10 second timeout for context creation
+                )
+
                 # Add to contexts list
                 browser_data["contexts"].append(context)
-                
+
+                # Update usage stats
+                browser_data["usage_count"] += 1
+                browser_data["last_used"] = time.time()
+
                 return context
+
+            except asyncio.TimeoutError:
+                from app.core.logging import get_logger
+                logger = get_logger("browser_pool")
+                logger.error(f"Timeout creating context for browser {browser_index}")
+                self._stats["errors"] += 1
+                # Mark browser as potentially unhealthy
+                browser_data["last_error"] = time.time()
+                return None
+
             except Exception as e:
+                from app.core.logging import get_logger
+                logger = get_logger("browser_pool")
                 # Update stats
                 self._stats["errors"] += 1
-                print(f"Error creating browser context: {str(e)}")
+                logger.error(f"Error creating browser context for browser {browser_index}: {str(e)}", {
+                    "error": str(e),
+                    "error_type": type(e).__name__,
+                    "browser_index": browser_index
+                })
+
+                # Mark browser as potentially unhealthy
+                browser_data["last_error"] = time.time()
+
                 return None
     
     async def release_context(self, browser_index: int, context: BrowserContext):
