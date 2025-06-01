@@ -24,7 +24,27 @@ The second error is a **Playwright API compatibility issue** where the code was 
 
 ## 🔧 Solutions Implemented
 
-### 1. **Multi-Strategy Context Creation**
+### 1. **Fixed Playwright API Compatibility**
+
+**Before:**
+
+```python
+if not browser_data.get("browser") or browser_data["browser"].is_closed():
+```
+
+**After:**
+
+```python
+if not browser_data.get("browser") or not browser_data["browser"].is_connected():
+```
+
+**Benefits:**
+
+- Eliminates the `'Browser' object has no attribute 'is_closed'` error
+- Uses the correct Playwright API method for checking browser health
+- Prevents crashes during browser health checks
+
+### 2. **Multi-Strategy Context Creation**
 
 The optimized code now uses multiple timeout strategies:
 
