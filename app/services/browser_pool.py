@@ -517,10 +517,10 @@ class BrowserPool:
             browser_data = self._browsers[browser_index]
             
             # Check if browser is still healthy
-            if not browser_data.get("browser") or browser_data["browser"].is_closed():
+            if not browser_data.get("browser") or not browser_data["browser"].is_connected():
                 from app.core.logging import get_logger
                 logger = get_logger("browser_pool")
-                logger.warning(f"Browser {browser_index} is closed, marking as unhealthy")
+                logger.warning(f"Browser {browser_index} is disconnected, marking as unhealthy")
                 self._stats["errors"] += 1
                 return None
 

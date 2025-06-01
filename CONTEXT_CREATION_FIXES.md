@@ -2,13 +2,16 @@
 
 ## 🔍 Problem Analysis
 
-You're experiencing this error:
+You're experiencing these errors:
 
 ```
 All retry attempts exhausted for get_context_with_page. Consider increasing max_retries (current: 2) or checking for underlying issues.
+Error creating context: 'Browser' object has no attribute 'is_closed'
 ```
 
-This error occurs **before** navigation - it's failing to create browser contexts and pages, which is a more fundamental issue than navigation timeouts.
+These errors occur **before** navigation - they're failing to create browser contexts and pages, which is a more fundamental issue than navigation timeouts.
+
+The second error is a **Playwright API compatibility issue** where the code was using `browser.is_closed()` which doesn't exist. The correct method is `browser.is_connected()`.
 
 ## 🎯 Root Causes
 
