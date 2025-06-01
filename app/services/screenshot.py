@@ -1,6 +1,5 @@
 import asyncio
 import os
-import re
 import time
 import uuid
 from typing import Dict, Optional, Tuple, Any, AsyncGenerator
@@ -86,27 +85,7 @@ class ScreenshotService:
             "screenshot": 0
         }
 
-        # Complex site patterns that need special handling
-        self._complex_sites = [
-            r'linkedin\.com',
-            r'youtube\.com',
-            r'facebook\.com',
-            r'twitter\.com',
-            r'instagram\.com',
-            r'snapchat\.com',
-            r'tiktok\.com',
-            r'viding\.co',
-            r'harisenin\.com'
-        ]
 
-        # Sites where visual content is important and images should be loaded
-        self._visual_content_sites = [
-            r'viding\.co',
-            r'harisenin\.com',
-            r'instagram\.com',
-            r'snapchat\.com',
-            r'tiktok\.com'
-        ]
 
         # Ensure screenshot directory exists
         os.makedirs(settings.screenshot_dir, exist_ok=True)
@@ -306,26 +285,14 @@ class ScreenshotService:
                         "browser_index": browser_index
                     })
 
-    def _is_complex_site(self, url: str) -> bool:
-        """Check if the URL is for a complex site that needs special handling."""
-        return any(re.search(pattern, url, re.IGNORECASE) for pattern in self._complex_sites)
-
-    def _is_visual_content_site(self, url: str) -> bool:
-        """Check if the URL is for a site where visual content is important."""
-        return any(re.search(pattern, url, re.IGNORECASE) for pattern in self._visual_content_sites)
-
-    async def _get_navigation_strategy(self, url: str) -> Tuple[str, int]:
-        """Determine the optimal navigation strategy for a URL.
+    async def _get_navigation_strategy(self) -> Tuple[str, int]:
+        """Get the navigation strategy for all URLs.
 
         Returns:
             Tuple of (wait_until, timeout_ms)
         """
-        if self._is_complex_site(url):
-            # For complex sites, use a more patient strategy
-            return "domcontentloaded", settings.navigation_timeout_complex  # Wait for DOM only
-        else:
-            # For regular sites, use the standard strategy
-            return "networkidle", settings.navigation_timeout_regular  # Wait for network idle
+        # Use a balanced strategy that works well for most sites
+        return "networkidle", settings.navigation_timeout_regular
 
     async def capture_screenshot(self, url: str, width: int, height: int, format: str) -> str:
         """Capture a screenshot of the given URL.
@@ -377,26 +344,15 @@ class ScreenshotService:
             await self._cleanup_temp_files()
             self._last_cleanup = current_time
 
-        # Determine if this is a complex site that needs special handling
-        is_complex = self._is_complex_site(url)
-
-        # Get navigation strategy based on site complexity
-        wait_until, page_timeout = await self._get_navigation_strategy(url)
-
-        # Get a browser context
-        context_dict: Dict[str, Any] = {}  # Initialize as empty dict instead of None
-        browser_index = None
-        page = None
         try:
-            # Execute screenshot capture directly without throttling
+            # Execute screenshot capture directly
             return await self._capture_screenshot_impl(
                 url=url,
                 width=width,
                 height=height,
                 format=format,
                 filepath=filepath,
-                start_time=start_time,
-                context_dict=context_dict
+                start_time=start_time
             )
         except Exception as e:
             # Clean up any partially created file
@@ -468,44 +424,27 @@ class ScreenshotService:
                 name=name
             )
 
-    async def _configure_page_for_site(self, page: Page, url: str, is_complex: bool) -> None:
-        """Configure page settings based on site complexity.
+    async def _configure_page_for_site(self, page: Page) -> None:
+        """Configure page settings for optimal performance.
 
         Args:
             page: The page to configure
-            url: The URL to capture
-            is_complex: Whether the site is complex and needs special handling
         """
-        # Check if this is a site where visual content is important
-        is_visual_site = self._is_visual_content_site(url)
+        # Block unnecessary resources to improve performance
+        await page.route('**/*.{mp3,mp4,ogg,webm,wav}', lambda route: route.abort())
 
-        # Configure page based on site complexity and visual content importance
-        if not is_complex and not is_visual_site:
-            # For regular sites without important visual content, block unnecessary resources
-            await page.route('**/*.{png,jpg,jpeg,gif,webp,svg}', lambda route: route.abort())
-            await page.route('**/*.{woff,woff2,ttf,otf,eot}', lambda route: route.abort())
-            await page.route('**/*.{mp3,mp4,ogg,webm,wav}', lambda route: route.abort())
-        elif is_visual_site:
-            # For sites with important visual content, only block audio/video but allow images
-            await page.route('**/*.{mp3,mp4,ogg,webm,wav}', lambda route: route.abort())
-            # Allow fonts for better rendering
-            await page.route('**/*.{woff,woff2,ttf,otf,eot}', lambda route: route.continue_())
-        else:
-            # For complex sites, only block media files to ensure proper rendering
-            await page.route('**/*.{mp3,mp4,ogg,webm,wav}', lambda route: route.abort())
+        # Set headers to appear more like a real browser
+        await page.set_extra_http_headers({
+            'Accept-Language': 'en-US,en;q=0.9',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Sec-Fetch-Site': 'none',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-User': '?1',
+            'Sec-Fetch-Dest': 'document',
+        })
 
-            # Set extra headers for complex sites to appear more like a real browser
-            await page.set_extra_http_headers({
-                'Accept-Language': 'en-US,en;q=0.9',
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-                'Sec-Fetch-Site': 'none',
-                'Sec-Fetch-Mode': 'navigate',
-                'Sec-Fetch-User': '?1',
-                'Sec-Fetch-Dest': 'document',
-            })
-
-    async def _navigate_to_url(self, page: Page, url: str, wait_until: str, page_timeout: int, is_complex: bool) -> Any:
+    async def _navigate_to_url(self, page: Page, url: str, wait_until: str, page_timeout: int) -> Any:
         """Navigate to a URL with proper error handling.
 
         Args:
@@ -513,7 +452,6 @@ class ScreenshotService:
             url: The URL to navigate to
             wait_until: The wait_until strategy for navigation
             page_timeout: The timeout for navigation in milliseconds
-            is_complex: Whether the site is complex and needs special handling
 
         Returns:
             The navigation response or None for partial success
@@ -529,15 +467,8 @@ class ScreenshotService:
                 timeout=page_timeout
             )
 
-            if is_complex:
-                # For complex sites, wait a bit more after navigation to ensure content loads
-                await asyncio.sleep(2)
-
-                # Scroll down slightly to trigger lazy loading content if needed
-                await page.evaluate("window.scrollBy(0, 250)")
-
-                # Wait a bit more for lazy loaded content
-                await asyncio.sleep(1)
+            # Wait a bit after navigation to ensure content loads
+            await asyncio.sleep(1)
 
             # Check if navigation was successful
             if not response:
@@ -572,8 +503,8 @@ class ScreenshotService:
             except Exception as content_error:
                 self.logger.debug(f"Failed to get content after timeout: {str(content_error)}")
 
-            # For complex sites, try with a simpler strategy before giving up
-            if is_complex and "timeout" in str(e).lower():
+            # Try with a simpler strategy before giving up
+            if "timeout" in str(e).lower():
                 # Try with a simpler strategy
                 if page and not page.is_closed():
                     try:
@@ -583,7 +514,7 @@ class ScreenshotService:
                             wait_until="domcontentloaded",  # Simpler strategy
                             timeout=page_timeout * 1.5  # 50% longer timeout
                         )
-                        await asyncio.sleep(3)  # Wait longer after load
+                        await asyncio.sleep(2)  # Wait after load
                         return response
                     except Exception as inner_e:
                         # Log the fallback attempt failure
@@ -599,8 +530,7 @@ class ScreenshotService:
             nav_context = {
                 "url": url,
                 "wait_until": wait_until,
-                "timeout": page_timeout,
-                "is_complex_site": is_complex
+                "timeout": page_timeout
             }
             raise NavigationError(url=url, context=nav_context, original_exception=e)
 
@@ -652,7 +582,7 @@ class ScreenshotService:
             from app.core.errors import BrowserTimeoutError
             raise BrowserTimeoutError("Timeout getting browser context or creating page")
 
-    async def _capture_screenshot_impl(self, url: str, width: int, height: int, format: str, filepath: str, start_time: float, context_dict: dict) -> str:
+    async def _capture_screenshot_impl(self, url: str, width: int, height: int, format: str, filepath: str, start_time: float) -> str:
         """Implementation of screenshot capture.
 
         Args:
@@ -662,7 +592,6 @@ class ScreenshotService:
             format: The image format (png, jpeg, webp)
             filepath: Path to save the screenshot
             start_time: Time when the capture was started
-            context_dict: Dictionary for context sharing between retries
 
         Returns:
             Path to the saved screenshot file
@@ -673,14 +602,11 @@ class ScreenshotService:
         page = None
 
         try:
-            # Determine if this is a complex site that needs special handling
-            is_complex = self._is_complex_site(url)
-
-            # Get navigation strategy based on site complexity
-            wait_until, page_timeout = await self._get_navigation_strategy(url)
+            # Get navigation strategy
+            wait_until, page_timeout = await self._get_navigation_strategy()
 
             # Create a retry manager for context creation
-            retry_manager = await self._create_retry_manager(is_complex, "context_creation")
+            retry_manager = await self._create_retry_manager(False, "context_creation")
 
             # Get context with retry logic
             async def get_context_with_page():
@@ -695,10 +621,10 @@ class ScreenshotService:
             await page.set_viewport_size({"width": width, "height": height})
 
             # Configure page and navigate to URL
-            await self._configure_page_for_site(page, url, is_complex)
+            await self._configure_page_for_site(page)
 
             # Create a retry manager for navigation
-            navigation_retry_manager = await self._create_retry_manager(is_complex, "navigation")
+            navigation_retry_manager = await self._create_retry_manager(False, "navigation")
             navigation_retry_manager.circuit_breaker = self._navigation_circuit_breaker
 
             # During high load, we'll use a more aggressive timeout strategy
@@ -717,13 +643,13 @@ class ScreenshotService:
                 )
 
             # Navigate to URL with retry logic
-            response = await navigation_retry_manager.execute(
-                lambda: self._navigate_to_url(page, url, wait_until, adaptive_timeout, is_complex),
+            await navigation_retry_manager.execute(
+                lambda: self._navigate_to_url(page, url, wait_until, adaptive_timeout),
                 operation_name="navigate_to_url"
             )
 
             # Capture the screenshot with retry logic
-            filepath = await self._capture_screenshot_with_retry(page, filepath, format, is_complex)
+            filepath = await self._capture_screenshot_with_retry(page, filepath, format)
 
             # Log successful screenshot capture
             capture_time = time.time() - start_time
@@ -1152,14 +1078,13 @@ class ScreenshotService:
                 "error_type": type(e).__name__
             })
 
-    async def _capture_screenshot_with_retry(self, page: Page, filepath: str, format: str, is_complex: bool) -> str:
+    async def _capture_screenshot_with_retry(self, page: Page, filepath: str, format: str) -> str:
         """Capture a screenshot with retry logic.
 
         Args:
             page: The page to capture
             filepath: Path where the screenshot should be saved
             format: Image format (png, jpeg, webp)
-            is_complex: Whether the site is complex and needs special handling
 
         Returns:
             Path to the saved screenshot file
@@ -1182,9 +1107,8 @@ class ScreenshotService:
             name="screenshot_capture"
         )
 
-        # Take the screenshot with a slight delay for complex sites
-        if is_complex:
-            await asyncio.sleep(1)  # Extra wait for complex sites
+        # Take the screenshot with a slight delay to ensure content is ready
+        await asyncio.sleep(0.5)
 
         # Execute the screenshot capture with retry
         return await screenshot_retry_manager.execute(capture_screenshot, operation_name="capture_screenshot")
