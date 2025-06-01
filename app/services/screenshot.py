@@ -671,12 +671,54 @@ class ScreenshotService:
                 # Continue to next strategy
                 continue
 
-        # All strategies failed
-        self.logger.error(f"All context creation strategies failed for {url}")
+        # All strategies failed - get detailed diagnostics
+        pool_stats = self._browser_pool.get_stats()
+        self.logger.error(f"All context creation strategies failed for {url}", {
+            "url": url,
+            "last_error": str(last_error),
+            "last_error_type": type(last_error).__name__ if last_error else None,
+            "strategies_attempted": len(timeout_strategies),
+            "browser_pool_stats": pool_stats,
+            "browser_pool_size": pool_stats.get("size", 0),
+            "browser_pool_in_use": pool_stats.get("in_use", 0),
+            "browser_pool_available": pool_stats.get("available", 0),
+            "browser_pool_errors": pool_stats.get("errors", 0)
+        })
+
+        # Try one last emergency strategy with minimal requirements
+        try:
+            self.logger.warning(f"Attempting emergency context creation for {url}")
+
+            # Get a browser directly without timeout strategies
+            browser, browser_index = await self._browser_pool.get_browser()
+            if browser and browser_index is not None:
+                # Try to create context with very basic settings
+                context = await asyncio.wait_for(
+                    browser.new_context(
+                        viewport={"width": width, "height": height},
+                        ignore_https_errors=True
+                    ),
+                    timeout=5.0  # Very short timeout
+                )
+
+                if context:
+                    # Try to create page with minimal timeout
+                    page = await asyncio.wait_for(
+                        context.new_page(),
+                        timeout=3.0
+                    )
+
+                    if page:
+                        self.logger.info(f"Emergency context creation succeeded for {url}")
+                        await self._track_resource("page", page)
+                        return context, browser_index, page
+
+        except Exception as emergency_error:
+            self.logger.error(f"Emergency context creation also failed for {url}: {str(emergency_error)}")
 
         # Re-raise as a custom error for better retry handling
         from app.core.errors import BrowserTimeoutError
-        raise BrowserTimeoutError(f"Failed to create browser context after trying all strategies: {str(last_error)}")
+        raise BrowserTimeoutError(f"Failed to create browser context after trying all strategies including emergency fallback: {str(last_error)}")
 
     async def _capture_screenshot_impl(self, url: str, width: int, height: int, format: str, filepath: str, start_time: float) -> str:
         """Implementation of screenshot capture.
@@ -700,6 +742,21 @@ class ScreenshotService:
         try:
             # Get navigation strategy
             wait_until, page_timeout = await self._get_navigation_strategy()
+
+            # Check browser pool health before attempting context creation
+            pool_stats = self._browser_pool.get_stats()
+            if pool_stats.get("available", 0) == 0 and pool_stats.get("size", 0) >= pool_stats.get("max_size", 0):
+                self.logger.warning(f"Browser pool exhausted for {url}", {
+                    "pool_stats": pool_stats,
+                    "url": url
+                })
+
+                # Try to force cleanup of unhealthy browsers
+                try:
+                    await self._browser_pool._cleanup_unhealthy_browsers()
+                    self.logger.info("Attempted cleanup of unhealthy browsers")
+                except Exception as cleanup_error:
+                    self.logger.warning(f"Failed to cleanup unhealthy browsers: {str(cleanup_error)}")
 
             # Create a retry manager for context creation with more retries for stability
             retry_manager = await self._create_retry_manager(False, "context_creation")

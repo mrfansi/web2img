@@ -1038,12 +1038,73 @@ class BrowserPool:
 
     async def get_browser_ages(self) -> dict:
         """Get the age of each browser in the pool.
-        
+
         Returns:
             Dictionary mapping browser index to age in seconds
         """
         async with self._lock:
             current_time = time.time()
-            return {i: current_time - browser_data["created_at"] 
+            return {i: current_time - browser_data["created_at"]
                 for i, browser_data in enumerate(self._browsers)}
+
+    async def _cleanup_unhealthy_browsers(self):
+        """Force cleanup of browsers that appear to be unhealthy or stuck."""
+        from app.core.logging import get_logger
+        logger = get_logger("browser_pool")
+
+        async with self._lock:
+            current_time = time.time()
+            browsers_to_recycle = []
+
+            # Check each browser for health issues
+            for i, browser_data in enumerate(self._browsers):
+                # Skip browsers that are currently available (likely healthy)
+                if i in self._available_browsers:
+                    continue
+
+                # Check for browsers with recent errors
+                last_error = browser_data.get("last_error", 0)
+                if last_error > 0 and (current_time - last_error) < 60:  # Error in last minute
+                    browsers_to_recycle.append((i, "recent_error"))
+                    continue
+
+                # Check for browsers that have been in use too long
+                last_used = browser_data.get("last_used", current_time)
+                if (current_time - last_used) > 300:  # In use for more than 5 minutes
+                    browsers_to_recycle.append((i, "stuck_in_use"))
+                    continue
+
+                # Check for browsers with too many contexts
+                context_count = len(browser_data.get("contexts", []))
+                if context_count > 10:  # Too many contexts
+                    browsers_to_recycle.append((i, "too_many_contexts"))
+                    continue
+
+            # Recycle unhealthy browsers
+            recycled_count = 0
+            for browser_index, reason in browsers_to_recycle:
+                try:
+                    logger.info(f"Force recycling unhealthy browser {browser_index} due to {reason}")
+                    await self._recycle_browser(browser_index)
+                    recycled_count += 1
+                except Exception as e:
+                    logger.error(f"Error recycling unhealthy browser {browser_index}: {str(e)}")
+
+            if recycled_count > 0:
+                logger.info(f"Recycled {recycled_count} unhealthy browsers")
+
+                # Create replacement browsers if needed
+                current_size = len(self._browsers)
+                if current_size < self._min_size:
+                    browsers_to_create = min(3, self._min_size - current_size)  # Create up to 3 at once
+                    for _ in range(browsers_to_create):
+                        browser_data = await self._create_browser_instance()
+                        if browser_data:
+                            self._browsers.append(browser_data)
+                            self._available_browsers.append(len(self._browsers) - 1)
+                            logger.info(f"Created replacement browser {len(self._browsers) - 1}")
+                        else:
+                            break
+
+            return recycled_count
 
