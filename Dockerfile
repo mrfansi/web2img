@@ -50,12 +50,6 @@ COPY . .
 # Create directory for temporary screenshots
 RUN mkdir -p /tmp/web2img
 
-# Set environment variables for optimal browser performance
-ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
-ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=0
-
-# Set display for headless browsers
-ENV DISPLAY=:99
 
 # Uses the WORKERS environment variable for the number of workers
 CMD ["python", "main.py"]
