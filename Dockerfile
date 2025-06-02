@@ -39,7 +39,7 @@ RUN apt-get update && apt-get install -y \
     libatomic1 \
     libxslt1.1 \
     liblcms2-2 \
-    libwoff2-1.0.2 \
+    libwoff2dec1.0.2 \
     libvpx7 \
     libevent-2.1-7 \
     libopus0 \
@@ -75,7 +75,7 @@ RUN apt-get update && apt-get install -y \
     # OpenGL support
     libgles2-mesa \
     # Video encoding
-    libx264-163 \
+    libx264-dev \
     # Additional X11 libraries
     libxss1 \
     libgconf-2-4 \
