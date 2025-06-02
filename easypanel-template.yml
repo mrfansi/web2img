@@ -1,0 +1,219 @@
+name: Web2img High Performance
+description: High-performance screenshot service for 2000 concurrent requests
+instructions: |
+  This template deploys a high-performance web2img service optimized for 2000 concurrent screenshots.
+  
+  Requirements:
+  - 32+ CPU cores
+  - 512GB+ RAM
+  - R2 storage credentials
+  - imgproxy service
+  
+  After deployment:
+  1. Update environment variables with your actual credentials
+  2. Monitor performance at /dashboard
+  3. Test with load testing tools
+
+services:
+  - type: app
+    data:
+      projectName: web2img-high-performance
+      serviceName: web2img
+      env:
+        # Core Configuration
+        - key: WORKERS
+          value: "20"
+        - key: BROWSER_POOL_MIN_SIZE
+          value: "40"
+        - key: BROWSER_POOL_MAX_SIZE
+          value: "100"
+        - key: BROWSER_POOL_IDLE_TIMEOUT
+          value: "180"
+        - key: BROWSER_POOL_MAX_AGE
+          value: "1200"
+        - key: BROWSER_POOL_CLEANUP_INTERVAL
+          value: "20"
+        
+        # Cache Configuration
+        - key: CACHE_ENABLED
+          value: "true"
+        - key: CACHE_TTL_SECONDS
+          value: "14400"
+        - key: CACHE_MAX_ITEMS
+          value: "10000"
+        
+        # Timeout Configuration
+        - key: NAVIGATION_TIMEOUT_REGULAR
+          value: "10000"
+        - key: NAVIGATION_TIMEOUT_COMPLEX
+          value: "20000"
+        - key: BROWSER_LAUNCH_TIMEOUT
+          value: "15000"
+        - key: CONTEXT_CREATION_TIMEOUT
+          value: "8000"
+        - key: PAGE_CREATION_TIMEOUT
+          value: "6000"
+        - key: SCREENSHOT_TIMEOUT
+          value: "12000"
+        
+        # Retry Configuration
+        - key: MAX_RETRIES_REGULAR
+          value: "1"
+        - key: MAX_RETRIES_COMPLEX
+          value: "2"
+        - key: RETRY_BASE_DELAY
+          value: "0.1"
+        - key: RETRY_MAX_DELAY
+          value: "2.0"
+        - key: RETRY_JITTER
+          value: "0.05"
+        
+        # Performance Optimizations
+        - key: DISABLE_FONTS
+          value: "true"
+        - key: DISABLE_MEDIA
+          value: "true"
+        - key: DISABLE_ANALYTICS
+          value: "true"
+        
+        # Circuit Breaker
+        - key: CIRCUIT_BREAKER_THRESHOLD
+          value: "3"
+        - key: CIRCUIT_BREAKER_RESET_TIME
+          value: "60"
+        
+        # Cleanup Configuration
+        - key: SCREENSHOT_CLEANUP_INTERVAL
+          value: "10"
+        - key: TEMP_FILE_RETENTION_HOURS
+          value: "1"
+        
+        # Storage Configuration (UPDATE THESE!)
+        - key: R2_ACCESS_KEY_ID
+          value: "your_access_key_id"
+        - key: R2_SECRET_ACCESS_KEY
+          value: "your_secret_access_key"
+        - key: R2_ENDPOINT
+          value: "https://your-account.r2.cloudflarestorage.com"
+        - key: R2_BUCKET
+          value: "your_bucket_name"
+        - key: R2_PUBLIC_URL
+          value: "https://your-cdn-url.com"
+        
+        # imgproxy Configuration (UPDATE THESE!)
+        - key: IMGPROXY_BASE_URL
+          value: "https://your-imgproxy.com"
+        - key: IMGPROXY_KEY
+          value: "your_imgproxy_key"
+        - key: IMGPROXY_SALT
+          value: "your_imgproxy_salt"
+      
+      source:
+        type: github
+        repo: your-username/web2img
+        branch: main
+      
+      # Resource Configuration
+      deploy:
+        replicas: 1
+        resources:
+          limits:
+            cpu: "30000m"      # 30 cores
+            memory: "400Gi"    # 400GB
+          requests:
+            cpu: "16000m"      # 16 cores minimum
+            memory: "200Gi"    # 200GB minimum
+      
+      # Port Configuration
+      ports:
+        - published: 8000
+          target: 8000
+          protocol: tcp
+      
+      # Health Check
+      healthcheck:
+        test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8000/health', timeout=5)"]
+        interval: 30s
+        timeout: 10s
+        retries: 3
+        start_period: 60s
+      
+      # Volume Mounts
+      mounts:
+        - type: tmpfs
+          target: /tmp/web2img
+          tmpfs:
+            size: 10737418240  # 10GB tmpfs for screenshots
+      
+      # Security Configuration
+      securityContext:
+        capabilities:
+          add:
+            - SYS_ADMIN  # Required for Chrome sandboxing
+      
+      # Additional Docker Configuration
+      dockerConfig:
+        securityOpt:
+          - seccomp:unconfined
+        shmSize: 8589934592  # 8GB shared memory
+
+  # Optional: Redis for distributed caching
+  - type: app
+    data:
+      projectName: web2img-high-performance
+      serviceName: redis
+      image: redis:7-alpine
+      env:
+        - key: REDIS_MAXMEMORY
+          value: "8gb"
+        - key: REDIS_MAXMEMORY_POLICY
+          value: "allkeys-lru"
+      
+      deploy:
+        replicas: 1
+        resources:
+          limits:
+            cpu: "2000m"
+            memory: "10Gi"
+          requests:
+            cpu: "1000m"
+            memory: "8Gi"
+      
+      ports:
+        - published: 6379
+          target: 6379
+          protocol: tcp
+      
+      command: ["redis-server", "--maxmemory", "8gb", "--maxmemory-policy", "allkeys-lru"]
+
+  # Optional: Nginx Load Balancer
+  - type: app
+    data:
+      projectName: web2img-high-performance
+      serviceName: nginx
+      image: nginx:alpine
+      
+      deploy:
+        replicas: 1
+        resources:
+          limits:
+            cpu: "2000m"
+            memory: "2Gi"
+          requests:
+            cpu: "500m"
+            memory: "1Gi"
+      
+      ports:
+        - published: 80
+          target: 80
+          protocol: tcp
+        - published: 443
+          target: 443
+          protocol: tcp
+      
+      # Mount nginx configuration
+      mounts:
+        - type: bind
+          source: ./nginx.conf
+          target: /etc/nginx/nginx.conf
+          readOnly: true
