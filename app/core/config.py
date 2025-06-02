@@ -91,21 +91,21 @@ class Settings(BaseModel):
         default_factory=lambda: int(os.getenv("WORKERS", "4"))
     )
 
-    # Browser Pool Configuration - Optimized for better resource management
+    # Browser Pool Configuration - Optimized for high concurrency (2000+ requests)
     browser_pool_min_size: int = Field(
-        default_factory=lambda: int(os.getenv("BROWSER_POOL_MIN_SIZE", "2"))
+        default_factory=lambda: int(os.getenv("BROWSER_POOL_MIN_SIZE", "16"))  # Increased for high concurrency
     )
     browser_pool_max_size: int = Field(
-        default_factory=lambda: int(os.getenv("BROWSER_POOL_MAX_SIZE", "10"))  # Reduced from 150 to 10
+        default_factory=lambda: int(os.getenv("BROWSER_POOL_MAX_SIZE", "64"))  # Significantly increased for 2000+ concurrent
     )
     browser_pool_idle_timeout: int = Field(
-        default_factory=lambda: int(os.getenv("BROWSER_POOL_IDLE_TIMEOUT", "300"))  # Increased from 150 to 300
+        default_factory=lambda: int(os.getenv("BROWSER_POOL_IDLE_TIMEOUT", "180"))  # Reduced for faster recycling
     )
     browser_pool_max_age: int = Field(
-        default_factory=lambda: int(os.getenv("BROWSER_POOL_MAX_AGE", "3600"))  # Increased from 1200 to 3600
+        default_factory=lambda: int(os.getenv("BROWSER_POOL_MAX_AGE", "1800"))  # Reduced for better memory management
     )
     browser_pool_cleanup_interval: int = Field(
-        default_factory=lambda: int(os.getenv("BROWSER_POOL_CLEANUP_INTERVAL", "60"))  # Reduced from 120 to 60
+        default_factory=lambda: int(os.getenv("BROWSER_POOL_CLEANUP_INTERVAL", "30"))  # More frequent cleanup
     )
 
     # Screenshot Service Configuration
@@ -133,7 +133,7 @@ class Settings(BaseModel):
         default_factory=lambda: int(os.getenv("BROWSER_CACHE_CLEANUP_INTERVAL", "3600"))
     )
     browser_cache_all_content: bool = Field(
-        default_factory=lambda: os.getenv("BROWSER_CACHE_ALL_CONTENT", "false").lower() in ("true", "1", "t")
+        default_factory=lambda: os.getenv("BROWSER_CACHE_ALL_CONTENT", "true").lower() in ("true", "1", "t")  # Enable by default for timeout prevention
     )
 
     # Timeout Configuration - Optimized for better performance
@@ -215,24 +215,35 @@ class Settings(BaseModel):
         default_factory=lambda: int(os.getenv("CIRCUIT_BREAKER_RESET_TIME", "180"))  # Reduced from 300 for faster recovery
     )
 
-    # Performance Optimization Configuration
+    # Performance Optimization Configuration - Optimized for timeout prevention
     disable_images: bool = Field(
-        default_factory=lambda: os.getenv("DISABLE_IMAGES", "False").lower() in ("true", "1", "t")
+        default_factory=lambda: os.getenv("DISABLE_IMAGES", "False").lower() in ("true", "1", "t")  # Keep images for accurate screenshots
     )
     disable_javascript: bool = Field(
-        default_factory=lambda: os.getenv("DISABLE_JAVASCRIPT", "False").lower() in ("true", "1", "t")
+        default_factory=lambda: os.getenv("DISABLE_JAVASCRIPT", "False").lower() in ("true", "1", "t")  # Keep JS for dynamic content
     )
     disable_css: bool = Field(
-        default_factory=lambda: os.getenv("DISABLE_CSS", "False").lower() in ("true", "1", "t")
+        default_factory=lambda: os.getenv("DISABLE_CSS", "False").lower() in ("true", "1", "t")  # Keep CSS for proper rendering
     )
     disable_fonts: bool = Field(
-        default_factory=lambda: os.getenv("DISABLE_FONTS", "True").lower() in ("true", "1", "t")
+        default_factory=lambda: os.getenv("DISABLE_FONTS", "True").lower() in ("true", "1", "t")  # Disable fonts to reduce load time
     )
     disable_media: bool = Field(
-        default_factory=lambda: os.getenv("DISABLE_MEDIA", "True").lower() in ("true", "1", "t")
+        default_factory=lambda: os.getenv("DISABLE_MEDIA", "True").lower() in ("true", "1", "t")  # Disable media to reduce load time
     )
     disable_analytics: bool = Field(
-        default_factory=lambda: os.getenv("DISABLE_ANALYTICS", "True").lower() in ("true", "1", "t")
+        default_factory=lambda: os.getenv("DISABLE_ANALYTICS", "True").lower() in ("true", "1", "t")  # Disable analytics to reduce load time
+    )
+
+    # Additional performance optimizations for timeout prevention
+    disable_third_party_scripts: bool = Field(
+        default_factory=lambda: os.getenv("DISABLE_THIRD_PARTY_SCRIPTS", "True").lower() in ("true", "1", "t")
+    )
+    disable_ads: bool = Field(
+        default_factory=lambda: os.getenv("DISABLE_ADS", "True").lower() in ("true", "1", "t")
+    )
+    disable_social_widgets: bool = Field(
+        default_factory=lambda: os.getenv("DISABLE_SOCIAL_WIDGETS", "True").lower() in ("true", "1", "t")
     )
 
     # Logging Configuration

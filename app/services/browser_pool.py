@@ -299,18 +299,18 @@ class BrowserPool:
                 "utilization_pct": utilization_pct
             })
         
-            # Use adaptive exponential backoff for waiting to reduce contention
-            # Increase max attempts and base wait time based on pool utilization
+            # Use optimized adaptive exponential backoff for high concurrency scenarios
+            # Increase max attempts and reduce wait time for better throughput
             utilization_factor = in_use_count / max(1, pool_size)  # Avoid division by zero
-            max_wait_attempts = min(10, 5 + int(5 * utilization_factor))  # 5-10 attempts based on utilization
-            base_wait_time = 0.2 * (1 + utilization_factor)  # 0.2-0.4s based on utilization
+            max_wait_attempts = min(25, 10 + int(15 * utilization_factor))  # 10-25 attempts for high concurrency
+            base_wait_time = 0.05 * (1 + utilization_factor * 0.5)  # 0.05-0.075s for faster response
             
             for retry in range(max_wait_attempts):
-                # Calculate wait time with exponential backoff
-                wait_time = min(8.0, base_wait_time * (2 ** retry))
-                
-                # Add jitter to prevent thundering herd problem
-                jitter = wait_time * 0.2  # 20% jitter
+                # Calculate wait time with optimized exponential backoff for high concurrency
+                wait_time = min(2.0, base_wait_time * (1.5 ** retry))  # Reduced max wait and growth factor
+
+                # Add smaller jitter to prevent thundering herd problem
+                jitter = wait_time * 0.1  # 10% jitter for faster response
                 wait_time = wait_time + (random.random() * 2 - 1) * jitter
                 
                 # Release the lock while waiting to allow other operations

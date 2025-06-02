@@ -512,13 +512,80 @@ class ScreenshotService:
             except Exception as e:
                 self.logger.warning(f"Failed to setup browser caching: {str(e)}")
 
-        # Configure resource blocking based on settings
-        # Note: These routes are set up after caching to allow cache to handle resources first
+        # Configure aggressive resource blocking for timeout prevention
+        await self._setup_resource_blocking(page)
+
+    async def _setup_resource_blocking(self, page: Page) -> None:
+        """Set up comprehensive resource blocking to prevent timeouts."""
+
+        # Block media files if configured
         if settings.disable_media:
             await page.route('**/*.{mp3,mp4,ogg,webm,wav,avi,mov,wmv,flv}', lambda route: route.abort())
 
+        # Block fonts if configured
         if settings.disable_fonts:
             await page.route('**/*.{woff,woff2,ttf,otf,eot}', lambda route: route.abort())
+
+        # Block analytics and tracking scripts
+        if settings.disable_analytics:
+            analytics_patterns = [
+                '**/google-analytics.com/**',
+                '**/googletagmanager.com/**',
+                '**/facebook.com/tr/**',
+                '**/doubleclick.net/**',
+                '**/googlesyndication.com/**',
+                '**/amazon-adsystem.com/**',
+                '**/adsystem.amazon.com/**',
+                '**/hotjar.com/**',
+                '**/mixpanel.com/**',
+                '**/segment.com/**',
+                '**/amplitude.com/**'
+            ]
+            for pattern in analytics_patterns:
+                await page.route(pattern, lambda route: route.abort())
+
+        # Block third-party scripts that commonly cause timeouts
+        if getattr(settings, 'disable_third_party_scripts', True):
+            third_party_patterns = [
+                '**/chatbot/**',
+                '**/livechat/**',
+                '**/intercom.io/**',
+                '**/zendesk.com/**',
+                '**/tawk.to/**',
+                '**/drift.com/**',
+                '**/crisp.chat/**'
+            ]
+            for pattern in third_party_patterns:
+                await page.route(pattern, lambda route: route.abort())
+
+        # Block ads that can cause timeouts
+        if getattr(settings, 'disable_ads', True):
+            ad_patterns = [
+                '**/googlesyndication.com/**',
+                '**/doubleclick.net/**',
+                '**/amazon-adsystem.com/**',
+                '**/adsystem.amazon.com/**',
+                '**/media.net/**',
+                '**/outbrain.com/**',
+                '**/taboola.com/**',
+                '**/adsense.google.com/**'
+            ]
+            for pattern in ad_patterns:
+                await page.route(pattern, lambda route: route.abort())
+
+        # Block social widgets that can cause timeouts
+        if getattr(settings, 'disable_social_widgets', True):
+            social_patterns = [
+                '**/facebook.com/plugins/**',
+                '**/twitter.com/widgets/**',
+                '**/linkedin.com/widgets/**',
+                '**/instagram.com/embed/**',
+                '**/youtube.com/embed/**',
+                '**/platform.twitter.com/**',
+                '**/connect.facebook.net/**'
+            ]
+            for pattern in social_patterns:
+                await page.route(pattern, lambda route: route.abort())
 
         if settings.disable_images:
             await page.route('**/*.{png,jpg,jpeg,gif,webp,svg,ico,bmp,tiff}', lambda route: route.abort())
@@ -564,7 +631,7 @@ class ScreenshotService:
         })
 
     async def _navigate_to_url(self, page: Page, url: str, wait_until: str, page_timeout: int) -> Any:
-        """Navigate to a URL with robust error handling and fallback strategies.
+        """Navigate to a URL with robust error handling and fallback strategies optimized for timeout prevention.
 
         Args:
             page: The page to navigate with
@@ -578,11 +645,13 @@ class ScreenshotService:
         Raises:
             NavigationError: If navigation fails after all fallback attempts
         """
-        # Define fallback strategies in order of preference
+        # Define optimized fallback strategies for timeout prevention
+        # Start with the most reliable strategy first
         strategies = [
-            ("domcontentloaded", page_timeout),
-            ("load", int(page_timeout * 0.8)),  # Shorter timeout for load event
-            ("commit", int(page_timeout * 0.6))  # Even shorter for commit
+            ("commit", int(page_timeout * 0.4)),      # Fastest - just wait for navigation to start
+            ("domcontentloaded", int(page_timeout * 0.7)),  # Medium - wait for DOM to be ready
+            ("networkidle", int(page_timeout * 0.5)),  # Alternative - wait for network to be quiet
+            ("load", int(page_timeout * 0.9))         # Slowest - wait for all resources (last resort)
         ]
 
         last_error = None
@@ -591,24 +660,53 @@ class ScreenshotService:
             try:
                 self.logger.debug(f"Attempting navigation to {url} with strategy {strategy} (timeout: {timeout}ms)")
 
-                # Navigate to the URL
-                response = await page.goto(
-                    url,
-                    wait_until=strategy,
-                    timeout=timeout
-                )
+                # Set up a timeout-resistant navigation approach
+                try:
+                    # Navigate to the URL with the current strategy
+                    response = await page.goto(
+                        url,
+                        wait_until=strategy,
+                        timeout=timeout
+                    )
+                except Exception as nav_error:
+                    # If navigation times out but page is partially loaded, try to continue
+                    if "timeout" in str(nav_error).lower():
+                        self.logger.warning(f"Navigation timeout with {strategy}, checking if page is usable")
 
-                # Wait a bit after navigation to ensure content loads
-                await asyncio.sleep(0.5)
+                        # Check if we can get the page title or URL to confirm partial load
+                        try:
+                            current_url = page.url
+                            if current_url and current_url != "about:blank":
+                                self.logger.info(f"Page partially loaded despite timeout, continuing with {current_url}")
+                                # Give a small delay for any remaining content
+                                await asyncio.sleep(0.3)
+                                return None  # Indicate partial success
+                        except:
+                            pass
+
+                    raise nav_error
+
+                # Minimal wait after successful navigation
+                await asyncio.sleep(0.2)
 
                 # Check if navigation was successful
                 if not response:
+                    # Even without response, check if page loaded
+                    try:
+                        current_url = page.url
+                        if current_url and current_url != "about:blank":
+                            self.logger.info(f"Navigation succeeded without response object for {url}")
+                            return None
+                    except:
+                        pass
                     raise Exception("Navigation resulted in null response")
 
                 # Check response status
                 status = response.status
                 if status >= 400:
-                    raise Exception(f"Navigation failed with status {status}")
+                    self.logger.warning(f"Navigation returned status {status} for {url}, but continuing")
+                    # Don't fail on 4xx/5xx status codes if page loaded
+                    return response
 
                 # Success! Log and return
                 if strategy_index > 0:
