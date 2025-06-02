@@ -108,8 +108,17 @@ class StorageService:
             # Create destination path
             dest_path = os.path.join(settings.local_storage_dir, filename)
 
-            # Copy file to local storage directory
-            await asyncio.to_thread(shutil.copy2, file_path, dest_path)
+            # Get absolute paths to compare
+            abs_source = os.path.abspath(file_path)
+            abs_dest = os.path.abspath(dest_path)
+
+            # If source and destination are the same, no need to copy
+            if abs_source == abs_dest:
+                self.logger.debug(f"File already in correct location: {abs_dest}")
+            else:
+                # Move file to local storage directory (more efficient than copy for temp files)
+                await asyncio.to_thread(shutil.move, file_path, dest_path)
+                self.logger.debug(f"Moved file from {file_path} to {dest_path}")
 
             # Construct the public URL
             return f"{settings.local_storage_base_url}/{filename}"

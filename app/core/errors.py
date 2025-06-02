@@ -276,26 +276,31 @@ def get_error_response(error: Exception) -> Dict[str, Any]:
 
 def classify_exception(exc: Exception) -> Type[WebToImgError]:
     """Classify a standard exception into our custom error types.
-    
+
     Args:
         exc: The exception to classify
-        
+
     Returns:
         The appropriate WebToImgError subclass
     """
     error_str = str(exc).lower()
-    
+    error_type = type(exc).__name__
+
+    # Check for specific Playwright TargetClosedError
+    if error_type == "TargetClosedError":
+        return BrowserError
+
     # Network and connection errors
     if any(term in error_str for term in ["connection", "network", "socket", "timeout"]):
         return NavigationError
-    
-    # Browser and page errors
-    if any(term in error_str for term in ["browser", "context", "page", "playwright"]):
+
+    # Browser and page errors (including target closed)
+    if any(term in error_str for term in ["browser", "context", "page", "playwright", "target closed"]):
         return BrowserError
-    
+
     # Storage errors
     if any(term in error_str for term in ["storage", "upload", "download", "s3", "r2", "bucket"]):
         return StorageError
-    
+
     # Default to base error
     return WebToImgError

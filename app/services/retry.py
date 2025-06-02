@@ -6,6 +6,13 @@ from typing import Dict, Any, Optional, Callable
 
 from app.core.logging import get_logger
 
+# Import Playwright errors for proper error handling
+try:
+    from playwright._impl._errors import TargetClosedError
+except ImportError:
+    # Fallback if Playwright is not available or structure changes
+    TargetClosedError = None
+
 
 class RetryConfig:
     """Configuration for retry behavior with exponential backoff and jitter."""
@@ -338,6 +345,11 @@ class RetryManager:
         error_type = type(error).__name__
         error_message = str(error).lower()
 
+        # Check for specific Playwright TargetClosedError
+        if TargetClosedError and isinstance(error, TargetClosedError):
+            self.logger.debug(f"Retrying TargetClosedError: {error_type}")
+            return True
+
         # Never retry these errors (permanent failures)
         permanent_errors = [
             "permissionerror",
@@ -356,7 +368,8 @@ class RetryManager:
             "connectionerror",
             "browsertimeouterror",
             "navigationerror",
-            "playwrighttimeouterror"
+            "playwrighttimeouterror",
+            "targetclosederror"  # Add TargetClosedError to transient errors
         ]
 
         if error_type.lower() in transient_errors:
@@ -370,7 +383,8 @@ class RetryManager:
             "temporary failure",
             "resource temporarily unavailable",
             "browser context",
-            "page closed"
+            "page closed",
+            "target closed"  # Add pattern for target closed errors
         ]
 
         for pattern in retry_patterns:

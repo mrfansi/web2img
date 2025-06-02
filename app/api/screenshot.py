@@ -147,14 +147,19 @@ async def capture_screenshot(
             content_type=f"image/{request.format}",
         )
 
-        # Generate imgproxy URL
-        imgproxy_url = imgproxy_service.generate_url(
-            image_url=storage_url,
-            width=request.width,
-            height=request.height,
-            format=request.format,
-        )
-        
+        # Handle different storage modes
+        if settings.storage_mode.lower() == "local":
+            # For local storage, return the direct URL (no imgproxy needed)
+            final_url = storage_url
+        else:
+            # For R2 storage, generate imgproxy URL
+            final_url = imgproxy_service.generate_url(
+                image_url=storage_url,
+                width=request.width,
+                height=request.height,
+                format=request.format,
+            )
+
         # Store in cache if enabled (use original URL for cache consistency)
         if cache:
             await cache_service.set(
@@ -162,11 +167,11 @@ async def capture_screenshot(
                 width=request.width,
                 height=request.height,
                 format=request.format,
-                imgproxy_url=imgproxy_url
+                imgproxy_url=final_url
             )
-        
+
         # Return the response
-        return ScreenshotResponse(url=imgproxy_url)
+        return ScreenshotResponse(url=final_url)
     except Exception as e:
         # If it's already one of our custom errors, just re-raise it
         # FastAPI will use our custom exception handler
@@ -182,8 +187,7 @@ async def capture_screenshot(
             detail=error_dict,
         )
     finally:
-        # Clean up the temporary file only if using R2 storage
-        # For local storage, the file is saved permanently
-        if (screenshot_path and os.path.exists(screenshot_path) and
-            settings.storage_mode.lower() != "local"):
+        # Clean up the temporary file only if it still exists
+        # (for local storage, the file may have been moved)
+        if screenshot_path and os.path.exists(screenshot_path):
             os.unlink(screenshot_path)

@@ -383,14 +383,10 @@ class ScreenshotService:
         # Generate a unique filename
         filename = f"{uuid.uuid4()}.{format}"
 
-        # Choose storage location based on storage mode
-        if settings.storage_mode.lower() == "local":
-            # For local storage, save directly to permanent location
-            os.makedirs(settings.local_storage_dir, exist_ok=True)
-            filepath = os.path.join(settings.local_storage_dir, filename)
-        else:
-            # For R2 storage, use temporary directory
-            filepath = os.path.join(settings.screenshot_dir, filename)
+        # Always use temporary directory for initial screenshot capture
+        # The storage service will handle moving to final location
+        os.makedirs(settings.screenshot_dir, exist_ok=True)
+        filepath = os.path.join(settings.screenshot_dir, filename)
 
         # Create context for logging
         context = {
@@ -1630,6 +1626,7 @@ async def capture_screenshot_with_options(url: str, width: int = 1280, height: i
     from app.services.imgproxy import imgproxy_service
     from app.utils.url_transformer import transform_url
     from app.core.logging import get_logger
+    from app.core.config import settings
 
     logger = get_logger("screenshot_batch")
 
@@ -1645,24 +1642,30 @@ async def capture_screenshot_with_options(url: str, width: int = 1280, height: i
     filepath = await screenshot_service.capture_screenshot(transformed_url, width, height, format)
 
     try:
-        # Upload to R2
-        r2_key = await storage_service.upload_file(filepath)
+        # Upload/save to storage (R2 or local)
+        storage_url = await storage_service.upload_file(filepath)
 
-        # Generate imgproxy URL
-        # Ensure width and height are integers before passing to generate_url
-        img_width = int(width) if not isinstance(width, int) else width
-        img_height = int(height) if not isinstance(height, int) else height
+        # Handle different storage modes
+        if settings.storage_mode.lower() == "local":
+            # For local storage, return the direct URL (no imgproxy needed)
+            return {"url": storage_url}
+        else:
+            # For R2 storage, generate imgproxy URL
+            # Ensure width and height are integers before passing to generate_url
+            img_width = int(width) if not isinstance(width, int) else width
+            img_height = int(height) if not isinstance(height, int) else height
 
-        imgproxy_url = imgproxy_service.generate_url(
-            r2_key,
-            width=img_width,
-            height=img_height,
-            format=format
-        )
+            imgproxy_url = imgproxy_service.generate_url(
+                storage_url,
+                width=img_width,
+                height=img_height,
+                format=format
+            )
 
-        return {"url": imgproxy_url}
+            return {"url": imgproxy_url}
     finally:
-        # Clean up the temporary file
+        # Clean up the temporary file only if it still exists
+        # (for local storage, the file may have been moved)
         if os.path.exists(filepath):
             os.unlink(filepath)
 

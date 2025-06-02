@@ -8,6 +8,25 @@ If you're encountering `MaxRetriesExceededError: Operation 'capture_screenshot' 
 
 This error occurs when the screenshot capture operation fails repeatedly and exhausts all retry attempts. The system uses an exponential backoff retry mechanism with circuit breakers to handle temporary failures gracefully.
 
+## TargetClosedError
+
+If you're seeing `TargetClosedError` in your logs, this is a Playwright-specific error that occurs when a browser target (page, context, or browser) is closed while an operation is still in progress.
+
+### Understanding TargetClosedError
+
+- **What it means**: The browser target (page/context/browser) was closed unexpectedly during an operation
+- **Common causes**: Browser crashes, resource cleanup, high concurrency, memory pressure
+- **Handling**: The system automatically retries these errors as they are considered transient failures
+
+### Automatic Retry Behavior
+
+The system now automatically handles `TargetClosedError` by:
+
+1. **Detecting the error**: Both by exception type and message patterns like "target closed"
+2. **Classifying as retryable**: Treats it as a transient browser error that should be retried
+3. **Applying retry logic**: Uses exponential backoff with jitter to retry the operation
+4. **Circuit breaker protection**: Prevents cascading failures under high load
+
 ### Quick Fixes
 
 #### 1. Increase Retry Attempts
