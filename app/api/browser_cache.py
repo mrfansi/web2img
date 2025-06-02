@@ -108,18 +108,21 @@ async def get_cache_info() -> Dict[str, Any]:
             },
             "cacheable_patterns": browser_cache_service.cacheable_patterns,
             "priority_domains": list(browser_cache_service.priority_domains),
+            "cache_all_content": browser_cache_service.cache_all_content,
             "current_stats": {
                 "cached_items": stats["cached_items"],
                 "cache_size_mb": stats["cache_size_mb"],
                 "hit_rate": stats["hit_rate"],
                 "total_requests": stats["hits"] + stats["misses"]
             },
+            "caching_mode": "All Content" if browser_cache_service.cache_all_content else "Selective (CSS, JS, Media)",
             "benefits": [
-                "Faster page load times by caching CSS, JS, and media files",
+                "Faster page load times by caching resources",
                 "Reduced timeout issues during domcontentloaded events",
                 "Improved performance for sites with heavy resource dependencies",
                 "Automatic cleanup of expired and oversized cache items",
-                "Priority caching for common CDN resources"
+                "Priority caching for common CDN resources",
+                "Optional all-content caching for maximum performance"
             ]
         }
     except Exception as e:
@@ -140,7 +143,15 @@ async def test_cache() -> Dict[str, Any]:
             "https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js",
             "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap",
             "https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css",
-            "https://use.fontawesome.com/releases/v5.15.4/css/all.css"
+            "https://use.fontawesome.com/releases/v5.15.4/css/all.css",
+            "https://example.com/index.html",
+            "https://example.com/data.json",
+            "https://example.com/document.pdf",
+            "https://example.com/config.xml",
+            "https://example.com/data.csv",
+            "https://example.com/archive.zip",
+            "https://example.com/image.png",
+            "https://example.com/video.mp4"
         ]
         
         results = []

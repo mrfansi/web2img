@@ -132,6 +132,9 @@ class Settings(BaseModel):
     browser_cache_cleanup_interval: int = Field(
         default_factory=lambda: int(os.getenv("BROWSER_CACHE_CLEANUP_INTERVAL", "3600"))
     )
+    browser_cache_all_content: bool = Field(
+        default_factory=lambda: os.getenv("BROWSER_CACHE_ALL_CONTENT", "false").lower() in ("true", "1", "t")
+    )
 
     # Timeout Configuration - Optimized for better performance
     navigation_timeout_regular: int = Field(

@@ -38,14 +38,19 @@ class BrowserCacheService:
         self.max_file_size = getattr(settings, 'browser_cache_max_file_size_mb', 10) * 1024 * 1024  # 10MB default
         self.cache_ttl = getattr(settings, 'browser_cache_ttl_hours', 24) * 3600  # 24 hours default
         self.enabled = getattr(settings, 'browser_cache_enabled', True)
-        
+        self.cache_all_content = getattr(settings, 'browser_cache_all_content', False)
+
         # Resource type patterns for caching
         self.cacheable_patterns = {
             'css': ['.css'],
             'js': ['.js', '.mjs'],
             'fonts': ['.woff', '.woff2', '.ttf', '.otf', '.eot'],
             'images': ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.ico'],
-            'media': ['.mp4', '.webm', '.ogg', '.mp3', '.wav']
+            'media': ['.mp4', '.webm', '.ogg', '.mp3', '.wav'],
+            'documents': ['.html', '.htm', '.xml', '.json', '.txt', '.pdf'],
+            'data': ['.csv', '.tsv', '.yaml', '.yml', '.toml'],
+            'archives': ['.zip', '.tar', '.gz', '.bz2', '.7z'],
+            'other': ['.wasm', '.bin', '.dat']
         }
         
         # Domains to always cache (CDNs, common libraries)
@@ -89,6 +94,38 @@ class BrowserCacheService:
         try:
             parsed = urlparse(url)
 
+            # If cache_all_content is enabled, cache everything except for certain exclusions
+            if self.cache_all_content:
+                # Exclude certain patterns that shouldn't be cached
+                excluded_patterns = [
+                    # Dynamic/API endpoints
+                    '/api/', '/graphql', '/webhook', '/callback',
+                    # Authentication/session endpoints
+                    '/auth/', '/login', '/logout', '/session',
+                    # Real-time/streaming endpoints
+                    '/ws/', '/websocket', '/sse/', '/stream',
+                    # Analytics/tracking
+                    '/analytics', '/track', '/pixel', '/beacon',
+                    # Admin/management endpoints
+                    '/admin/', '/manage/', '/dashboard'
+                ]
+
+                path_lower = parsed.path.lower()
+                query_lower = parsed.query.lower()
+
+                # Don't cache if URL contains excluded patterns
+                if any(pattern in path_lower for pattern in excluded_patterns):
+                    return False
+
+                # Don't cache URLs with dynamic query parameters that suggest real-time data
+                dynamic_params = ['timestamp', 'time', 'rand', 'random', 'nonce', 'token', 'session']
+                if any(param in query_lower for param in dynamic_params):
+                    return False
+
+                # Cache everything else
+                return True
+
+            # Original selective caching logic
             # Check if it's a priority domain
             if parsed.netloc.lower() in self.priority_domains:
                 return True
@@ -101,7 +138,7 @@ class BrowserCacheService:
 
             # Check resource type if provided
             if resource_type:
-                cacheable_types = ['stylesheet', 'script', 'font', 'image']
+                cacheable_types = ['stylesheet', 'script', 'font', 'image', 'document', 'xhr', 'fetch']
                 return resource_type in cacheable_types
 
             return False
