@@ -16,6 +16,7 @@ from app.core.errors import (
     HTTP_500_INTERNAL_SERVER_ERROR
 )
 from app.core.logging import get_logger
+from app.core.config import settings
 
 # Create a router for screenshot endpoints
 router = APIRouter(tags=["screenshots"])
@@ -30,14 +31,14 @@ logger = get_logger("screenshot_api")
     status_code=HTTP_200_OK,
     summary="Capture website screenshot",
     description="""
-    Capture a screenshot of a website, upload it to R2, and return a signed imgproxy URL.
+    Capture a screenshot of a website, save it to storage (R2 or local disk), and return a signed imgproxy URL.
 
     ## Process Flow
     1. Transforms the URL if it matches specific domain patterns (see URL Transformations below)
     2. Checks if the screenshot is already cached
     3. If cached, returns the cached URL immediately
     4. Otherwise, captures a screenshot of the (possibly transformed) URL using Playwright
-    5. Uploads the screenshot to Cloudflare R2 storage
+    5. Saves the screenshot to configured storage (Cloudflare R2 or local disk)
     6. Generates a signed imgproxy URL for the image with the specified transformations
     7. Caches the result for future requests
     8. Returns the URL to the processed image
@@ -140,15 +141,15 @@ async def capture_screenshot(
             format=request.format,
         )
         
-        # Upload to R2
-        r2_url = await storage_service.upload_file(
+        # Upload to storage (R2 or local)
+        storage_url = await storage_service.upload_file(
             file_path=screenshot_path,
             content_type=f"image/{request.format}",
         )
-        
+
         # Generate imgproxy URL
         imgproxy_url = imgproxy_service.generate_url(
-            image_url=r2_url,
+            image_url=storage_url,
             width=request.width,
             height=request.height,
             format=request.format,
@@ -181,6 +182,8 @@ async def capture_screenshot(
             detail=error_dict,
         )
     finally:
-        # Clean up the temporary file
-        if screenshot_path and os.path.exists(screenshot_path):
+        # Clean up the temporary file only if using R2 storage
+        # For local storage, the file is saved permanently
+        if (screenshot_path and os.path.exists(screenshot_path) and
+            settings.storage_mode.lower() != "local"):
             os.unlink(screenshot_path)

@@ -382,7 +382,15 @@ class ScreenshotService:
 
         # Generate a unique filename
         filename = f"{uuid.uuid4()}.{format}"
-        filepath = os.path.join(settings.screenshot_dir, filename)
+
+        # Choose storage location based on storage mode
+        if settings.storage_mode.lower() == "local":
+            # For local storage, save directly to permanent location
+            os.makedirs(settings.local_storage_dir, exist_ok=True)
+            filepath = os.path.join(settings.local_storage_dir, filename)
+        else:
+            # For R2 storage, use temporary directory
+            filepath = os.path.join(settings.screenshot_dir, filename)
 
         # Create context for logging
         context = {

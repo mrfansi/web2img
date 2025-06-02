@@ -55,6 +55,19 @@ class Settings(BaseModel):
         default_factory=lambda: os.getenv("SCREENSHOT_DIR", "/tmp/web2img")
     )
 
+    # Storage Configuration
+    storage_mode: str = Field(
+        default_factory=lambda: os.getenv("STORAGE_MODE", "r2")  # "r2" or "local"
+    )
+    local_storage_dir: str = Field(
+        default_factory=lambda: os.getenv("LOCAL_STORAGE_DIR", "/app/screenshots")
+    )
+    local_storage_base_url: str = Field(
+        default_factory=lambda: os.getenv("LOCAL_STORAGE_BASE_URL", "http://localhost:8000/screenshots")
+    )
+
+
+
     # Browser user agent string
     user_agent: str = Field(
         default_factory=lambda: os.getenv("USER_AGENT", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")

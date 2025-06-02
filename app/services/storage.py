@@ -1,6 +1,7 @@
 import os
 import time
 import asyncio
+import shutil
 from pathlib import Path
 from typing import Optional
 
@@ -12,7 +13,7 @@ from app.core.config import settings
 
 
 class StorageService:
-    """Service for storing files in Cloudflare R2."""
+    """Service for storing files in Cloudflare R2 or local disk."""
 
     def __init__(self):
         self._client = None
@@ -74,6 +75,49 @@ class StorageService:
             self._backoff_time = min(self._backoff_time * 2, 30)  # Cap at 30 seconds
     
     async def upload_file(self, file_path: str, content_type: Optional[str] = None) -> str:
+        """Upload a file to R2 storage or save to local disk based on storage mode.
+
+        Args:
+            file_path: Path to the file to upload/save
+            content_type: Optional content type for the file
+
+        Returns:
+            Public URL to the uploaded/saved file
+        """
+        if settings.storage_mode.lower() == "local":
+            return await self._save_to_local(file_path)
+        else:
+            return await self._upload_to_r2(file_path, content_type)
+
+    async def _save_to_local(self, file_path: str) -> str:
+        """Save file to local storage.
+
+        Args:
+            file_path: Path to the file to save
+
+        Returns:
+            Public URL to the saved file
+        """
+        try:
+            # Ensure local storage directory exists
+            os.makedirs(settings.local_storage_dir, exist_ok=True)
+
+            # Get the filename from the path
+            filename = os.path.basename(file_path)
+
+            # Create destination path
+            dest_path = os.path.join(settings.local_storage_dir, filename)
+
+            # Copy file to local storage directory
+            await asyncio.to_thread(shutil.copy2, file_path, dest_path)
+
+            # Construct the public URL
+            return f"{settings.local_storage_base_url}/{filename}"
+
+        except Exception as e:
+            raise RuntimeError(f"Failed to save file to local storage: {str(e)}") from e
+
+    async def _upload_to_r2(self, file_path: str, content_type: Optional[str] = None) -> str:
         """Upload a file to R2 storage with retry logic and connection pooling.
 
         Args:
@@ -85,14 +129,14 @@ class StorageService:
         """
         # Apply backoff if needed
         await self._handle_backoff()
-        
+
         # Use a lock to prevent too many concurrent uploads
         # This helps with rate limiting and connection pooling
         async with self._lock:
             try:
                 # Get the filename from the path
                 filename = os.path.basename(file_path)
-                
+
                 # Determine content type based on file extension if not provided
                 if content_type is None:
                     extension = Path(file_path).suffix.lower()
@@ -102,14 +146,14 @@ class StorageService:
                         '.jpeg': 'image/jpeg',
                         '.webp': 'image/webp',
                     }.get(extension, 'application/octet-stream')
-                
+
                 # Prepare upload parameters
                 key = f"screenshots/{filename}"
                 extra_args = {
                     'ContentType': content_type,
                     'CacheControl': 'max-age=31536000',  # Cache for 1 year
                 }
-                
+
                 # Upload to R2 with the screenshots/ prefix
                 self.client.upload_file(
                     file_path,
@@ -117,35 +161,35 @@ class StorageService:
                     key,
                     ExtraArgs=extra_args
                 )
-                
+
                 # Reset error count on successful upload
                 self._error_count = 0
                 self._backoff_time = 1
-                
+
                 # Construct the public URL using the configured public URL
                 return f"{settings.r2_public_url}/{key}"
-                
+
             except ClientError as e:
                 # Update error tracking
                 self._error_count += 1
                 self._last_error_time = time.time()
-                
+
                 # Check for specific error types
                 error_code = getattr(e, 'response', {}).get('Error', {}).get('Code', '')
-                
+
                 if error_code == 'SlowDown' or error_code == 'ThrottlingException':
                     # Handle rate limiting
                     if self._error_count <= 3:  # Retry up to 3 times
                         await asyncio.sleep(self._backoff_time)
-                        return await self.upload_file(file_path, content_type)
-                        
+                        return await self._upload_to_r2(file_path, content_type)
+
                 raise RuntimeError(f"Failed to upload file to R2: {str(e)}") from e
-                
+
             except Exception as e:
                 # Update error tracking
                 self._error_count += 1
                 self._last_error_time = time.time()
-                
+
                 raise RuntimeError(f"Unexpected error uploading to R2: {str(e)}") from e
 
     def configure_r2_lifecycle_policy(self) -> bool:
@@ -207,22 +251,31 @@ class StorageService:
     
     async def startup(self):
         """Initialize the storage service and configure lifecycle policies."""
-        self.logger.info("Initializing storage service")
-        
-        # Configure lifecycle policy
-        # Run in a thread to avoid blocking the event loop
-        try:
-            result = await asyncio.to_thread(self.configure_r2_lifecycle_policy)
-            
-            if result:
-                self.logger.info(f"Storage service initialized with {settings.r2_object_expiration_days}-day expiration policy")
-            else:
-                self.logger.warning("Storage service initialized but failed to configure expiration policy")
-        except Exception as e:
-            self.logger.error(f"Error during storage service initialization: {str(e)}", {
-                "error": str(e),
-                "error_type": type(e).__name__
-            })
+        self.logger.info(f"Initializing storage service in {settings.storage_mode} mode")
+
+        if settings.storage_mode.lower() == "local":
+            # Initialize local storage
+            try:
+                os.makedirs(settings.local_storage_dir, exist_ok=True)
+                self.logger.info(f"Local storage directory created: {settings.local_storage_dir}")
+            except Exception as e:
+                self.logger.error(f"Error creating local storage directory: {str(e)}")
+                raise
+        else:
+            # Configure R2 lifecycle policy
+            # Run in a thread to avoid blocking the event loop
+            try:
+                result = await asyncio.to_thread(self.configure_r2_lifecycle_policy)
+
+                if result:
+                    self.logger.info(f"R2 storage service initialized with {settings.r2_object_expiration_days}-day expiration policy")
+                else:
+                    self.logger.warning("R2 storage service initialized but failed to configure expiration policy")
+            except Exception as e:
+                self.logger.error(f"Error during R2 storage service initialization: {str(e)}", {
+                    "error": str(e),
+                    "error_type": type(e).__name__
+                })
             
     async def get_storage_stats(self):
         """Get storage statistics including object count and total size."""

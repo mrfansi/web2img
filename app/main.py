@@ -93,14 +93,14 @@ def create_app() -> FastAPI:
         title="web2img API",
         description="""
         # web2img API
-        
-        A high-performance API for capturing website screenshots, uploading them to Cloudflare R2, 
+
+        A high-performance API for capturing website screenshots, saving them to storage (Cloudflare R2 or local disk),
         and generating signed imgproxy URLs for image transformations.
-        
+
         ## Features
-        
+
         * **Screenshot Capture**: Capture screenshots of websites using Playwright
-        * **Cloud Storage**: Upload screenshots to Cloudflare R2 storage
+        * **Flexible Storage**: Save screenshots to Cloudflare R2 or local disk storage
         * **Image Transformations**: Generate signed imgproxy URLs for image processing
         * **High Performance**: Handle concurrent requests with async processing
         
@@ -264,6 +264,12 @@ def create_app() -> FastAPI:
     # Mount static files directory
     static_dir = pathlib.Path(__file__).parent / "static"
     app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+
+    # Mount screenshots directory for local storage mode
+    if settings.storage_mode.lower() == "local":
+        # Ensure the directory exists
+        os.makedirs(settings.local_storage_dir, exist_ok=True)
+        app.mount("/screenshots", StaticFiles(directory=settings.local_storage_dir), name="screenshots")
     
     # Add route for dashboard
     @app.get("/dashboard", response_class=HTMLResponse)
