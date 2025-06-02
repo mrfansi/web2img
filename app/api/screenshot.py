@@ -8,7 +8,7 @@ from app.services.screenshot import screenshot_service
 from app.services.storage import storage_service
 from app.services.imgproxy import imgproxy_service
 from app.services.cache import cache_service
-from app.utils.url_transformer import transform_url, is_transformable_domain
+from app.utils.url_transformer import transform_url
 from app.core.errors import (
     WebToImgError,
     get_error_response,
@@ -147,12 +147,13 @@ async def capture_screenshot(
             content_type=f"image/{request.format}",
         )
 
-        # Handle different storage modes
-        if settings.storage_mode.lower() == "local":
-            # For local storage, return the direct URL (no imgproxy needed)
+        # Handle imgproxy usage based on storage mode and configuration
+        if settings.storage_mode.lower() == "local" and not settings.use_imgproxy_for_local:
+            # For local storage with imgproxy disabled, return direct URL
             final_url = storage_url
         else:
-            # For R2 storage, generate imgproxy URL
+            # For R2 storage or local storage with imgproxy enabled, generate imgproxy URL
+            # This provides consistent image processing capabilities
             final_url = imgproxy_service.generate_url(
                 image_url=storage_url,
                 width=request.width,

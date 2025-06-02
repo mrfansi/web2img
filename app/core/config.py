@@ -66,6 +66,11 @@ class Settings(BaseModel):
         default_factory=lambda: os.getenv("LOCAL_STORAGE_BASE_URL", "http://localhost:8000/screenshots")
     )
 
+    # imgproxy Configuration for Local Storage
+    use_imgproxy_for_local: bool = Field(
+        default_factory=lambda: os.getenv("USE_IMGPROXY_FOR_LOCAL", "true").lower() in ("true", "1", "t")
+    )
+
 
 
     # Browser user agent string

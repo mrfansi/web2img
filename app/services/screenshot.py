@@ -1645,12 +1645,13 @@ async def capture_screenshot_with_options(url: str, width: int = 1280, height: i
         # Upload/save to storage (R2 or local)
         storage_url = await storage_service.upload_file(filepath)
 
-        # Handle different storage modes
-        if settings.storage_mode.lower() == "local":
-            # For local storage, return the direct URL (no imgproxy needed)
+        # Handle imgproxy usage based on storage mode and configuration
+        if settings.storage_mode.lower() == "local" and not settings.use_imgproxy_for_local:
+            # For local storage with imgproxy disabled, return direct URL
             return {"url": storage_url}
         else:
-            # For R2 storage, generate imgproxy URL
+            # For R2 storage or local storage with imgproxy enabled, generate imgproxy URL
+            # This provides consistent image processing capabilities
             # Ensure width and height are integers before passing to generate_url
             img_width = int(width) if not isinstance(width, int) else width
             img_height = int(height) if not isinstance(height, int) else height
