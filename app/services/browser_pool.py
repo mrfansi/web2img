@@ -6,6 +6,7 @@ from typing import Dict, List, Optional, Tuple, Any, AsyncGenerator
 from playwright.async_api import async_playwright, Browser, BrowserContext
 from app.core.config import settings
 from app.core.logging import get_logger
+from app.services.browser_manager import browser_manager
 
 
 class BrowserPool:
@@ -182,40 +183,20 @@ class BrowserPool:
     async def _create_browser_instance(self) -> Optional[Dict[str, Any]]:
         """Create a new browser instance with metadata."""
         try:
-            # Start playwright
-            playwright = await async_playwright().start()
-            
-            # Launch browser with optimized settings
-            browser = await playwright.chromium.launch(
-                args=[
-                    '--disable-gpu',  # Disable GPU hardware acceleration
-                    '--disable-dev-shm-usage',  # Overcome limited resource problems
-                    '--disable-setuid-sandbox',  # Disable setuid sandbox (performance)
-                    '--no-sandbox',  # Disable sandbox for better performance
-                    '--no-zygote',  # Disable zygote process
-                    '--disable-extensions',  # Disable extensions for performance
-                    '--disable-features=site-per-process',  # Disable site isolation
-                    '--disable-notifications',  # Disable notifications
-                    '--disable-popup-blocking',  # Disable popup blocking
-                    '--disable-sync',  # Disable sync
-                    '--disable-translate',  # Disable translate
-                    '--disable-web-security',  # Disable web security for complex sites
-                    '--disable-background-networking',  # Reduce background activity
-                    '--disable-default-apps',  # Disable default apps
-                    '--disable-prompt-on-repost',  # Disable prompt on repost
-                    '--disable-domain-reliability',  # Disable domain reliability
-                    '--metrics-recording-only',  # Metrics recording only
-                    '--mute-audio',  # Mute audio
-                    '--no-first-run',  # No first run dialog
-                ],
-                headless=True,
-                timeout=60000  # 60 seconds timeout
-            )
+            # Get the configured browser engine
+            engine = settings.validate_browser_engine()
+
+            # Launch browser using the browser manager
+            browser = await browser_manager.launch_browser(engine)
+
+            if not browser:
+                self.logger.error(f"Failed to launch {engine} browser")
+                return None
             
             # Create browser data with metadata
             browser_data = {
                 "browser": browser,
-                "playwright": playwright,
+                "engine": engine,
                 "created_at": time.time(),
                 "last_used": time.time(),
                 "contexts": [],  # List of active contexts
@@ -463,11 +444,7 @@ class BrowserPool:
         except Exception:
             pass  # Ignore errors during cleanup
         
-        # Stop playwright
-        try:
-            await browser_data["playwright"].stop()
-        except Exception:
-            pass  # Ignore errors during cleanup
+        # Browser cleanup complete (playwright managed globally)
         
         # Create a new browser instance
         new_browser_data = await self._create_browser_instance()
@@ -669,9 +646,6 @@ class BrowserPool:
                     # Close the browser
                     await self._browsers[i]["browser"].close()
                     
-                    # Stop playwright
-                    await self._browsers[i]["playwright"].stop()
-                    
                     logger.debug(f"Recycled browser {i} due to {reason}: {value:.1f}")
                 except Exception as e:
                     logger.warning(f"Error recycling browser {i}: {str(e)}")
@@ -786,9 +760,6 @@ class BrowserPool:
                 try:
                     # Close the browser
                     await browser_data["browser"].close()
-                    
-                    # Stop playwright
-                    await browser_data["playwright"].stop()
                     
                     logger.debug(f"Successfully closed browser {i}", {
                         "browser_index": i,
@@ -997,9 +968,6 @@ class BrowserPool:
                     
                     # Close the browser
                     await self._browsers[i]["browser"].close()
-                    
-                    # Stop playwright
-                    await self._browsers[i]["playwright"].stop()
                     
                     # Remove from browsers list
                     self._browsers.pop(i)

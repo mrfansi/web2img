@@ -18,6 +18,7 @@ from app.api.batch import router as batch_router
 from app.api.monitoring import router as monitoring_router
 from app.api.url_transformer import router as url_transformer_router
 from app.api.browser_cache import router as browser_cache_router
+from app.api.browser import router as browser_router
 from app.core.config import settings
 from app.core.monitoring import metrics_collector, start_monitoring, stop_monitoring
 from app.services.screenshot import screenshot_service

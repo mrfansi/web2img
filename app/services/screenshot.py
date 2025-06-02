@@ -209,7 +209,7 @@ class ScreenshotService:
             context = await self._browser_pool.create_context(
                 browser_index,
                 viewport={"width": width, "height": height},
-                user_agent=settings.user_agent,
+                user_agent=settings.get_user_agent(),
                 ignore_https_errors=True
             )
 
@@ -544,7 +544,7 @@ class ScreenshotService:
         # Set headers to appear more like a real browser
         await page.set_extra_http_headers({
             'Accept-Language': 'en-US,en;q=0.9',
-            'User-Agent': settings.user_agent,
+            'User-Agent': settings.get_user_agent(),
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
             'Sec-Fetch-Site': 'none',
             'Sec-Fetch-Mode': 'navigate',

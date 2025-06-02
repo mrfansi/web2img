@@ -35,8 +35,8 @@ COPY requirements.txt .
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Install Playwright browsers
-RUN playwright install chromium
+# Install Playwright browsers (all three engines for multi-browser support)
+RUN playwright install chromium firefox webkit
 
 # Copy application code
 COPY . .

@@ -73,9 +73,14 @@ class Settings(BaseModel):
 
 
 
-    # Browser user agent string
+    # Browser Engine Configuration
+    browser_engine: str = Field(
+        default_factory=lambda: os.getenv("BROWSER_ENGINE", "chromium").lower()
+    )
+
+    # Browser user agent string - will be dynamically set based on browser engine
     user_agent: str = Field(
-        default_factory=lambda: os.getenv("USER_AGENT", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
+        default_factory=lambda: os.getenv("USER_AGENT", "")
     )
 
     # API settings
@@ -243,6 +248,27 @@ class Settings(BaseModel):
 
     # Use model_config instead of class Config to fix Pydantic v2 deprecation warning
     model_config = ConfigDict()
+
+    def get_user_agent(self) -> str:
+        """Get the appropriate user agent based on the browser engine."""
+        if self.user_agent:
+            return self.user_agent
+
+        # Default user agents for each browser engine
+        user_agents = {
+            "chromium": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "firefox": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:120.0) Gecko/20100101 Firefox/120.0",
+            "webkit": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15"
+        }
+
+        return user_agents.get(self.browser_engine, user_agents["chromium"])
+
+    def validate_browser_engine(self) -> str:
+        """Validate and return the browser engine, defaulting to chromium if invalid."""
+        valid_engines = ["chromium", "firefox", "webkit"]
+        if self.browser_engine in valid_engines:
+            return self.browser_engine
+        return "chromium"
 
 
 # Create global settings instance
