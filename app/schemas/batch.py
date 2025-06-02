@@ -20,7 +20,7 @@ class BatchConfig(BaseModel):
         default=3,
         description="Maximum number of screenshots to process in parallel",
         ge=1,
-        le=10
+        le=50  # Increased for high-capacity servers
     )
     timeout: int = Field(
         default=30,
@@ -94,7 +94,7 @@ class BatchScreenshotRequest(BaseModel):
         ...,
         description="List of screenshot requests to process",
         min_length=1,
-        max_length=50
+        max_length=200  # Increased for high-capacity servers
     )
     config: Optional[BatchConfig] = Field(
         default=None,
