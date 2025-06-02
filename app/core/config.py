@@ -93,6 +93,23 @@ class Settings(BaseModel):
         default_factory=lambda: int(os.getenv("TEMP_FILE_RETENTION_HOURS", "24"))
     )
 
+    # Browser Cache Configuration
+    browser_cache_enabled: bool = Field(
+        default_factory=lambda: os.getenv("BROWSER_CACHE_ENABLED", "true").lower() in ("true", "1", "t")
+    )
+    browser_cache_max_size_mb: int = Field(
+        default_factory=lambda: int(os.getenv("BROWSER_CACHE_MAX_SIZE_MB", "500"))
+    )
+    browser_cache_max_file_size_mb: int = Field(
+        default_factory=lambda: int(os.getenv("BROWSER_CACHE_MAX_FILE_SIZE_MB", "10"))
+    )
+    browser_cache_ttl_hours: int = Field(
+        default_factory=lambda: int(os.getenv("BROWSER_CACHE_TTL_HOURS", "24"))
+    )
+    browser_cache_cleanup_interval: int = Field(
+        default_factory=lambda: int(os.getenv("BROWSER_CACHE_CLEANUP_INTERVAL", "3600"))
+    )
+
     # Timeout Configuration - Optimized for better performance
     navigation_timeout_regular: int = Field(
         default_factory=lambda: int(os.getenv("NAVIGATION_TIMEOUT_REGULAR", "20000"))  # Reduced from 30000

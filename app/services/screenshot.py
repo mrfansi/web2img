@@ -11,6 +11,7 @@ from playwright.async_api import BrowserContext, Page, TimeoutError as Playwrigh
 from app.core.config import settings
 from app.services.browser_pool import BrowserPool
 from app.services.retry import RetryConfig, CircuitBreaker, RetryManager
+from app.services.browser_cache import browser_cache_service
 
 
 
@@ -119,6 +120,10 @@ class ScreenshotService:
 
         # Start the scheduled cleanup task
         self._start_cleanup_task()
+
+        # Start browser cache cleanup task if enabled
+        if settings.browser_cache_enabled:
+            self._start_cache_cleanup_task()
 
         self.logger.info("Screenshot service initialized successfully")
 
@@ -431,7 +436,16 @@ class ScreenshotService:
         Args:
             page: The page to configure
         """
+        # Set up browser caching first (before other route handlers)
+        if settings.browser_cache_enabled:
+            try:
+                await browser_cache_service.setup_page_caching(page)
+                self.logger.debug("Browser caching enabled for page")
+            except Exception as e:
+                self.logger.warning(f"Failed to setup browser caching: {str(e)}")
+
         # Configure resource blocking based on settings
+        # Note: These routes are set up after caching to allow cache to handle resources first
         if settings.disable_media:
             await page.route('**/*.{mp3,mp4,ogg,webm,wav,avi,mov,wmv,flv}', lambda route: route.abort())
 
@@ -472,6 +486,7 @@ class ScreenshotService:
 
         # Log the configuration being used
         self.logger.debug("Page configuration applied", {
+            "browser_cache_enabled": settings.browser_cache_enabled,
             "disable_images": settings.disable_images,
             "disable_javascript": settings.disable_javascript,
             "disable_css": settings.disable_css,
@@ -1218,6 +1233,52 @@ class ScreenshotService:
             # Add error handling for the cleanup task
             self._cleanup_task.add_done_callback(self._handle_cleanup_task_done)
 
+    def _start_cache_cleanup_task(self):
+        """Start the browser cache cleanup task."""
+        if not hasattr(self, '_cache_cleanup_task') or self._cache_cleanup_task is None or self._cache_cleanup_task.done():
+            cache_interval = settings.browser_cache_cleanup_interval
+            self.logger.info(f"Starting browser cache cleanup task with interval {cache_interval} seconds")
+            self._cache_cleanup_task = asyncio.create_task(self._cache_cleanup_loop())
+            self._cache_cleanup_task.add_done_callback(self._handle_cache_cleanup_task_done)
+
+    def _handle_cache_cleanup_task_done(self, task):
+        """Handle completion of the cache cleanup task."""
+        try:
+            exception = task.exception()
+            if exception:
+                self.logger.error(f"Cache cleanup task failed: {str(exception)}", {
+                    "error": str(exception),
+                    "error_type": type(exception).__name__
+                })
+            else:
+                self.logger.debug("Cache cleanup task completed successfully")
+        except asyncio.CancelledError:
+            self.logger.warning("Cache cleanup task was cancelled")
+        except Exception as e:
+            self.logger.error(f"Error handling cache cleanup task completion: {str(e)}")
+
+    async def _cache_cleanup_loop(self):
+        """Browser cache cleanup loop that runs periodically."""
+        try:
+            while True:
+                try:
+                    # Run cache cleanup
+                    cleanup_result = await browser_cache_service.cleanup_cache()
+                    if cleanup_result["removed"] > 0:
+                        self.logger.info(f"Browser cache cleanup completed", {
+                            "removed_items": cleanup_result["removed"],
+                            "errors": cleanup_result["errors"]
+                        })
+                except Exception as e:
+                    self.logger.error(f"Error during browser cache cleanup: {str(e)}")
+
+                # Wait for next cleanup interval
+                await asyncio.sleep(settings.browser_cache_cleanup_interval)
+        except asyncio.CancelledError:
+            self.logger.info("Browser cache cleanup task was cancelled")
+        except Exception as e:
+            self.logger.error(f"Unexpected error in cache cleanup loop: {str(e)}")
+
     def _handle_cleanup_task_done(self, task):
         """Handle completion of the cleanup task."""
         try:
@@ -1395,6 +1456,14 @@ class ScreenshotService:
             self._cleanup_task.cancel()
             try:
                 await self._cleanup_task
+            except asyncio.CancelledError:
+                pass
+
+        # Cancel the cache cleanup task if it's running
+        if hasattr(self, '_cache_cleanup_task') and self._cache_cleanup_task and not self._cache_cleanup_task.done():
+            self._cache_cleanup_task.cancel()
+            try:
+                await self._cache_cleanup_task
             except asyncio.CancelledError:
                 pass
 
