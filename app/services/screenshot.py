@@ -86,10 +86,74 @@ class ScreenshotService:
             "screenshot": 0
         }
 
+        # Health monitoring
+        self._health_stats = {
+            "consecutive_failures": 0,
+            "last_success_time": time.time(),
+            "total_requests": 0,
+            "failed_requests": 0,
+            "recovery_attempts": 0
+        }
+
 
 
         # Ensure screenshot directory exists
         os.makedirs(settings.screenshot_dir, exist_ok=True)
+
+    def _update_health_stats(self, success: bool):
+        """Update health statistics."""
+        self._health_stats["total_requests"] += 1
+
+        if success:
+            self._health_stats["consecutive_failures"] = 0
+            self._health_stats["last_success_time"] = time.time()
+        else:
+            self._health_stats["consecutive_failures"] += 1
+            self._health_stats["failed_requests"] += 1
+
+    def _is_service_healthy(self) -> bool:
+        """Check if the service is in a healthy state."""
+        # Consider unhealthy if too many consecutive failures
+        if self._health_stats["consecutive_failures"] >= 10:
+            return False
+
+        # Consider unhealthy if no success in the last 5 minutes
+        time_since_success = time.time() - self._health_stats["last_success_time"]
+        if time_since_success > 300:  # 5 minutes
+            return False
+
+        # Consider unhealthy if failure rate is too high
+        if self._health_stats["total_requests"] > 20:
+            failure_rate = self._health_stats["failed_requests"] / self._health_stats["total_requests"]
+            if failure_rate > 0.8:  # 80% failure rate
+                return False
+
+        return True
+
+    async def _attempt_service_recovery(self):
+        """Attempt to recover the service from an unhealthy state."""
+        self.logger.warning("Service appears unhealthy, attempting recovery")
+        self._health_stats["recovery_attempts"] += 1
+
+        try:
+            # Force cleanup of all resources
+            await self._cleanup_resources()
+
+            # Reset browser pool
+            if hasattr(self, '_browser_pool'):
+                await self._browser_pool.cleanup()
+
+            # Reset circuit breakers
+            self._browser_circuit_breaker.failure_count = 0
+            self._navigation_circuit_breaker.failure_count = 0
+
+            # Reset some health stats
+            self._health_stats["consecutive_failures"] = 0
+
+            self.logger.info("Service recovery attempt completed")
+
+        except Exception as e:
+            self.logger.error(f"Service recovery failed: {str(e)}")
 
     async def startup(self):
         """Initialize the browser pool and start the cleanup task."""
@@ -1331,8 +1395,19 @@ class ScreenshotService:
         # Take the screenshot with a slight delay to ensure content is ready
         await asyncio.sleep(0.5)
 
+        # Check service health before attempting capture
+        if not self._is_service_healthy():
+            self.logger.warning("Service is unhealthy, attempting recovery before screenshot")
+            await self._attempt_service_recovery()
+
         # Execute the screenshot capture with retry
-        return await screenshot_retry_manager.execute(capture_screenshot, operation_name="capture_screenshot")
+        try:
+            result = await screenshot_retry_manager.execute(capture_screenshot, operation_name="capture_screenshot")
+            self._update_health_stats(success=True)
+            return result
+        except Exception as e:
+            self._update_health_stats(success=False)
+            raise
 
     async def _scheduled_cleanup_loop(self):
         """Scheduled cleanup loop that runs periodically."""

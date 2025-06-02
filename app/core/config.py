@@ -167,26 +167,26 @@ class Settings(BaseModel):
         default_factory=lambda: float(os.getenv("CONTEXT_RETRY_JITTER_MULTIPLIER", "2.0"))
     )
 
-    # Screenshot Capture Retry Configuration
+    # Screenshot Capture Retry Configuration - Optimized for high concurrency
     screenshot_max_retries: int = Field(
-        default_factory=lambda: int(os.getenv("SCREENSHOT_MAX_RETRIES", "5"))
+        default_factory=lambda: int(os.getenv("SCREENSHOT_MAX_RETRIES", "8"))  # Increased from 5
     )
     screenshot_base_delay: float = Field(
-        default_factory=lambda: float(os.getenv("SCREENSHOT_BASE_DELAY", "1.0"))
+        default_factory=lambda: float(os.getenv("SCREENSHOT_BASE_DELAY", "1.5"))  # Increased from 1.0
     )
     screenshot_max_delay: float = Field(
-        default_factory=lambda: float(os.getenv("SCREENSHOT_MAX_DELAY", "10.0"))
+        default_factory=lambda: float(os.getenv("SCREENSHOT_MAX_DELAY", "15.0"))  # Increased from 10.0
     )
     screenshot_jitter: float = Field(
-        default_factory=lambda: float(os.getenv("SCREENSHOT_JITTER", "0.3"))
+        default_factory=lambda: float(os.getenv("SCREENSHOT_JITTER", "0.4"))  # Increased from 0.3
     )
 
-    # Circuit Breaker Configuration - Optimized for better resilience
+    # Circuit Breaker Configuration - Optimized for better resilience under high load
     circuit_breaker_threshold: int = Field(
-        default_factory=lambda: int(os.getenv("CIRCUIT_BREAKER_THRESHOLD", "5"))  # Reduced from 15
+        default_factory=lambda: int(os.getenv("CIRCUIT_BREAKER_THRESHOLD", "8"))  # Increased from 5 for better tolerance
     )
     circuit_breaker_reset_time: int = Field(
-        default_factory=lambda: int(os.getenv("CIRCUIT_BREAKER_RESET_TIME", "300"))  # Increased from 120
+        default_factory=lambda: int(os.getenv("CIRCUIT_BREAKER_RESET_TIME", "180"))  # Reduced from 300 for faster recovery
     )
 
     # Performance Optimization Configuration

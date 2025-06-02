@@ -30,17 +30,33 @@ class RetryConfig:
         self.max_delay = max_delay
         self.jitter = jitter
 
-    def get_delay(self, retry_count: int) -> float:
+    def get_delay(self, retry_count: int, error_type: str = None) -> float:
         """Calculate delay with exponential backoff and jitter.
 
         Args:
             retry_count: Current retry attempt (0-based)
+            error_type: Type of error that occurred (for adaptive delays)
 
         Returns:
             Delay in seconds before next retry
         """
         # Calculate exponential backoff
         delay = min(self.max_delay, self.base_delay * (2 ** retry_count))
+
+        # Apply adaptive delays based on error type
+        if error_type:
+            if "timeout" in error_type.lower():
+                # For timeout errors, use longer delays to allow system recovery
+                delay *= 1.5
+            elif "memory" in error_type.lower() or "resource" in error_type.lower():
+                # For resource exhaustion, use even longer delays
+                delay *= 2.0
+            elif "connection" in error_type.lower() or "network" in error_type.lower():
+                # For network errors, use moderate delays
+                delay *= 1.2
+
+        # Ensure we don't exceed max_delay after multipliers
+        delay = min(self.max_delay, delay)
 
         # Add jitter to prevent thundering herd
         jitter_amount = delay * self.jitter
@@ -309,6 +325,65 @@ class RetryManager:
         # Create a logger for this retry manager
         self.logger = get_logger(f"retry.{name}")
 
+    def _should_retry_error(self, error: Exception, retry_count: int) -> bool:
+        """Determine if an error should be retried based on its type and context.
+
+        Args:
+            error: The exception that occurred
+            retry_count: Current retry count
+
+        Returns:
+            True if the error should be retried, False otherwise
+        """
+        error_type = type(error).__name__
+        error_message = str(error).lower()
+
+        # Never retry these errors (permanent failures)
+        permanent_errors = [
+            "permissionerror",
+            "filenotfounderror",
+            "valueerror",
+            "typeerror"
+        ]
+
+        if error_type.lower() in permanent_errors:
+            self.logger.debug(f"Not retrying permanent error: {error_type}")
+            return False
+
+        # Always retry these errors (transient failures)
+        transient_errors = [
+            "timeouterror",
+            "connectionerror",
+            "browsertimeouterror",
+            "navigationerror",
+            "playwrighttimeouterror"
+        ]
+
+        if error_type.lower() in transient_errors:
+            return True
+
+        # Check error message for specific patterns
+        retry_patterns = [
+            "timeout",
+            "connection refused",
+            "connection reset",
+            "temporary failure",
+            "resource temporarily unavailable",
+            "browser context",
+            "page closed"
+        ]
+
+        for pattern in retry_patterns:
+            if pattern in error_message:
+                return True
+
+        # For unknown errors, retry if we haven't exceeded a conservative limit
+        if retry_count < 3:
+            self.logger.debug(f"Retrying unknown error type: {error_type}")
+            return True
+
+        return False
+
     async def execute(self, operation, *args, operation_name=None, **kwargs):
         """Execute an operation with retry logic and circuit breaker.
 
@@ -473,20 +548,24 @@ class RetryManager:
                     "error": str(e)
                 }
 
-                # Check if we should retry
-                if retry_count >= self.retry_config.max_retries:
+                # Check if we should retry based on error type and retry count
+                should_retry = self._should_retry_error(e, retry_count)
+
+                if retry_count >= self.retry_config.max_retries or not should_retry:
+                    reason = "max retries reached" if retry_count >= self.retry_config.max_retries else "error not retryable"
                     self.logger.warning(
-                        f"Final attempt {attempt_number} failed for {operation_name}, no more retries",
-                        error_context
+                        f"Final attempt {attempt_number} failed for {operation_name}, no more retries ({reason})",
+                        {**error_context, "retry_reason": reason, "should_retry": should_retry}
                     )
                     break
 
-                # Calculate delay before retry
-                delay = self.retry_config.get_delay(retry_count)
+                # Calculate delay before retry with adaptive strategy
+                error_type = type(e).__name__
+                delay = self.retry_config.get_delay(retry_count, error_type)
 
                 self.logger.warning(
                     f"Attempt {attempt_number} failed for {operation_name}, retrying in {delay:.2f}s",
-                    {**error_context, "next_delay": delay}
+                    {**error_context, "next_delay": delay, "adaptive_error_type": error_type}
                 )
 
                 # Increment retry count and stats
