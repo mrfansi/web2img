@@ -8,15 +8,20 @@ from app.services.screenshot import screenshot_service
 from app.services.storage import storage_service
 from app.services.imgproxy import imgproxy_service
 from app.services.cache import cache_service
+from app.utils.url_transformer import transform_url, is_transformable_domain
 from app.core.errors import (
-    WebToImgError, 
-    get_error_response, 
+    WebToImgError,
+    get_error_response,
     HTTP_200_OK,
     HTTP_500_INTERNAL_SERVER_ERROR
 )
+from app.core.logging import get_logger
 
 # Create a router for screenshot endpoints
 router = APIRouter(tags=["screenshots"])
+
+# Initialize logger
+logger = get_logger("screenshot_api")
 
 
 @router.post(
@@ -26,20 +31,28 @@ router = APIRouter(tags=["screenshots"])
     summary="Capture website screenshot",
     description="""
     Capture a screenshot of a website, upload it to R2, and return a signed imgproxy URL.
-    
+
     ## Process Flow
-    1. Checks if the screenshot is already cached
-    2. If cached, returns the cached URL immediately
-    3. Otherwise, captures a screenshot of the provided URL using Playwright
-    4. Uploads the screenshot to Cloudflare R2 storage
-    5. Generates a signed imgproxy URL for the image with the specified transformations
-    6. Caches the result for future requests
-    7. Returns the URL to the processed image
-    
+    1. Transforms the URL if it matches specific domain patterns (see URL Transformations below)
+    2. Checks if the screenshot is already cached
+    3. If cached, returns the cached URL immediately
+    4. Otherwise, captures a screenshot of the (possibly transformed) URL using Playwright
+    5. Uploads the screenshot to Cloudflare R2 storage
+    6. Generates a signed imgproxy URL for the image with the specified transformations
+    7. Caches the result for future requests
+    8. Returns the URL to the processed image
+
+    ## URL Transformations
+    The service automatically transforms certain URLs before capturing screenshots:
+    - `viding.co` → `http://viding-co_website-revamp`
+    - `viding.org` → `http://viding-org_website-revamp`
+
+    Note: The original URL is used for caching purposes to maintain consistency.
+
     ## Cache Control
     - Use `cache=false` to bypass the cache and force a fresh screenshot
     - Cache TTL is configurable via the CACHE_TTL_SECONDS environment variable (default: 1 hour)
-    
+
     ## Notes
     - The URL must be a valid HTTP or HTTPS URL
     - Supported formats: png, jpeg, webp
@@ -84,26 +97,34 @@ async def capture_screenshot(
     cache: bool = Query(True, description="Whether to use cache (if available)")
 ) -> Any:
     """Capture a screenshot of a website.
-    
+
     Args:
         request: Screenshot request parameters
         cache: Whether to use cache (if available)
-        
+
     Returns:
         URL to the processed image
-        
+
     Raises:
         HTTPException: If screenshot capture or upload fails
     """
-    # Try to get from cache if enabled
+    # Transform URL if needed (viding.co -> viding-co_website-revamp, etc.)
+    original_url = str(request.url)
+    transformed_url = transform_url(original_url)
+
+    # Log URL transformation if it occurred
+    if transformed_url != original_url:
+        logger.info(f"URL transformed for screenshot: {original_url} -> {transformed_url}")
+
+    # Try to get from cache if enabled (use original URL for cache key)
     if cache:
         cached_url = await cache_service.get(
-            url=str(request.url),
+            url=original_url,  # Use original URL for cache consistency
             width=request.width,
             height=request.height,
             format=request.format
         )
-        
+
         if cached_url:
             # Return the cached URL
             return ScreenshotResponse(url=cached_url)
@@ -111,9 +132,9 @@ async def capture_screenshot(
     # Not in cache or cache disabled, proceed with capture
     screenshot_path = None
     try:
-        # Capture the screenshot
+        # Capture the screenshot using the transformed URL
         screenshot_path = await screenshot_service.capture_screenshot(
-            url=str(request.url),
+            url=transformed_url,  # Use transformed URL for actual screenshot
             width=request.width,
             height=request.height,
             format=request.format,
@@ -133,10 +154,10 @@ async def capture_screenshot(
             format=request.format,
         )
         
-        # Store in cache if enabled
+        # Store in cache if enabled (use original URL for cache consistency)
         if cache:
             await cache_service.set(
-                url=str(request.url),
+                url=original_url,  # Use original URL for cache key
                 width=request.width,
                 height=request.height,
                 format=request.format,

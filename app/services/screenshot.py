@@ -1476,9 +1476,21 @@ async def capture_screenshot_with_options(url: str, width: int = 1280, height: i
     """
     from app.services.storage import storage_service
     from app.services.imgproxy import imgproxy_service
+    from app.utils.url_transformer import transform_url
+    from app.core.logging import get_logger
 
-    # Capture the screenshot
-    filepath = await screenshot_service.capture_screenshot(url, width, height, format)
+    logger = get_logger("screenshot_batch")
+
+    # Transform URL if needed (viding.co -> viding-co_website-revamp, etc.)
+    original_url = url
+    transformed_url = transform_url(url)
+
+    # Log URL transformation if it occurred
+    if transformed_url != original_url:
+        logger.info(f"URL transformed for batch screenshot: {original_url} -> {transformed_url}")
+
+    # Capture the screenshot using the transformed URL
+    filepath = await screenshot_service.capture_screenshot(transformed_url, width, height, format)
 
     try:
         # Upload to R2

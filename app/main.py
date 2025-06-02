@@ -16,6 +16,7 @@ from app.api.health import router as health_router
 from app.api.cache import router as cache_router
 from app.api.batch import router as batch_router
 from app.api.monitoring import router as monitoring_router
+from app.api.url_transformer import router as url_transformer_router
 from app.core.config import settings
 from app.core.monitoring import metrics_collector, start_monitoring, stop_monitoring
 from app.services.screenshot import screenshot_service
@@ -131,6 +132,10 @@ def create_app() -> FastAPI:
             {
                 "name": "monitoring",
                 "description": "Operations for monitoring service performance and health"
+            },
+            {
+                "name": "url-transformer",
+                "description": "Operations for managing URL transformation rules"
             }
         ],
         swagger_ui_parameters={"defaultModelsExpandDepth": -1}
@@ -248,6 +253,7 @@ def create_app() -> FastAPI:
     app.include_router(health_router, prefix=settings.api_prefix)
     app.include_router(cache_router, prefix=settings.api_prefix)
     app.include_router(monitoring_router, prefix=settings.api_prefix)
+    app.include_router(url_transformer_router, prefix=settings.api_prefix)
     
     # Mount static files directory
     static_dir = pathlib.Path(__file__).parent / "static"
