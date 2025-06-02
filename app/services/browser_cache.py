@@ -8,11 +8,14 @@ import time
 import hashlib
 import asyncio
 import aiofiles
-from typing import Dict, Optional, Set, Any, Tuple
-from urllib.parse import urlparse
-from playwright.async_api import Page, Route, Request, Response
+import httpx
+from typing import Dict, Optional, Tuple, Any
+from urllib.parse import urlparse, urlunparse
+from playwright.async_api import Page, Route
+
 from app.core.config import settings
 from app.core.logging import get_logger
+from app.utils.url_transformer import url_transformer
 
 logger = get_logger("browser_cache")
 
@@ -82,28 +85,58 @@ class BrowserCacheService:
         """Check if a resource should be cached."""
         if not self.enabled:
             return False
-        
+
         try:
             parsed = urlparse(url)
-            
+
             # Check if it's a priority domain
             if parsed.netloc.lower() in self.priority_domains:
                 return True
-            
+
             # Check file extension
             path_lower = parsed.path.lower()
             for category, extensions in self.cacheable_patterns.items():
                 if any(path_lower.endswith(ext) for ext in extensions):
                     return True
-            
+
             # Check resource type if provided
             if resource_type:
                 cacheable_types = ['stylesheet', 'script', 'font', 'image']
                 return resource_type in cacheable_types
-            
+
             return False
         except Exception:
             return False
+
+    def _reverse_transform_url(self, url: str) -> str:
+        """
+        Reverse transform a URL from transformed domain back to original domain.
+        This is needed when fetching resources that reference transformed domains.
+        """
+        try:
+            parsed = urlparse(url)
+            domain = parsed.netloc.lower()
+
+            # Check if this is a transformed domain that needs to be reversed
+            for original_domain, transformation in url_transformer.transformations.items():
+                if domain == transformation['new_domain']:
+                    # Reconstruct URL with original domain and https
+                    original_url = urlunparse((
+                        'https',  # Use https for original domains
+                        original_domain,
+                        parsed.path,
+                        parsed.params,
+                        parsed.query,
+                        parsed.fragment
+                    ))
+                    logger.debug(f"Reverse transformed URL for fetching: {url} -> {original_url}")
+                    return original_url
+
+            # No transformation needed
+            return url
+        except Exception as e:
+            logger.warning(f"Failed to reverse transform URL {url}: {str(e)}")
+            return url
     
     async def _store_in_cache(self, url: str, content: bytes, headers: Dict[str, str]) -> bool:
         """Store content in cache."""
@@ -240,24 +273,53 @@ class BrowserCacheService:
                 
                 # Not in cache, fetch and store
                 try:
-                    response = await route.fetch()
-                    
-                    if response.status == 200:
-                        content = await response.body()
-                        headers = response.headers
-                        
-                        # Store in cache asynchronously
-                        asyncio.create_task(self._store_in_cache(url, content, headers))
-                        
-                        # Fulfill the request
-                        await route.fulfill(
-                            status=response.status,
-                            headers=headers,
-                            body=content
-                        )
+                    # Reverse transform URL to original domain for fetching
+                    fetch_url = self._reverse_transform_url(url)
+
+                    if fetch_url != url:
+                        # Create a new request with the original URL
+                        async with httpx.AsyncClient() as client:
+                            response = await client.get(fetch_url, timeout=30.0)
+
+                            if response.status_code == 200:
+                                content = response.content
+                                headers = dict(response.headers)
+
+                                # Store in cache asynchronously (using original transformed URL as key)
+                                asyncio.create_task(self._store_in_cache(url, content, headers))
+
+                                # Fulfill the request
+                                await route.fulfill(
+                                    status=response.status_code,
+                                    headers=headers,
+                                    body=content
+                                )
+                            else:
+                                await route.fulfill(
+                                    status=response.status_code,
+                                    headers=dict(response.headers),
+                                    body=response.content
+                                )
                     else:
-                        await route.fulfill(response=response)
-                        
+                        # Use normal route.fetch() for non-transformed URLs
+                        response = await route.fetch()
+
+                        if response.status == 200:
+                            content = await response.body()
+                            headers = response.headers
+
+                            # Store in cache asynchronously
+                            asyncio.create_task(self._store_in_cache(url, content, headers))
+
+                            # Fulfill the request
+                            await route.fulfill(
+                                status=response.status,
+                                headers=headers,
+                                body=content
+                            )
+                        else:
+                            await route.fulfill(response=response)
+
                 except Exception as fetch_error:
                     logger.warning(f"Failed to fetch resource for caching: {url} - {str(fetch_error)}")
                     await route.continue_()

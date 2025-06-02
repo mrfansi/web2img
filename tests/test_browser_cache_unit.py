@@ -257,6 +257,31 @@ class TestBrowserCacheService:
         assert cache_path.endswith(".cache")
         assert cache_key in cache_path
 
+    def test_url_reverse_transformation(self):
+        """Test URL reverse transformation for transformed domains."""
+        # Test viding.co transformation
+        transformed_url = 'https://viding-co_website-revamp/mini-invitation/materials/image.png'
+        expected_original = 'https://viding.co/mini-invitation/materials/image.png'
+        result = self.cache_service._reverse_transform_url(transformed_url)
+        assert result == expected_original
+
+        # Test viding.org transformation
+        transformed_url2 = 'http://viding-org_website-revamp/some/path/style.css'
+        expected_original2 = 'https://viding.org/some/path/style.css'
+        result2 = self.cache_service._reverse_transform_url(transformed_url2)
+        assert result2 == expected_original2
+
+        # Test non-transformed URL (should remain unchanged)
+        normal_url = 'https://example.com/image.png'
+        result3 = self.cache_service._reverse_transform_url(normal_url)
+        assert result3 == normal_url
+
+        # Test URL with query parameters and fragments
+        complex_url = 'https://viding-co_website-revamp/api/data?param=value&test=1#section'
+        expected_complex = 'https://viding.co/api/data?param=value&test=1#section'
+        result4 = self.cache_service._reverse_transform_url(complex_url)
+        assert result4 == expected_complex
+
 
 def test_browser_cache_integration():
     """Integration test to ensure the cache service works as expected."""
