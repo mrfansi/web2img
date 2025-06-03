@@ -260,6 +260,17 @@ class Settings(BaseModel):
         default_factory=lambda: os.getenv("LOG_RESPONSE_BODY", "False").lower() in ("true", "1", "t")
     )
 
+    # Real IP Configuration for Proxy/Load Balancer Support
+    trust_proxy_headers: bool = Field(
+        default_factory=lambda: os.getenv("TRUST_PROXY_HEADERS", "true").lower() in ("true", "1", "t")
+    )
+    trusted_proxy_ips: str = Field(
+        default_factory=lambda: os.getenv("TRUSTED_PROXY_IPS", "")  # Comma-separated list of trusted proxy IPs
+    )
+    log_proxy_headers: bool = Field(
+        default_factory=lambda: os.getenv("LOG_PROXY_HEADERS", "false").lower() in ("true", "1", "t")  # For debugging
+    )
+
     # Use model_config instead of class Config to fix Pydantic v2 deprecation warning
     model_config = ConfigDict()
 

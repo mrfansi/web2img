@@ -324,33 +324,41 @@ echo
     async def run_performance_test(self):
         """Run a basic performance test."""
         logger.info("Running performance test...")
-        
+
         try:
             # Test browser pool creation speed
             start_time = time.time()
-            
+
             # Import here to avoid circular imports
             from app.services.browser_pool import BrowserPool
-            
+
             # Create a small test pool
             test_pool = BrowserPool(min_size=2, max_size=4)
-            await test_pool.startup()
-            
+
+            # The BrowserPool initializes browsers on-demand, so we test browser acquisition directly
+            logger.info("Testing browser acquisition...")
+
             # Test browser acquisition
             browser, index = await test_pool.get_browser()
-            if browser:
+            if browser and index is not None:
+                logger.info(f"Successfully acquired browser {index}")
+
+                # Test browser release
                 await test_pool.release_browser(index)
+                logger.info(f"Successfully released browser {index}")
                 logger.info("Browser pool test: PASSED")
             else:
-                logger.warning("Browser pool test: FAILED")
-            
+                logger.warning("Browser pool test: FAILED - Could not acquire browser")
+
+            # Clean up the test pool
             await test_pool.shutdown()
-            
+
             elapsed = time.time() - start_time
             logger.info(f"Performance test completed in {elapsed:.2f}s")
-            
+
         except Exception as e:
             logger.error(f"Performance test failed: {e}")
+            logger.info("This is expected if browser dependencies are not installed or configured")
 
 
 async def main():

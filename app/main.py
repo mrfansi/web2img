@@ -9,7 +9,7 @@ from fastapi.responses import HTMLResponse
 import pathlib
 
 from app.core.logging import logger
-from app.core.middleware import RequestLoggingMiddleware
+from app.core.middleware import RequestLoggingMiddleware, get_real_client_ip
 
 from app.api.screenshot import router as screenshot_router
 from app.api.health import router as health_router
@@ -167,13 +167,17 @@ def create_app() -> FastAPI:
     async def web2img_error_handler(request: Request, exc: WebToImgError):
         # Get request ID if available
         request_id = getattr(request.state, 'request_id', 'unknown')
-        
+
+        # Get the real client IP
+        real_client_ip = get_real_client_ip(request)
+
         # Add request context to error
         exc.context.update({
             "request_id": request_id,
             "method": request.method,
             "url": str(request.url),
-            "client": request.client.host if request.client else None
+            "client": real_client_ip,
+            "client_direct": request.client.host if request.client else None
         })
         
         # Log the exception with structured data
@@ -205,13 +209,17 @@ def create_app() -> FastAPI:
     async def generic_exception_handler(request: Request, exc: Exception):
         # Get request ID if available
         request_id = getattr(request.state, 'request_id', 'unknown')
-        
+
+        # Get the real client IP
+        real_client_ip = get_real_client_ip(request)
+
         # Log the exception with structured data
         error_details = {
             "request_id": request_id,
             "method": request.method,
             "url": str(request.url),
-            "client": request.client.host if request.client else None,
+            "client": real_client_ip,
+            "client_direct": request.client.host if request.client else None,
             "error_type": type(exc).__name__,
             "error_details": str(exc)
         }
