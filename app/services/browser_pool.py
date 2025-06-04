@@ -130,8 +130,8 @@ class BrowserPool:
             total_attempted = browsers_to_create
             success_rate = success_count / total_attempted if total_attempted > 0 else 1.0
             
-            # Log initialization results
-            self.logger.info("Browser pool initialization completed", {
+            # Log initialization results (enhanced when LOG_BROWSER_POOL_STATS is enabled)
+            log_data = {
                 "duration": round(duration, 2),
                 "success_count": success_count,
                 "failure_count": failure_count,
@@ -139,7 +139,18 @@ class BrowserPool:
                 "success_rate": round(success_rate * 100, 1),
                 "current_size": len(self._browsers),
                 "available": len(self._available_browsers)
-            })
+            }
+
+            if settings.log_browser_pool_stats:
+                log_data.update({
+                    "min_size": self._min_size,
+                    "max_size": self._max_size,
+                    "idle_timeout": self._idle_timeout,
+                    "max_age": self._max_age,
+                    "stats": self._stats
+                })
+
+            self.logger.info("Browser pool initialization completed", log_data)
             
             # If we couldn't create enough browsers, log a warning
             if len(self._browsers) < self._min_size:
@@ -242,12 +253,24 @@ class BrowserPool:
                 self._stats["current_usage"] = len(self._browsers) - len(self._available_browsers)
                 self._stats["peak_usage"] = max(self._stats["peak_usage"], self._stats["current_usage"])
                 
-                # Log browser reuse at debug level
-                self.logger.debug(f"Reusing browser {browser_index}", {
+                # Log browser reuse (enhanced when LOG_BROWSER_POOL_STATS is enabled)
+                log_data = {
                     "browser_index": browser_index,
                     "usage_count": browser_data["usage_count"],
                     "age": round(time.time() - browser_data["created_at"], 1)
-                })
+                }
+
+                if settings.log_browser_pool_stats:
+                    log_data.update({
+                        "pool_size": len(self._browsers),
+                        "available": len(self._available_browsers),
+                        "in_use": len(self._browsers) - len(self._available_browsers),
+                        "current_usage": self._stats["current_usage"],
+                        "peak_usage": self._stats["peak_usage"]
+                    })
+                    self.logger.info(f"Reusing browser {browser_index}", log_data)
+                else:
+                    self.logger.debug(f"Reusing browser {browser_index}", log_data)
                 
                 return browser_data["browser"], browser_index
             
@@ -291,13 +314,24 @@ class BrowserPool:
             in_use_count = pool_size - available_count
             utilization_pct = round((in_use_count / pool_size) * 100, 1) if pool_size > 0 else 0
             
-            self.logger.warning(f"Browser pool at capacity ({pool_size}/{self._max_size}), waiting for an available browser", {
+            # Enhanced capacity warning when LOG_BROWSER_POOL_STATS is enabled
+            log_data = {
                 "pool_size": pool_size,
                 "max_size": self._max_size,
                 "available": available_count,
                 "in_use": in_use_count,
                 "utilization_pct": utilization_pct
-            })
+            }
+
+            if settings.log_browser_pool_stats:
+                log_data.update({
+                    "stats": self._stats,
+                    "min_size": self._min_size,
+                    "idle_timeout": self._idle_timeout,
+                    "max_age": self._max_age
+                })
+
+            self.logger.warning(f"Browser pool at capacity ({pool_size}/{self._max_size}), waiting for an available browser", log_data)
         
             # Use optimized adaptive exponential backoff for high concurrency scenarios
             # Increase max attempts and reduce wait time for better throughput
@@ -589,15 +623,20 @@ class BrowserPool:
             in_use_count = pool_size - available_count
             usage_ratio = in_use_count / max(pool_size, 1)  # Avoid division by zero
             
-            # Log current pool status with more detailed metrics
-            logger.debug(f"Browser pool status: {pool_size} browsers, {available_count} available, {usage_ratio:.2f} usage ratio", {
-                "pool_size": pool_size,
-                "available": available_count,
-                "in_use": in_use_count,
-                "usage_ratio": usage_ratio,
-                "min_size": self._min_size,
-                "max_size": self._max_size
-            })
+            # Log current pool status with more detailed metrics (controlled by LOG_BROWSER_POOL_STATS)
+            from app.core.config import settings
+            if settings.log_browser_pool_stats:
+                logger.info(f"Browser pool status: {pool_size} browsers, {available_count} available, {usage_ratio:.2f} usage ratio", {
+                    "pool_size": pool_size,
+                    "available": available_count,
+                    "in_use": in_use_count,
+                    "usage_ratio": usage_ratio,
+                    "min_size": self._min_size,
+                    "max_size": self._max_size,
+                    "stats": self._stats
+                })
+            else:
+                logger.debug(f"Browser pool status: {pool_size} browsers, {available_count} available, {usage_ratio:.2f} usage ratio")
             
             # Determine if we're under high load (more than 80% of browsers in use)
             high_load = usage_ratio > 0.8

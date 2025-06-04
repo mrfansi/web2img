@@ -257,19 +257,32 @@ async def main():
     parser.add_argument("--requests", type=int, default=1000, help="Total number of requests")
     parser.add_argument("--ramp-up", action="store_true", help="Gradually ramp up to target concurrency")
     parser.add_argument("--batch-test", action="store_true", help="Test batch processing")
-    
+    parser.add_argument("--production", action="store_true", help="Use production URL and test scenarios")
+
     args = parser.parse_args()
-    
+
     tester = LoadTester(args.url)
-    
+
     # Test URLs - mix of simple and complex sites
-    test_urls = [
-        "https://example.com",
-        "https://httpbin.org/html",
-        "https://google.com",
-        "https://github.com",
-        "https://stackoverflow.com"
-    ]
+    if args.production:
+        # Production test URLs including URL transformation scenarios
+        test_urls = [
+            "https://viding.co",  # Will be transformed to http://viding-co_website-revamp
+            "https://viding.org", # Will be transformed to http://viding-org_website-revamp
+            "https://viding.co/about",
+            "https://viding.org/contact",
+            "https://example.com",
+            "https://httpbin.org/html",
+            "https://google.com"
+        ]
+    else:
+        test_urls = [
+            "https://example.com",
+            "https://httpbin.org/html",
+            "https://google.com",
+            "https://github.com",
+            "https://stackoverflow.com"
+        ]
     
     if args.batch_test:
         print("🔄 Running batch processing test...")

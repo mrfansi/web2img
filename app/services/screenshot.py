@@ -44,6 +44,14 @@ class ScreenshotService:
         self._cleanup_task = None
         self._cleanup_interval = settings.screenshot_cleanup_interval or 300  # 5 minutes default
 
+        # Concurrency control semaphores for emergency configuration
+        self._screenshot_semaphore = asyncio.Semaphore(settings.max_concurrent_screenshots)
+        self._context_semaphore = asyncio.Semaphore(settings.max_concurrent_contexts)
+
+        # Emergency context creation tracking
+        self._emergency_context_count = 0
+        self._last_browser_restart = time.time()
+
         # Create retry configurations
         self._retry_config_regular = RetryConfig(
             max_retries=settings.max_retries_regular,
@@ -198,38 +206,49 @@ class ScreenshotService:
             It's recommended to use the managed_context() context manager instead
             of calling _get_context() and _return_context() directly.
         """
-        # Get a browser from the pool
-        browser, browser_index = await self._browser_pool.get_browser()
-        if browser is None or browser_index is None:
-            self.logger.error("Failed to get browser from pool")
-            return None, None
-
-        # Create a new context with the specified viewport size
-        try:
-            context = await self._browser_pool.create_context(
-                browser_index,
-                viewport={"width": width, "height": height},
-                user_agent=settings.get_user_agent(),
-                ignore_https_errors=True
-            )
-
-            if context is None:
-                self.logger.error(f"Failed to create context for browser {browser_index}")
-                await self._browser_pool.release_browser(browser_index, is_healthy=False)
+        # Apply context concurrency control
+        async with self._context_semaphore:
+            # Get a browser from the pool
+            browser, browser_index = await self._browser_pool.get_browser()
+            if browser is None or browser_index is None:
+                self.logger.error("Failed to get browser from pool")
                 return None, None
 
-            # Track the context for automatic cleanup
-            await self._track_resource("context", (browser_index, context))
+            # Create a new context with the specified viewport size
+            try:
+                context = await self._browser_pool.create_context(
+                    browser_index,
+                    viewport={"width": width, "height": height},
+                    user_agent=settings.get_user_agent(),
+                    ignore_https_errors=True
+                )
 
-            return context, browser_index
-        except Exception as e:
-            self.logger.error(f"Error creating context: {str(e)}", {
-                "error": str(e),
-                "error_type": type(e).__name__,
-                "browser_index": browser_index
-            })
-            await self._browser_pool.release_browser(browser_index, is_healthy=False)
-            return None, None
+                if context is None:
+                    self.logger.error(f"Failed to create context for browser {browser_index}")
+                    await self._browser_pool.release_browser(browser_index, is_healthy=False)
+                    return None, None
+
+                # Track the context for automatic cleanup
+                await self._track_resource("context", (browser_index, context))
+
+                # Log context creation with concurrency info if performance logging is enabled
+                if settings.enable_performance_logging:
+                    concurrent_contexts = settings.max_concurrent_contexts - self._context_semaphore._value
+                    self.logger.debug(f"Created browser context {browser_index}", {
+                        "browser_index": browser_index,
+                        "concurrent_contexts": concurrent_contexts,
+                        "max_concurrent_contexts": settings.max_concurrent_contexts
+                    })
+
+                return context, browser_index
+            except Exception as e:
+                self.logger.error(f"Error creating context: {str(e)}", {
+                    "error": str(e),
+                    "error_type": type(e).__name__,
+                    "browser_index": browser_index
+                })
+                await self._browser_pool.release_browser(browser_index, is_healthy=False)
+                return None, None
 
     async def _return_context(self, context: BrowserContext, browser_index: int, is_healthy: bool = True) -> None:
         """Return a browser context to the pool and untrack it."""
@@ -376,81 +395,98 @@ class ScreenshotService:
         Returns:
             Path to the saved screenshot file
         """
-        from app.services.pool_watchdog import pool_watchdog
-        if pool_watchdog:
-            pool_watchdog.record_request()
+        # Apply concurrency control using semaphore
+        async with self._screenshot_semaphore:
+            from app.services.pool_watchdog import pool_watchdog
+            if pool_watchdog:
+                pool_watchdog.record_request()
 
-        # Generate a unique filename
-        filename = f"{uuid.uuid4()}.{format}"
+            # Generate a unique filename
+            filename = f"{uuid.uuid4()}.{format}"
 
-        # Always use temporary directory for initial screenshot capture
-        # The storage service will handle moving to final location
-        os.makedirs(settings.screenshot_dir, exist_ok=True)
-        filepath = os.path.join(settings.screenshot_dir, filename)
+            # Always use temporary directory for initial screenshot capture
+            # The storage service will handle moving to final location
+            os.makedirs(settings.screenshot_dir, exist_ok=True)
+            filepath = os.path.join(settings.screenshot_dir, filename)
 
-        # Create context for logging
-        context = {
-            "url": url,
-            "width": width,
-            "height": height,
-            "format": format,
-            "filepath": filepath,
-            "request_id": str(uuid.uuid4())  # Generate a unique ID for this request
-        }
-
-        # Start timer for performance tracking
-        start_time = time.time()
-
-        # Log browser pool stats before starting
-        pool_stats = self._browser_pool.get_stats()
-        self.logger.info(f"Starting screenshot capture for {url}", {
-            **context,
-            "browser_pool": {
-                "size": pool_stats["size"],
-                "available": pool_stats["available"],
-                "in_use": pool_stats["in_use"]
-            }
-        })
-
-        # Periodically clean up old temporary files
-        current_time = time.time()
-        if current_time - self._last_cleanup > 3600:  # 1 hour
-            await self._cleanup_temp_files()
-            self._last_cleanup = current_time
-
-        try:
-            # Execute screenshot capture directly
-            return await self._capture_screenshot_impl(
-                url=url,
-                width=width,
-                height=height,
-                format=format,
-                filepath=filepath,
-                start_time=start_time
-            )
-        except Exception as e:
-            # Clean up any partially created file
-            if os.path.exists(filepath):
-                os.unlink(filepath)
-
-            # Log error with structured data
-            duration = time.time() - start_time
-            error_context = {
+            # Create context for logging
+            context = {
                 "url": url,
                 "width": width,
                 "height": height,
                 "format": format,
                 "filepath": filepath,
-                "duration": duration,
-                "error": str(e),
-                "error_type": type(e).__name__
+                "request_id": str(uuid.uuid4())  # Generate a unique ID for this request
             }
 
-            self.logger.error(f"Failed to capture screenshot for {url}", error_context)
+            # Start timer for performance tracking
+            start_time = time.time()
 
-            # Use our custom error class for better error messages
-            from app.core.errors import ScreenshotError
-            raise ScreenshotError(url=url, context=error_context, original_exception=e)
+            # Log browser pool stats before starting
+            pool_stats = self._browser_pool.get_stats()
+            concurrent_count = settings.max_concurrent_screenshots - self._screenshot_semaphore._value
+
+            # Enhanced logging for emergency configuration monitoring
+            log_data = {
+                **context,
+                "browser_pool": {
+                    "size": pool_stats["size"],
+                    "available": pool_stats["available"],
+                    "in_use": pool_stats["in_use"]
+                },
+                "concurrent_screenshots": concurrent_count,
+                "max_concurrent": settings.max_concurrent_screenshots
+            }
+
+            # Add emergency context statistics if performance logging is enabled
+            if settings.enable_performance_logging:
+                log_data.update({
+                    "emergency_context_count": self._emergency_context_count,
+                    "emergency_context_enabled": settings.enable_emergency_context,
+                    "force_emergency_on_timeout": settings.force_emergency_on_timeout
+                })
+
+            self.logger.info(f"Starting screenshot capture for {url}", log_data)
+
+            # Periodically clean up old temporary files
+            current_time = time.time()
+            if current_time - self._last_cleanup > 3600:  # 1 hour
+                await self._cleanup_temp_files()
+                self._last_cleanup = current_time
+
+            try:
+                # Execute screenshot capture directly
+                return await self._capture_screenshot_impl(
+                    url=url,
+                    width=width,
+                    height=height,
+                    format=format,
+                    filepath=filepath,
+                    start_time=start_time
+                )
+            except Exception as e:
+                # Clean up any partially created file
+                if os.path.exists(filepath):
+                    os.unlink(filepath)
+
+                # Log error with structured data
+                duration = time.time() - start_time
+                error_context = {
+                    "url": url,
+                    "width": width,
+                    "height": height,
+                    "format": format,
+                    "filepath": filepath,
+                    "duration": duration,
+                    "error": str(e),
+                    "error_type": type(e).__name__
+                }
+
+                self.logger.error(f"Failed to capture screenshot for {url}", error_context)
+
+                # Use our custom error class for better error messages
+                from app.core.errors import ScreenshotError
+                raise ScreenshotError(url=url, context=error_context, original_exception=e)
 
     async def _create_retry_manager(self, is_complex: bool, name: str) -> RetryManager:
         """Create a retry manager based on site complexity and operation type.
@@ -866,36 +902,45 @@ class ScreenshotService:
             "browser_pool_errors": pool_stats.get("errors", 0)
         })
 
-        # Try one last emergency strategy with minimal requirements
-        try:
-            self.logger.warning(f"Attempting emergency context creation for {url}")
+        # Try emergency context creation if enabled
+        if settings.enable_emergency_context:
+            try:
+                self.logger.warning(f"Attempting emergency context creation for {url}")
+                self._emergency_context_count += 1
 
-            # Get a browser directly without timeout strategies
-            browser, browser_index = await self._browser_pool.get_browser()
-            if browser and browser_index is not None:
-                # Try to create context with very basic settings
-                context = await asyncio.wait_for(
-                    browser.new_context(
-                        viewport={"width": width, "height": height},
-                        ignore_https_errors=True
-                    ),
-                    timeout=5.0  # Very short timeout
-                )
+                # Use emergency timeout from configuration
+                emergency_timeout = settings.emergency_context_timeout / 1000.0  # Convert to seconds
 
-                if context:
-                    # Try to create page with minimal timeout
-                    page = await asyncio.wait_for(
-                        context.new_page(),
-                        timeout=3.0
+                # Get a browser directly without timeout strategies
+                browser, browser_index = await self._browser_pool.get_browser()
+                if browser and browser_index is not None:
+                    # Try to create context with very basic settings
+                    context = await asyncio.wait_for(
+                        browser.new_context(
+                            viewport={"width": width, "height": height},
+                            ignore_https_errors=True
+                        ),
+                        timeout=emergency_timeout
                     )
 
-                    if page:
-                        self.logger.info(f"Emergency context creation succeeded for {url}")
-                        await self._track_resource("page", page)
-                        return context, browser_index, page
+                    if context:
+                        # Try to create page with minimal timeout
+                        page = await asyncio.wait_for(
+                            context.new_page(),
+                            timeout=emergency_timeout
+                        )
 
-        except Exception as emergency_error:
-            self.logger.error(f"Emergency context creation also failed for {url}: {str(emergency_error)}")
+                        if page:
+                            self.logger.info(f"Emergency context creation succeeded for {url}", {
+                                "browser_index": browser_index,
+                                "emergency_count": self._emergency_context_count,
+                                "emergency_timeout": emergency_timeout
+                            })
+                            await self._track_resource("page", page)
+                            return context, browser_index, page
+
+            except Exception as emergency_error:
+                self.logger.error(f"Emergency context creation also failed for {url}: {str(emergency_error)}")
 
         # Re-raise as a custom error for better retry handling
         from app.core.errors import BrowserTimeoutError

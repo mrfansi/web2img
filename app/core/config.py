@@ -219,6 +219,41 @@ class Settings(BaseModel):
     disable_images: bool = Field(
         default_factory=lambda: os.getenv("DISABLE_IMAGES", "False").lower() in ("true", "1", "t")  # Keep images for accurate screenshots
     )
+
+    # Concurrency Control Configuration - Emergency settings for production issues
+    max_concurrent_screenshots: int = Field(
+        default_factory=lambda: int(os.getenv("MAX_CONCURRENT_SCREENSHOTS", "8"))  # Limit concurrent screenshot operations
+    )
+    max_concurrent_contexts: int = Field(
+        default_factory=lambda: int(os.getenv("MAX_CONCURRENT_CONTEXTS", "16"))  # Limit concurrent browser contexts
+    )
+
+    # Emergency Context Creation Configuration
+    enable_emergency_context: bool = Field(
+        default_factory=lambda: os.getenv("ENABLE_EMERGENCY_CONTEXT", "true").lower() in ("true", "1", "t")
+    )
+    force_emergency_on_timeout: bool = Field(
+        default_factory=lambda: os.getenv("FORCE_EMERGENCY_ON_TIMEOUT", "false").lower() in ("true", "1", "t")
+    )
+    emergency_context_timeout: int = Field(
+        default_factory=lambda: int(os.getenv("EMERGENCY_CONTEXT_TIMEOUT", "10000"))  # 10 seconds for emergency context
+    )
+
+    # Resource Management Configuration
+    force_browser_restart_interval: int = Field(
+        default_factory=lambda: int(os.getenv("FORCE_BROWSER_RESTART_INTERVAL", "0"))  # 0 = disabled
+    )
+    memory_cleanup_threshold: int = Field(
+        default_factory=lambda: int(os.getenv("MEMORY_CLEANUP_THRESHOLD", "85"))  # Percentage
+    )
+
+    # Performance Logging Configuration
+    enable_performance_logging: bool = Field(
+        default_factory=lambda: os.getenv("ENABLE_PERFORMANCE_LOGGING", "false").lower() in ("true", "1", "t")
+    )
+    log_browser_pool_stats: bool = Field(
+        default_factory=lambda: os.getenv("LOG_BROWSER_POOL_STATS", "false").lower() in ("true", "1", "t")
+    )
     disable_javascript: bool = Field(
         default_factory=lambda: os.getenv("DISABLE_JAVASCRIPT", "False").lower() in ("true", "1", "t")  # Keep JS for dynamic content
     )
