@@ -7,12 +7,14 @@ This document describes the implementation of a multi-tab browser optimization s
 ## Problem Statement
 
 ### Before Optimization
+
 - **1 browser = 1 screenshot** at a time
 - Browser pool of 64 browsers for 2000+ concurrent requests
 - High resource usage and potential browser pool exhaustion
 - Each screenshot required a dedicated browser context and page
 
 ### After Optimization
+
 - **1 browser = up to 20 tabs** for concurrent screenshots
 - Browser pool of 32 browsers can now handle 640 concurrent requests
 - Significantly reduced resource usage
@@ -23,17 +25,20 @@ This document describes the implementation of a multi-tab browser optimization s
 ### New Components
 
 #### 1. Tab Pool Manager (`app/services/tab_pool.py`)
+
 - Manages up to 20 tabs per browser instance
 - Handles tab allocation, reuse, and cleanup
 - Tracks tab usage statistics and health
 - Automatic cleanup of idle and old tabs
 
 #### 2. Enhanced Browser Pool (`app/services/browser_pool.py`)
+
 - Integrated with tab pool for coordinated cleanup
 - Maintains browser-to-tab relationships
 - Improved resource management
 
 #### 3. Updated Screenshot Service (`app/services/screenshot.py`)
+
 - New `managed_tab()` context manager
 - Tab-based screenshot capture implementation
 - Automatic tab return and cleanup
@@ -41,6 +46,7 @@ This document describes the implementation of a multi-tab browser optimization s
 ### Configuration Changes
 
 #### New Settings (`app/core/config.py`)
+
 ```env
 # Tab Pool Configuration
 MAX_TABS_PER_BROWSER=20          # Maximum tabs per browser instance
@@ -57,21 +63,25 @@ BROWSER_POOL_MAX_SIZE=32         # Reduced from 64
 ## Benefits
 
 ### 1. Resource Efficiency
+
 - **50% reduction** in browser pool size needed
 - **20x improvement** in concurrent request handling per browser
 - Reduced memory and CPU usage per screenshot
 
 ### 2. Performance Improvements
+
 - Faster screenshot capture (tab reuse eliminates context creation overhead)
 - Better resource utilization under high load
 - Reduced browser startup/shutdown overhead
 
 ### 3. Scalability
+
 - Support for 2000+ concurrent requests with fewer resources
 - Better handling of traffic spikes
 - Improved system stability under load
 
 ### 4. Cost Optimization
+
 - Lower server resource requirements
 - Reduced infrastructure costs
 - Better ROI on hardware investments
@@ -104,6 +114,7 @@ BROWSER_POOL_MAX_SIZE=32         # Reduced from 64
 ### Monitoring and Statistics
 
 The tab pool provides comprehensive statistics:
+
 - Total tabs created/reused/cleaned
 - Available vs busy tab counts
 - Browser utilization metrics
@@ -112,6 +123,7 @@ The tab pool provides comprehensive statistics:
 ## Usage Examples
 
 ### Basic Screenshot Capture
+
 ```python
 # New tab-based approach
 async with screenshot_service.managed_tab(width=1280, height=720) as (page, browser_index, tab_info):
@@ -121,6 +133,7 @@ async with screenshot_service.managed_tab(width=1280, height=720) as (page, brow
 ```
 
 ### Monitoring Tab Pool Health
+
 ```python
 from app.services.tab_pool import tab_pool
 
@@ -133,12 +146,14 @@ print(f"Reuse rate: {stats['tabs_reused'] / stats['tabs_created']:.2%}")
 ## Testing
 
 ### Running Tests
+
 ```bash
 # Test the tab pool functionality
 python test_tab_pool.py
 ```
 
 ### Expected Results
+
 - Basic functionality tests pass
 - Concurrent usage tests pass
 - Tab reuse working correctly
@@ -149,6 +164,7 @@ python test_tab_pool.py
 ### For Existing Deployments
 
 1. **Update Configuration**
+
    ```bash
    # Add new tab pool settings to your .env file
    MAX_TABS_PER_BROWSER=20
@@ -174,6 +190,7 @@ python test_tab_pool.py
 ### Rollback Plan
 
 If issues occur, you can disable tab reuse:
+
 ```env
 ENABLE_TAB_REUSE=false
 MAX_TABS_PER_BROWSER=1
@@ -184,15 +201,18 @@ This will revert to the previous one-tab-per-browser behavior.
 ## Performance Expectations
 
 ### Capacity Improvements
+
 - **Before**: 64 browsers = 64 concurrent screenshots
 - **After**: 32 browsers = 640 concurrent screenshots (10x improvement)
 
 ### Resource Usage
+
 - **Memory**: 30-40% reduction in browser memory usage
 - **CPU**: 20-30% reduction in browser process overhead
 - **Response Time**: 10-20% improvement due to tab reuse
 
 ### Scalability Targets
+
 - Support for 2000+ concurrent requests
 - 95%+ success rate under normal load
 - <30s response time for successful requests
@@ -229,12 +249,14 @@ curl http://localhost:8000/stats | jq '.browser_pool'
 ## Future Enhancements
 
 ### Planned Improvements
+
 1. **Dynamic Tab Scaling** - Adjust tab count based on load
 2. **Tab Affinity** - Route similar requests to the same tabs
 3. **Advanced Cleanup** - ML-based tab lifecycle management
 4. **Cross-Browser Load Balancing** - Distribute tabs across browsers optimally
 
 ### Performance Optimizations
+
 1. **Tab Prewarming** - Keep tabs ready for common use cases
 2. **Smart Reuse** - Prioritize tabs with similar configurations
 3. **Batch Operations** - Group similar requests for efficiency

@@ -242,8 +242,14 @@ class ScreenshotService:
         await self._browser_pool.initialize()
 
         # Initialize the tab pool
-        from app.services.tab_pool import tab_pool
-        await tab_pool.initialize()
+        try:
+            from app.services.tab_pool import tab_pool
+            await tab_pool.initialize()
+            self.logger.info("Tab pool initialized successfully")
+        except Exception as e:
+            self.logger.warning(f"Failed to initialize tab pool: {str(e)}. Tab-based optimization will be disabled.")
+            # Set tab reuse to false if initialization fails
+            settings.enable_tab_reuse = False
 
         # Start the scheduled cleanup task
         self._start_cleanup_task()
@@ -260,7 +266,16 @@ class ScreenshotService:
         Returns:
             Tuple of (page, browser_index, tab_info) or (None, None, None) if failed
         """
-        from app.services.tab_pool import tab_pool
+        # Check if tab reuse is enabled
+        if not settings.enable_tab_reuse:
+            self.logger.debug("Tab reuse is disabled, cannot get tab from pool")
+            return None, None, None
+
+        try:
+            from app.services.tab_pool import tab_pool
+        except ImportError as e:
+            self.logger.error(f"Failed to import tab pool: {str(e)}")
+            return None, None, None
 
         # Apply context concurrency control
         async with self._context_semaphore:
@@ -1108,7 +1123,7 @@ class ScreenshotService:
         raise BrowserTimeoutError(f"Failed to create browser context after trying all strategies including emergency fallback: {str(last_error)}")
 
     async def _capture_screenshot_impl(self, url: str, width: int, height: int, format: str, filepath: str, start_time: float) -> str:
-        """Implementation of screenshot capture using tab pool.
+        """Implementation of screenshot capture with tab pool fallback.
 
         Args:
             url: The URL to capture
@@ -1121,14 +1136,31 @@ class ScreenshotService:
         Returns:
             Path to the saved screenshot file
         """
-        # Use the new tab-based approach for better resource utilization
+        # Try tab-based approach first, fallback to context-based if needed
+        try:
+            return await self._capture_screenshot_with_tab_pool(url, width, height, format, filepath, start_time)
+        except Exception as tab_error:
+            self.logger.warning(f"Tab-based capture failed for {url}, falling back to context-based approach: {str(tab_error)}")
+            return await self._capture_screenshot_with_context_fallback(url, width, height, format, filepath, start_time)
+
+    async def _capture_screenshot_with_tab_pool(self, url: str, width: int, height: int, format: str, filepath: str, start_time: float) -> str:
+        """Screenshot capture using tab pool."""
+        # Check if tab pool is available and enabled
+        try:
+            from app.services.tab_pool import tab_pool
+            if not settings.enable_tab_reuse:
+                raise RuntimeError("Tab reuse is disabled")
+        except Exception as e:
+            self.logger.debug(f"Tab pool not available: {str(e)}")
+            raise RuntimeError("Tab pool not available")
+
+        # Use the tab-based approach for better resource utilization
         async with self.managed_tab(width=width, height=height) as (page, browser_index, tab_info):
             try:
                 # Get navigation strategy
                 wait_until, page_timeout = await self._get_navigation_strategy()
 
                 # Log tab usage info
-                from app.services.tab_pool import tab_pool
                 tab_stats = tab_pool.get_stats()
                 self.logger.debug(f"Using tab from browser {browser_index}", {
                     "browser_index": browser_index,
@@ -1178,7 +1210,7 @@ class ScreenshotService:
 
                 # Log successful screenshot capture
                 capture_time = time.time() - start_time
-                self.logger.info(f"Screenshot captured for {url}", {
+                self.logger.info(f"Screenshot captured with tab pool for {url}", {
                     "url": url,
                     "filepath": filepath,
                     "capture_time": capture_time,
@@ -1186,7 +1218,8 @@ class ScreenshotService:
                     "height": height,
                     "format": format,
                     "browser_index": browser_index,
-                    "tab_usage_count": tab_info.usage_count
+                    "tab_usage_count": tab_info.usage_count,
+                    "method": "tab_pool"
                 })
 
                 return filepath
@@ -1204,6 +1237,82 @@ class ScreenshotService:
                 })
 
                 # Mark tab as unhealthy by raising exception (managed_tab will handle cleanup)
+                raise
+
+    async def _capture_screenshot_with_context_fallback(self, url: str, width: int, height: int, format: str, filepath: str, start_time: float) -> str:
+        """Fallback screenshot capture using traditional context-based approach."""
+        self.logger.info(f"Using context-based fallback for {url}")
+
+        # Use the traditional context-based approach as fallback
+        async with self.managed_context(width=width, height=height) as (context, browser_index, page):
+            try:
+                # Get navigation strategy
+                wait_until, page_timeout = await self._get_navigation_strategy()
+
+                # Configure page and navigate to URL
+                await self._configure_page_for_site(page)
+
+                # Create a retry manager for navigation with reduced retries
+                navigation_retry_manager = await self._create_retry_manager(False, "navigation")
+                navigation_retry_manager.circuit_breaker = self._navigation_circuit_breaker
+                # Override retry config for faster failure detection
+                navigation_retry_manager.retry_config.max_retries = 1  # Only 1 retry for navigation
+
+                # Use more aggressive timeout strategy for faster failure detection
+                pool_stats = self._browser_pool.get_stats()
+                pool_load = pool_stats["in_use"] / max(pool_stats["size"], 1)  # Avoid division by zero
+
+                # Reduce timeout significantly for faster failure detection
+                adaptive_timeout = int(page_timeout * 0.6)  # Always use 60% of original timeout
+
+                # Further reduce timeout under high load
+                if pool_load > 0.7:  # High load (>70% of pool in use)
+                    # Additional reduction up to 50% based on load
+                    additional_reduction = min(0.5, (pool_load - 0.7) * 1.67)  # Scale between 0-50%
+                    adaptive_timeout = int(adaptive_timeout * (1 - additional_reduction))
+
+                self.logger.debug(
+                    f"Using adaptive timeout for {url} (fallback)",
+                    {"original_timeout": page_timeout, "adaptive_timeout": adaptive_timeout, "pool_load": pool_load}
+                )
+
+                # Navigate to URL with retry logic
+                await navigation_retry_manager.execute(
+                    lambda: self._navigate_to_url(page, url, wait_until, adaptive_timeout),
+                    operation_name="navigate_to_url"
+                )
+
+                # Capture the screenshot with retry logic
+                filepath = await self._capture_screenshot_with_retry(page, filepath, format)
+
+                # Log successful screenshot capture
+                capture_time = time.time() - start_time
+                self.logger.info(f"Screenshot captured with context fallback for {url}", {
+                    "url": url,
+                    "filepath": filepath,
+                    "capture_time": capture_time,
+                    "width": width,
+                    "height": height,
+                    "format": format,
+                    "browser_index": browser_index,
+                    "method": "context_fallback"
+                })
+
+                return filepath
+
+            except Exception as e:
+                # Log error
+                elapsed_time = time.time() - start_time
+                self.logger.error(f"Error in context-based screenshot capture for {url}: {str(e)}", {
+                    "url": url,
+                    "error": str(e),
+                    "error_type": type(e).__name__,
+                    "elapsed_time": elapsed_time,
+                    "browser_index": browser_index,
+                    "method": "context_fallback"
+                })
+
+                # Re-raise the exception
                 raise
 
     async def _cleanup_temp_files(self) -> int:
@@ -1416,6 +1525,9 @@ class ScreenshotService:
         try:
             from app.services.tab_pool import tab_pool
             await tab_pool.shutdown()
+            self.logger.info("Tab pool shutdown completed")
+        except ImportError:
+            self.logger.debug("Tab pool not available for shutdown")
         except Exception as e:
             self.logger.warning(f"Error shutting down tab pool: {str(e)}")
 
