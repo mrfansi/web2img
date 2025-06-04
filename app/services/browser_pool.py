@@ -464,7 +464,14 @@ class BrowserPool:
         """
         # Get the browser data
         browser_data = self._browsers[browser_index]
-        
+
+        # Clean up tabs associated with this browser
+        try:
+            from app.services.tab_pool import tab_pool
+            await tab_pool.cleanup_browser_tabs(browser_index)
+        except Exception as e:
+            self.logger.warning(f"Error cleaning up tabs for browser {browser_index}: {str(e)}")
+
         # Close all contexts
         for context in browser_data["contexts"]:
             try:

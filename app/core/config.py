@@ -93,10 +93,10 @@ class Settings(BaseModel):
 
     # Browser Pool Configuration - Optimized for high concurrency (2000+ requests)
     browser_pool_min_size: int = Field(
-        default_factory=lambda: int(os.getenv("BROWSER_POOL_MIN_SIZE", "16"))  # Increased for high concurrency
+        default_factory=lambda: int(os.getenv("BROWSER_POOL_MIN_SIZE", "8"))  # Reduced due to multi-tab support
     )
     browser_pool_max_size: int = Field(
-        default_factory=lambda: int(os.getenv("BROWSER_POOL_MAX_SIZE", "64"))  # Significantly increased for 2000+ concurrent
+        default_factory=lambda: int(os.getenv("BROWSER_POOL_MAX_SIZE", "32"))  # Reduced due to 20 tabs per browser
     )
     browser_pool_idle_timeout: int = Field(
         default_factory=lambda: int(os.getenv("BROWSER_POOL_IDLE_TIMEOUT", "180"))  # Reduced for faster recycling
@@ -106,6 +106,23 @@ class Settings(BaseModel):
     )
     browser_pool_cleanup_interval: int = Field(
         default_factory=lambda: int(os.getenv("BROWSER_POOL_CLEANUP_INTERVAL", "30"))  # More frequent cleanup
+    )
+
+    # Tab Pool Configuration - New multi-tab support
+    max_tabs_per_browser: int = Field(
+        default_factory=lambda: int(os.getenv("MAX_TABS_PER_BROWSER", "20"))  # Maximum tabs per browser instance
+    )
+    tab_idle_timeout: int = Field(
+        default_factory=lambda: int(os.getenv("TAB_IDLE_TIMEOUT", "60"))  # Time before idle tab is closed
+    )
+    tab_max_age: int = Field(
+        default_factory=lambda: int(os.getenv("TAB_MAX_AGE", "300"))  # Maximum age for a tab before forced recycling
+    )
+    tab_cleanup_interval: int = Field(
+        default_factory=lambda: int(os.getenv("TAB_CLEANUP_INTERVAL", "15"))  # Interval for tab cleanup
+    )
+    enable_tab_reuse: bool = Field(
+        default_factory=lambda: os.getenv("ENABLE_TAB_REUSE", "true").lower() in ("true", "1", "t")
     )
 
     # Screenshot Service Configuration
