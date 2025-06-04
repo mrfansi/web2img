@@ -55,15 +55,18 @@ log_browser_pool_stats: bool = Field(
 ### **3. Key Features Implemented:**
 
 ✅ **Concurrency Limiting**
+
 - `MAX_CONCURRENT_SCREENSHOTS=8` - Prevents screenshot operation overload
 - `MAX_CONCURRENT_CONTEXTS=16` - Prevents browser context creation overload
 
 ✅ **Emergency Context Creation**
+
 - `ENABLE_EMERGENCY_CONTEXT=true` - Enables emergency fallback
 - `EMERGENCY_CONTEXT_TIMEOUT=10000` - Configurable emergency timeout (10s)
 - Tracks emergency usage with detailed logging
 
 ✅ **Enhanced Monitoring**
+
 - `ENABLE_PERFORMANCE_LOGGING=true` - Detailed performance metrics
 - `LOG_BROWSER_POOL_STATS=true` - Browser pool utilization tracking
 - Concurrent operation counting and logging
@@ -71,6 +74,7 @@ log_browser_pool_stats: bool = Field(
 ## 📊 **Generated Configuration Files**
 
 ### **emergency.env** - Apply Immediately
+
 ```env
 # Concurrency Control - NEW IMPLEMENTATION
 MAX_CONCURRENT_SCREENSHOTS=8
@@ -91,6 +95,7 @@ LOG_BROWSER_POOL_STATS=true
 ```
 
 ### **optimized.env** - Apply After Emergency Works
+
 ```env
 # Concurrency Control - OPTIMIZED
 MAX_CONCURRENT_SCREENSHOTS=12
@@ -109,12 +114,14 @@ BROWSER_POOL_MIN_SIZE=8
 ## 🚀 **Immediate Next Steps**
 
 ### **1. Apply Emergency Configuration (NOW)**
+
 ```bash
 # Copy the emergency.env values to your production environment variables
 # Restart your web2img service
 ```
 
 ### **2. Verify Implementation**
+
 ```bash
 # Test the new concurrency controls
 ./run_production_stress_test.sh health
@@ -127,6 +134,7 @@ BROWSER_POOL_MIN_SIZE=8
 ```
 
 ### **3. Expected Improvements**
+
 - **Timeout Rate**: 100% → <20%
 - **Response Time**: 180s → <30s
 - **Concurrency Control**: Prevents resource exhaustion
@@ -136,11 +144,13 @@ BROWSER_POOL_MIN_SIZE=8
 ## 📈 **How It Solves Your Production Issues**
 
 ### **Before Implementation:**
+
 ❌ No concurrency limits → Resource exhaustion
 ❌ No emergency fallback → 100% timeout rate
 ❌ Limited monitoring → Hard to diagnose issues
 
 ### **After Implementation:**
+
 ✅ **Concurrency Control**: Prevents browser pool saturation
 ✅ **Emergency Context Creation**: Handles problematic URLs (mini-rsvp pages)
 ✅ **Enhanced Monitoring**: Track concurrent operations and emergency usage
@@ -151,12 +161,14 @@ BROWSER_POOL_MIN_SIZE=8
 Watch for these changes in your production logs:
 
 ### **Positive Indicators:**
+
 - `"concurrent_screenshots": N` - Shows concurrency control working
 - `"emergency_context_count": N` - Tracks emergency fallback usage
 - `"Emergency context creation succeeded"` - Emergency fallback working
 - Reduced `"Timeout with normal strategy"` messages
 
 ### **Performance Metrics:**
+
 - Browser pool utilization staying below 90%
 - Faster context creation times
 - Reduced emergency context usage over time
@@ -165,12 +177,14 @@ Watch for these changes in your production logs:
 ## 🎯 **Success Criteria**
 
 ### **Short-term (1-2 hours):**
+
 - [ ] Service responds to health checks
 - [ ] Control URLs (example.com) work with >80% success rate
 - [ ] Response times under 60 seconds
 - [ ] Emergency context creation working when needed
 
 ### **Medium-term (24 hours):**
+
 - [ ] Control URLs: >95% success rate
 - [ ] Standard URLs: >90% success rate
 - [ ] Mini-RSVP URLs: >70% success rate
