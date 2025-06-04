@@ -14,6 +14,57 @@ from app.services.retry import RetryConfig, CircuitBreaker, RetryManager
 from app.services.browser_cache import browser_cache_service
 
 
+class TabContextManager:
+    """Async context manager for tab operations."""
+
+    def __init__(self, screenshot_service, width: int, height: int):
+        self.screenshot_service = screenshot_service
+        self.width = width
+        self.height = height
+        self.page = None
+        self.browser_index = None
+        self.tab_info = None
+
+    async def __aenter__(self):
+        """Enter the async context manager."""
+        try:
+            # Get a tab from the pool
+            self.page, self.browser_index, self.tab_info = await self.screenshot_service._get_tab(
+                self.width, self.height
+            )
+            if self.page is None or self.browser_index is None or self.tab_info is None:
+                raise RuntimeError("Failed to get tab from pool")
+
+            return self.page, self.browser_index, self.tab_info
+        except Exception as e:
+            # Clean up if needed
+            if self.page is not None and self.browser_index is not None and self.tab_info is not None:
+                try:
+                    await self.screenshot_service._return_tab(
+                        self.page, self.browser_index, self.tab_info, is_healthy=False
+                    )
+                except Exception as cleanup_error:
+                    self.screenshot_service.logger.error(
+                        f"Error returning tab during exception handling: {str(cleanup_error)}"
+                    )
+            raise
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """Exit the async context manager."""
+        if self.page is not None and self.browser_index is not None and self.tab_info is not None:
+            try:
+                # Determine if the tab is healthy based on whether an exception occurred
+                is_healthy = exc_type is None
+                await self.screenshot_service._return_tab(
+                    self.page, self.browser_index, self.tab_info, is_healthy=is_healthy
+                )
+            except Exception as e:
+                self.screenshot_service.logger.error(f"Error returning tab during cleanup: {str(e)}", {
+                    "error": str(e),
+                    "error_type": type(e).__name__,
+                    "browser_index": self.browser_index
+                })
+
 
 class ScreenshotService:
     """Service for capturing screenshots using Playwright."""
@@ -363,7 +414,7 @@ class ScreenshotService:
             except Exception as release_error:
                 self.logger.error(f"Failed to release browser {browser_index} after context error: {str(release_error)}")
 
-    async def managed_tab(self, width: int = 1280, height: int = 720) -> AsyncGenerator[Tuple[Page, int, object], None]:
+    def managed_tab(self, width: int = 1280, height: int = 720):
         """Context manager for safely using a tab from the tab pool.
 
         This is the recommended way to get and use a tab, as it ensures
@@ -380,49 +431,10 @@ class ScreenshotService:
             width: The viewport width
             height: The viewport height
 
-        Yields:
-            Tuple of (page, browser_index, tab_info)
+        Returns:
+            Async context manager that yields (page, browser_index, tab_info)
         """
-        page = None
-        browser_index = None
-        tab_info = None
-
-        try:
-            # Get a tab from the pool
-            page, browser_index, tab_info = await self._get_tab(width, height)
-            if page is None or browser_index is None or tab_info is None:
-                raise RuntimeError("Failed to get tab from pool")
-
-            # Yield the page, browser index, and tab info
-            yield page, browser_index, tab_info
-        except Exception as e:
-            # Handle any exceptions during setup
-            self.logger.error(f"Error in managed_tab setup: {str(e)}", {
-                "error": str(e),
-                "error_type": type(e).__name__,
-                "browser_index": browser_index
-            })
-
-            # Clean up if needed
-            if page is not None and browser_index is not None and tab_info is not None:
-                try:
-                    await self._return_tab(page, browser_index, tab_info, is_healthy=False)
-                except Exception as cleanup_error:
-                    self.logger.error(f"Error returning tab during exception handling: {str(cleanup_error)}")
-
-            # Re-raise the original exception
-            raise
-        finally:
-            # This block runs after the with block completes or if an exception occurs
-            if page is not None and browser_index is not None and tab_info is not None:
-                try:
-                    await self._return_tab(page, browser_index, tab_info)
-                except Exception as e:
-                    self.logger.error(f"Error returning tab during cleanup: {str(e)}", {
-                        "error": str(e),
-                        "error_type": type(e).__name__,
-                        "browser_index": browser_index
-                    })
+        return TabContextManager(self, width, height)
 
     async def managed_context(self, width: int = 1280, height: int = 720) -> AsyncGenerator[Tuple[BrowserContext, int, Page], None]:
         """Context manager for safely using a browser context and page.
