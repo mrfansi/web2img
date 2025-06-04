@@ -2,7 +2,7 @@ import asyncio
 import os
 import time
 import uuid
-from typing import Dict, Optional, Tuple, Any, AsyncGenerator
+from typing import Dict, Optional, Tuple, Any
 
 from app.core.logging import get_logger
 
@@ -60,6 +60,86 @@ class TabContextManager:
                 )
             except Exception as e:
                 self.screenshot_service.logger.error(f"Error returning tab during cleanup: {str(e)}", {
+                    "error": str(e),
+                    "error_type": type(e).__name__,
+                    "browser_index": self.browser_index
+                })
+
+
+class ContextManager:
+    """Async context manager for traditional context operations."""
+
+    def __init__(self, screenshot_service, width: int, height: int):
+        self.screenshot_service = screenshot_service
+        self.width = width
+        self.height = height
+        self.context = None
+        self.browser_index = None
+        self.page = None
+
+    async def __aenter__(self):
+        """Enter the async context manager."""
+        try:
+            # Get a context from the pool
+            self.context, self.browser_index = await self.screenshot_service._get_context(
+                self.width, self.height
+            )
+            if self.context is None or self.browser_index is None:
+                raise RuntimeError("Failed to get browser context")
+
+            # Create a new page
+            try:
+                from app.core.config import settings
+                self.page = await asyncio.wait_for(
+                    self.context.new_page(),
+                    timeout=settings.page_creation_timeout / 1000.0
+                )
+                # Track the page for automatic cleanup
+                await self.screenshot_service._track_resource("page", self.page)
+            except asyncio.TimeoutError:
+                self.screenshot_service.logger.error("Timeout creating new page")
+                await self.screenshot_service._return_context(self.context, self.browser_index, is_healthy=False)
+                raise RuntimeError("Timeout creating new page")
+            except Exception as e:
+                self.screenshot_service.logger.error(f"Error creating new page: {str(e)}")
+                await self.screenshot_service._return_context(self.context, self.browser_index, is_healthy=False)
+                raise RuntimeError(f"Error creating new page: {str(e)}")
+
+            return self.context, self.browser_index, self.page
+        except Exception as e:
+            # Clean up if needed
+            if self.page is not None and not self.page.is_closed():
+                try:
+                    await asyncio.wait_for(self.page.close(), timeout=3.0)
+                    await self.screenshot_service._untrack_resource("page", self.page)
+                except Exception as cleanup_error:
+                    self.screenshot_service.logger.warning(f"Error closing page during exception handling: {str(cleanup_error)}")
+
+            if self.context is not None and self.browser_index is not None:
+                try:
+                    await self.screenshot_service._return_context(self.context, self.browser_index, is_healthy=False)
+                except Exception as cleanup_error:
+                    self.screenshot_service.logger.error(f"Error returning context during exception handling: {str(cleanup_error)}")
+            raise
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """Exit the async context manager."""
+        # Clean up page
+        if self.page is not None and not self.page.is_closed():
+            try:
+                await asyncio.wait_for(self.page.close(), timeout=3.0)
+                await self.screenshot_service._untrack_resource("page", self.page)
+            except Exception as e:
+                self.screenshot_service.logger.warning(f"Error closing page during cleanup: {str(e)}")
+
+        # Return context
+        if self.context is not None and self.browser_index is not None:
+            try:
+                # Determine if the context is healthy based on whether an exception occurred
+                is_healthy = exc_type is None
+                await self.screenshot_service._return_context(self.context, self.browser_index, is_healthy)
+            except Exception as e:
+                self.screenshot_service.logger.error(f"Error returning context during cleanup: {str(e)}", {
                     "error": str(e),
                     "error_type": type(e).__name__,
                     "browser_index": self.browser_index
@@ -451,7 +531,7 @@ class ScreenshotService:
         """
         return TabContextManager(self, width, height)
 
-    async def managed_context(self, width: int = 1280, height: int = 720) -> AsyncGenerator[Tuple[BrowserContext, int, Page], None]:
+    def managed_context(self, width: int = 1280, height: int = 720):
         """Context manager for safely using a browser context and page.
 
         This is the recommended way to get and use a browser context and page, as it ensures
@@ -468,86 +548,10 @@ class ScreenshotService:
             width: The viewport width
             height: The viewport height
 
-        Yields:
-            Tuple of (context, browser_index, page)
+        Returns:
+            Async context manager that yields (context, browser_index, page)
         """
-        context = None
-        browser_index = None
-        page = None
-
-        try:
-            # Get a context from the pool
-            context, browser_index = await self._get_context(width, height)
-            if context is None or browser_index is None:
-                raise RuntimeError("Failed to get browser context")
-
-            # Create a new page
-            try:
-                page = await asyncio.wait_for(
-                    context.new_page(),
-                    timeout=settings.page_creation_timeout
-                )
-                # Track the page for automatic cleanup
-                await self._track_resource("page", page)
-            except asyncio.TimeoutError:
-                self.logger.error("Timeout creating new page")
-                await self._return_context(context, browser_index, is_healthy=False)
-                raise RuntimeError("Timeout creating new page")
-            except Exception as e:
-                self.logger.error(f"Error creating new page: {str(e)}", {
-                    "error": str(e),
-                    "error_type": type(e).__name__
-                })
-                await self._return_context(context, browser_index, is_healthy=False)
-                raise RuntimeError(f"Error creating new page: {str(e)}")
-
-            # Yield the context, browser index, and page
-            yield context, browser_index, page
-        except Exception as e:
-            # Handle any exceptions during setup
-            self.logger.error(f"Error in managed_context setup: {str(e)}", {
-                "error": str(e),
-                "error_type": type(e).__name__,
-                "browser_index": browser_index
-            })
-
-            # Clean up if needed
-            if page is not None and not page.is_closed():
-                try:
-                    await asyncio.wait_for(page.close(), timeout=3.0)
-                    await self._untrack_resource("page", page)
-                except Exception as cleanup_error:
-                    self.logger.warning(f"Error closing page during exception handling: {str(cleanup_error)}")
-
-            if context is not None and browser_index is not None:
-                try:
-                    await self._return_context(context, browser_index, is_healthy=False)
-                except Exception as cleanup_error:
-                    self.logger.error(f"Error returning context during exception handling: {str(cleanup_error)}")
-
-            # Re-raise the original exception
-            raise
-        finally:
-            # This block runs after the with block completes or if an exception occurs
-            if page is not None and not page.is_closed():
-                try:
-                    await asyncio.wait_for(page.close(), timeout=3.0)
-                    await self._untrack_resource("page", page)
-                except Exception as e:
-                    self.logger.warning(f"Error closing page during cleanup: {str(e)}", {
-                        "error": str(e),
-                        "error_type": type(e).__name__
-                    })
-
-            if context is not None and browser_index is not None:
-                try:
-                    await self._return_context(context, browser_index)
-                except Exception as e:
-                    self.logger.error(f"Error returning context during cleanup: {str(e)}", {
-                        "error": str(e),
-                        "error_type": type(e).__name__,
-                        "browser_index": browser_index
-                    })
+        return ContextManager(self, width, height)
 
     async def _get_navigation_strategy(self) -> Tuple[str, int]:
         """Get the navigation strategy for all URLs.
