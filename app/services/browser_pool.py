@@ -69,6 +69,7 @@ class BrowserPool:
             "current_size": 0
         }
         self._cleanup_task = None
+        self._stuck_browser_cleanup_task = None
         
     async def initialize(self):
         """Initialize the pool with minimum number of browsers."""
@@ -121,6 +122,11 @@ class BrowserPool:
             if self._cleanup_task is None or self._cleanup_task.done():
                 self._cleanup_task = asyncio.create_task(self._cleanup_loop())
                 self.logger.debug("Started browser pool cleanup task")
+
+            # Start stuck browser cleanup task
+            if self._stuck_browser_cleanup_task is None or self._stuck_browser_cleanup_task.done():
+                self._stuck_browser_cleanup_task = asyncio.create_task(self._stuck_browser_cleanup_loop())
+                self.logger.debug("Started stuck browser cleanup task")
             
             # Update stats
             self._stats["current_size"] = len(self._browsers)
@@ -426,7 +432,7 @@ class BrowserPool:
     
     async def release_browser(self, browser_index: int, is_healthy: bool = True):
         """Return a browser to the pool or recycle it.
-        
+
         Args:
             browser_index: Index of the browser in the pool
             is_healthy: Whether the browser is healthy and can be reused
@@ -434,27 +440,36 @@ class BrowserPool:
         async with self._lock:
             # Check if the browser index is valid
             if browser_index < 0 or browser_index >= len(self._browsers):
+                from app.core.logging import get_logger
+                logger = get_logger("browser_pool")
+                logger.warning(f"Attempted to release invalid browser index: {browser_index}")
                 return
-            
+
             browser_data = self._browsers[browser_index]
-            
-            # Check if browser needs to be recycled
+
+            # CRITICAL FIX: Always return browser to available pool first
+            # This ensures browsers are released even if recycling fails
             current_time = time.time()
+            browser_data["last_used"] = current_time
+
+            # Force return to available pool if not already there
+            if browser_index not in self._available_browsers:
+                self._available_browsers.append(browser_index)
+                from app.core.logging import get_logger
+                logger = get_logger("browser_pool")
+                logger.debug(f"Released browser {browser_index} back to available pool")
+
+            # Update stats immediately
+            self._stats["current_usage"] = len(self._browsers) - len(self._available_browsers)
+
+            # Check if browser needs to be recycled (but don't block release)
             age = current_time - browser_data["created_at"]
-            
             if not is_healthy or age > self._max_age:
-                # Recycle the browser
-                await self._recycle_browser(browser_index)
-            else:
-                # Update last used time
-                browser_data["last_used"] = current_time
-                
-                # Return to available pool if not already there
-                if browser_index not in self._available_browsers:
-                    self._available_browsers.append(browser_index)
-                    
-                    # Update stats
-                    self._stats["current_usage"] = len(self._browsers) - len(self._available_browsers)
+                # Schedule recycling asynchronously to not block release
+                asyncio.create_task(self._async_recycle_browser(browser_index))
+                from app.core.logging import get_logger
+                logger = get_logger("browser_pool")
+                logger.debug(f"Scheduled browser {browser_index} for recycling (healthy={is_healthy}, age={age:.1f}s)")
     
     async def _recycle_browser(self, browser_index: int):
         """Recycle a browser instance by closing it and creating a new one.
@@ -516,6 +531,35 @@ class BrowserPool:
         
         # Update stats
         self._stats["recycled"] += 1
+
+    async def _async_recycle_browser(self, browser_index: int):
+        """Asynchronously recycle a browser without blocking release.
+
+        Args:
+            browser_index: Index of the browser to recycle
+        """
+        try:
+            # Wait a bit to ensure the browser is not in use
+            await asyncio.sleep(1.0)
+
+            async with self._lock:
+                # Check if browser index is still valid
+                if browser_index < 0 or browser_index >= len(self._browsers):
+                    return
+
+                # Check if browser is currently available (not in use)
+                if browser_index in self._available_browsers:
+                    from app.core.logging import get_logger
+                    logger = get_logger("browser_pool")
+                    logger.debug(f"Recycling available browser {browser_index}")
+                    await self._recycle_browser(browser_index)
+                else:
+                    # Browser is in use, schedule for later recycling
+                    logger.debug(f"Browser {browser_index} in use, will recycle later")
+        except Exception as e:
+            from app.core.logging import get_logger
+            logger = get_logger("browser_pool")
+            logger.warning(f"Error in async browser recycling for browser {browser_index}: {str(e)}")
     
     async def create_context(self, browser_index: int, **kwargs) -> Optional[BrowserContext]:
         """Create a new browser context for the specified browser.
@@ -754,7 +798,7 @@ class BrowserPool:
         from app.core.logging import get_logger
         logger = get_logger("browser_pool")
         
-        # Cancel cleanup task
+        # Cancel cleanup tasks
         if self._cleanup_task:
             self._cleanup_task.cancel()
             try:
@@ -765,6 +809,19 @@ class BrowserPool:
             except Exception as e:
                 # Log any unexpected errors during cleanup task cancellation
                 logger.warning(f"Error while cancelling cleanup task: {str(e)}", {
+                    "error": str(e),
+                    "error_type": type(e).__name__
+                })
+
+        # Cancel stuck browser cleanup task
+        if self._stuck_browser_cleanup_task:
+            self._stuck_browser_cleanup_task.cancel()
+            try:
+                await self._stuck_browser_cleanup_task
+            except asyncio.CancelledError:
+                logger.debug("Stuck browser cleanup task cancelled during shutdown")
+            except Exception as e:
+                logger.warning(f"Error while cancelling stuck browser cleanup task: {str(e)}", {
                     "error": str(e),
                     "error_type": type(e).__name__
                 })
@@ -1069,6 +1126,7 @@ class BrowserPool:
         async with self._lock:
             current_time = time.time()
             browsers_to_recycle = []
+            browsers_to_force_release = []
 
             # Check each browser for health issues
             for i, browser_data in enumerate(self._browsers):
@@ -1082,10 +1140,16 @@ class BrowserPool:
                     browsers_to_recycle.append((i, "recent_error"))
                     continue
 
-                # Check for browsers that have been in use too long
+                # Check for browsers that have been in use too long (STUCK BROWSER DETECTION)
                 last_used = browser_data.get("last_used", current_time)
-                if (current_time - last_used) > 300:  # In use for more than 5 minutes
-                    browsers_to_recycle.append((i, "stuck_in_use"))
+                time_in_use = current_time - last_used
+
+                if time_in_use > 120:  # In use for more than 2 minutes - likely stuck
+                    # Force release stuck browsers immediately
+                    browsers_to_force_release.append((i, "stuck_in_use", time_in_use))
+                    continue
+                elif time_in_use > 300:  # In use for more than 5 minutes - definitely stuck
+                    browsers_to_recycle.append((i, "stuck_in_use_long"))
                     continue
 
                 # Check for browsers with too many contexts
@@ -1093,6 +1157,28 @@ class BrowserPool:
                 if context_count > 10:  # Too many contexts
                     browsers_to_recycle.append((i, "too_many_contexts"))
                     continue
+
+            # CRITICAL: Force release stuck browsers first
+            force_released_count = 0
+            for browser_index, reason, time_stuck in browsers_to_force_release:
+                try:
+                    logger.warning(f"FORCE RELEASING stuck browser {browser_index} - {reason} for {time_stuck:.1f}s")
+
+                    # Force add to available browsers if not already there
+                    if browser_index not in self._available_browsers:
+                        self._available_browsers.append(browser_index)
+                        force_released_count += 1
+
+                        # Update last_used to current time
+                        self._browsers[browser_index]["last_used"] = current_time
+
+                        logger.info(f"Force released stuck browser {browser_index} back to available pool")
+
+                except Exception as e:
+                    logger.error(f"Error force releasing stuck browser {browser_index}: {str(e)}")
+
+            # Update stats after force release
+            self._stats["current_usage"] = len(self._browsers) - len(self._available_browsers)
 
             # Recycle unhealthy browsers
             recycled_count = 0
@@ -1104,8 +1190,8 @@ class BrowserPool:
                 except Exception as e:
                     logger.error(f"Error recycling unhealthy browser {browser_index}: {str(e)}")
 
-            if recycled_count > 0:
-                logger.info(f"Recycled {recycled_count} unhealthy browsers")
+            if force_released_count > 0 or recycled_count > 0:
+                logger.info(f"Browser cleanup: {force_released_count} force released, {recycled_count} recycled")
 
                 # Create replacement browsers if needed
                 current_size = len(self._browsers)
@@ -1120,5 +1206,35 @@ class BrowserPool:
                         else:
                             break
 
-            return recycled_count
+            return force_released_count + recycled_count
+
+    async def _stuck_browser_cleanup_loop(self):
+        """Background task to periodically check for and release stuck browsers."""
+        from app.core.logging import get_logger
+        logger = get_logger("browser_pool")
+
+        logger.info("Started stuck browser cleanup loop")
+
+        try:
+            while True:
+                try:
+                    # Run stuck browser cleanup every 30 seconds
+                    await asyncio.sleep(30)
+
+                    # Check for stuck browsers and force release them
+                    cleaned_count = await self._cleanup_unhealthy_browsers()
+
+                    if cleaned_count > 0:
+                        logger.info(f"Stuck browser cleanup: processed {cleaned_count} browsers")
+
+                except asyncio.CancelledError:
+                    logger.info("Stuck browser cleanup loop cancelled")
+                    break
+                except Exception as e:
+                    logger.error(f"Error in stuck browser cleanup loop: {str(e)}")
+                    # Continue running even if there's an error
+                    await asyncio.sleep(10)
+
+        except Exception as e:
+            logger.error(f"Fatal error in stuck browser cleanup loop: {str(e)}")
 
