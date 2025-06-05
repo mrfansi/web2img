@@ -202,48 +202,22 @@ class ScreenshotService:
             self._health_stats["failed_requests"] += 1
 
     def _is_service_healthy(self) -> bool:
-        """Check if the service is in a healthy state."""
-        # Consider unhealthy if too many consecutive failures
-        if self._health_stats["consecutive_failures"] >= 10:
-            return False
+        """Check if the service is in a healthy state.
 
-        # Consider unhealthy if no success in the last 5 minutes
-        time_since_success = time.time() - self._health_stats["last_success_time"]
-        if time_since_success > 300:  # 5 minutes
-            return False
-
-        # Consider unhealthy if failure rate is too high
-        if self._health_stats["total_requests"] > 20:
-            failure_rate = self._health_stats["failed_requests"] / self._health_stats["total_requests"]
-            if failure_rate > 0.8:  # 80% failure rate
-                return False
-
+        Note: Service-level health checks are disabled in favor of browser-level
+        health checks in the robust browser lifecycle management system.
+        """
+        # Always return True - health is now managed at the browser level
         return True
 
     async def _attempt_service_recovery(self):
-        """Attempt to recover the service from an unhealthy state."""
-        self.logger.warning("Service appears unhealthy, attempting recovery")
-        self._health_stats["recovery_attempts"] += 1
+        """Attempt to recover the service from an unhealthy state.
 
-        try:
-            # Force cleanup of all resources
-            await self._cleanup_resources()
-
-            # Reset browser pool
-            if hasattr(self, '_browser_pool'):
-                await self._browser_pool.cleanup()
-
-            # Reset circuit breakers
-            self._browser_circuit_breaker.failure_count = 0
-            self._navigation_circuit_breaker.failure_count = 0
-
-            # Reset some health stats
-            self._health_stats["consecutive_failures"] = 0
-
-            self.logger.info("Service recovery attempt completed")
-
-        except Exception as e:
-            self.logger.error(f"Service recovery failed: {str(e)}")
+        Note: Service-level recovery is disabled in favor of browser-level
+        recovery in the robust browser lifecycle management system.
+        """
+        # No-op - recovery is now handled at the browser level
+        self.logger.debug("Service recovery skipped - using browser-level recovery")
 
     async def startup(self):
         """Initialize the browser pool and start the cleanup task."""
@@ -992,82 +966,217 @@ class ScreenshotService:
         return await self._capture_screenshot_with_context(url, width, height, format, filepath, start_time)
 
     async def _capture_screenshot_with_context(self, url: str, width: int, height: int, format: str, filepath: str, start_time: float) -> str:
-        """Simplified screenshot capture using context-based approach.
+        """Robust screenshot capture with better error handling for browser lifecycle issues.
 
-        This method is reliable, simple, and provides good performance without the complexity
-        of tab pools. It uses the traditional context-based approach with optimizations.
+        This method handles browser/context closure issues and provides reliable screenshot capture.
         """
-        # Use the reliable context-based approach
-        async with self.managed_context(width=width, height=height) as (context, browser_index, page):
+        max_retries = 3
+        last_error = None
+
+        for attempt in range(max_retries):
             try:
-                # Get navigation strategy
-                wait_until, page_timeout = await self._get_navigation_strategy()
+                self.logger.debug(f"Screenshot attempt {attempt + 1}/{max_retries} for {url}")
 
-                # Configure page and navigate to URL
-                await self._configure_page_for_site(page)
-
-                # Use standard timeout strategy (no aggressive reduction)
-                pool_stats = self._browser_pool.get_stats()
-                pool_load = pool_stats["in_use"] / max(pool_stats["size"], 1)
-
-                # Use more conservative timeout strategy for better reliability
-                adaptive_timeout = int(page_timeout * 0.8)  # Use 80% of original timeout
-
-                self.logger.debug(
-                    f"Using standard timeout for {url}",
-                    {"original_timeout": page_timeout, "adaptive_timeout": adaptive_timeout, "pool_load": pool_load}
-                )
-
-                # Navigate to URL with simple error handling (no complex retry manager)
-                try:
-                    await self._navigate_to_url(page, url, wait_until, adaptive_timeout)
-                except Exception as nav_error:
-                    self.logger.warning(f"Navigation failed for {url}: {str(nav_error)}")
-                    # Try one more time with a different strategy
+                # Use the reliable context-based approach with fresh context each time
+                async with self.managed_context(width=width, height=height) as (context, browser_index, page):
                     try:
-                        await self._navigate_to_url(page, url, "domcontentloaded", adaptive_timeout)
-                    except Exception as retry_error:
-                        self.logger.error(f"Navigation retry failed for {url}: {str(retry_error)}")
-                        raise
+                        # Verify browser/context is still alive before proceeding
+                        if not await self._verify_browser_health(context, page):
+                            raise RuntimeError("Browser/context is not healthy")
 
-                # Capture the screenshot with simple retry logic
-                try:
-                    filepath = await self._capture_screenshot_with_retry(page, filepath, format)
-                except Exception as screenshot_error:
-                    self.logger.warning(f"Screenshot capture failed for {url}: {str(screenshot_error)}")
-                    # Try one more time
-                    await asyncio.sleep(1)  # Brief pause
-                    filepath = await self._capture_screenshot_with_retry(page, filepath, format)
+                        # Get navigation strategy
+                        wait_until, page_timeout = await self._get_navigation_strategy()
 
-                # Log successful screenshot capture
-                capture_time = time.time() - start_time
-                self.logger.info(f"Screenshot captured successfully for {url}", {
-                    "url": url,
-                    "filepath": filepath,
-                    "capture_time": capture_time,
-                    "width": width,
-                    "height": height,
-                    "format": format,
-                    "browser_index": browser_index,
-                    "method": "simplified_context"
-                })
+                        # Configure page with error handling for closed browser
+                        try:
+                            await self._configure_page_for_site_safe(page)
+                        except Exception as config_error:
+                            if "closed" in str(config_error).lower():
+                                self.logger.warning(f"Browser closed during page configuration, retrying: {str(config_error)}")
+                                raise RuntimeError("Browser closed during configuration")
+                            raise
 
-                return filepath
+                        # Use conservative timeout strategy for better reliability
+                        pool_stats = self._browser_pool.get_stats()
+                        pool_load = pool_stats["in_use"] / max(pool_stats["size"], 1)
+                        adaptive_timeout = int(page_timeout * 0.8)  # Use 80% of original timeout
 
-            except Exception as e:
+                        self.logger.debug(
+                            f"Using timeout {adaptive_timeout}ms for {url} (attempt {attempt + 1})",
+                            {"original_timeout": page_timeout, "adaptive_timeout": adaptive_timeout, "pool_load": pool_load}
+                        )
+
+                        # Navigate to URL with error handling
+                        try:
+                            await self._navigate_to_url_safe(page, url, wait_until, adaptive_timeout)
+                        except Exception as nav_error:
+                            if "closed" in str(nav_error).lower():
+                                self.logger.warning(f"Browser closed during navigation, retrying: {str(nav_error)}")
+                                raise RuntimeError("Browser closed during navigation")
+
+                            self.logger.warning(f"Navigation failed for {url}: {str(nav_error)}")
+                            # Try one more time with a different strategy
+                            try:
+                                await self._navigate_to_url_safe(page, url, "domcontentloaded", adaptive_timeout)
+                            except Exception as retry_error:
+                                if "closed" in str(retry_error).lower():
+                                    raise RuntimeError("Browser closed during navigation retry")
+                                self.logger.error(f"Navigation retry failed for {url}: {str(retry_error)}")
+                                raise
+
+                        # Capture the screenshot with error handling
+                        try:
+                            filepath = await self._capture_screenshot_safe(page, filepath, format)
+                        except Exception as screenshot_error:
+                            if "closed" in str(screenshot_error).lower():
+                                self.logger.warning(f"Browser closed during screenshot, retrying: {str(screenshot_error)}")
+                                raise RuntimeError("Browser closed during screenshot")
+
+                            self.logger.warning(f"Screenshot capture failed for {url}: {str(screenshot_error)}")
+                            # Try one more time
+                            await asyncio.sleep(1)  # Brief pause
+                            try:
+                                filepath = await self._capture_screenshot_safe(page, filepath, format)
+                            except Exception as retry_screenshot_error:
+                                if "closed" in str(retry_screenshot_error).lower():
+                                    raise RuntimeError("Browser closed during screenshot retry")
+                                raise
+
+                        # Log successful screenshot capture
+                        capture_time = time.time() - start_time
+                        self.logger.info(f"Screenshot captured successfully for {url}", {
+                            "url": url,
+                            "filepath": filepath,
+                            "capture_time": capture_time,
+                            "width": width,
+                            "height": height,
+                            "format": format,
+                            "browser_index": browser_index,
+                            "method": "robust_context",
+                            "attempt": attempt + 1
+                        })
+
+                        return filepath
+
+                    except Exception as inner_error:
+                        # Check if this is a browser closure issue
+                        if ("closed" in str(inner_error).lower() or
+                            "target" in str(inner_error).lower() or
+                            isinstance(inner_error, RuntimeError) and "Browser closed" in str(inner_error)):
+
+                            last_error = inner_error
+                            self.logger.warning(f"Browser/context closed during screenshot attempt {attempt + 1} for {url}: {str(inner_error)}")
+
+                            # If this isn't the last attempt, continue to retry
+                            if attempt < max_retries - 1:
+                                await asyncio.sleep(0.5)  # Brief pause before retry
+                                continue
+                            else:
+                                # This was the last attempt
+                                break
+                        else:
+                            # This is not a browser closure issue, re-raise immediately
+                            raise
+
+            except Exception as outer_error:
                 # Log error with context
                 elapsed_time = time.time() - start_time
-                self.logger.error(f"Error in screenshot capture for {url}: {str(e)}", {
+                self.logger.error(f"Error in screenshot capture attempt {attempt + 1} for {url}: {str(outer_error)}", {
                     "url": url,
-                    "error": str(e),
-                    "error_type": type(e).__name__,
+                    "error": str(outer_error),
+                    "error_type": type(outer_error).__name__,
                     "elapsed_time": elapsed_time,
-                    "browser_index": browser_index,
-                    "method": "simplified_context"
+                    "attempt": attempt + 1,
+                    "method": "robust_context"
                 })
 
-                # Re-raise the exception
-                raise
+                last_error = outer_error
+
+                # If this is not a browser closure issue or it's the last attempt, re-raise
+                if (attempt >= max_retries - 1 or
+                    not ("closed" in str(outer_error).lower() or "target" in str(outer_error).lower())):
+                    raise
+
+                # Brief pause before retry
+                await asyncio.sleep(0.5)
+
+        # If we get here, all retries failed due to browser closure issues
+        self.logger.error(f"All {max_retries} attempts failed for {url} due to browser closure issues")
+        raise RuntimeError(f"Failed to capture screenshot after {max_retries} attempts due to browser closure issues: {str(last_error)}")
+
+    async def _verify_browser_health(self, context, page) -> bool:
+        """Verify that the browser context and page are still alive and healthy."""
+        try:
+            # Check if page is closed
+            if page.is_closed():
+                return False
+
+            # Check if context is still valid (basic check)
+            try:
+                _ = context.pages  # This will fail if context is closed
+            except Exception:
+                return False
+
+            # Try a simple operation to verify the browser is responsive
+            await asyncio.wait_for(page.evaluate("() => document.readyState"), timeout=2.0)
+            return True
+        except Exception as e:
+            self.logger.debug(f"Browser health check failed: {str(e)}")
+            return False
+
+    async def _configure_page_for_site_safe(self, page):
+        """Safely configure page with error handling for closed browsers."""
+        try:
+            # Check if page is still alive
+            if page.is_closed():
+                raise RuntimeError("Page is closed")
+
+            # Configure page with timeout
+            await asyncio.wait_for(self._configure_page_for_site(page), timeout=10.0)
+        except asyncio.TimeoutError:
+            raise RuntimeError("Timeout during page configuration")
+        except Exception as e:
+            if "closed" in str(e).lower() or "target" in str(e).lower():
+                raise RuntimeError(f"Browser closed during page configuration: {str(e)}")
+            raise
+
+    async def _navigate_to_url_safe(self, page, url: str, wait_until: str, timeout: int):
+        """Safely navigate to URL with error handling for closed browsers."""
+        try:
+            # Check if page is still alive
+            if page.is_closed():
+                raise RuntimeError("Page is closed")
+
+            # Navigate with timeout
+            await asyncio.wait_for(
+                self._navigate_to_url(page, url, wait_until, timeout),
+                timeout=(timeout / 1000.0) + 5.0  # Add 5 seconds buffer
+            )
+        except asyncio.TimeoutError:
+            raise RuntimeError(f"Navigation timeout for {url}")
+        except Exception as e:
+            if "closed" in str(e).lower() or "target" in str(e).lower():
+                raise RuntimeError(f"Browser closed during navigation: {str(e)}")
+            raise
+
+    async def _capture_screenshot_safe(self, page, filepath: str, format: str) -> str:
+        """Safely capture screenshot with error handling for closed browsers."""
+        try:
+            # Check if page is still alive
+            if page.is_closed():
+                raise RuntimeError("Page is closed")
+
+            # Use the simplified screenshot capture method with timeout
+            return await asyncio.wait_for(
+                self._capture_screenshot_with_retry(page, filepath, format),
+                timeout=35.0  # 35 second timeout for screenshot (includes 0.5s delay)
+            )
+        except asyncio.TimeoutError:
+            raise RuntimeError("Screenshot capture timeout")
+        except Exception as e:
+            if "closed" in str(e).lower() or "target" in str(e).lower():
+                raise RuntimeError(f"Browser closed during screenshot: {str(e)}")
+            raise
 
     async def _cleanup_temp_files(self) -> int:
         """Clean up old temporary files.
@@ -1449,7 +1558,10 @@ class ScreenshotService:
             })
 
     async def _capture_screenshot_with_retry(self, page: Page, filepath: str, format: str) -> str:
-        """Capture a screenshot with retry logic.
+        """Simplified screenshot capture without complex retry logic.
+
+        Note: Retry logic is now handled at a higher level in _capture_screenshot_with_context.
+        This method focuses on the actual screenshot capture with basic error handling.
 
         Args:
             page: The page to capture
@@ -1459,39 +1571,22 @@ class ScreenshotService:
         Returns:
             Path to the saved screenshot file
         """
-        # Define a function to capture the screenshot
-        async def capture_screenshot():
-            # Take the screenshot
-            await page.screenshot(path=filepath, type=format, full_page=True)
-            return filepath
-
-        # Create a screenshot retry manager with configurable settings
-        screenshot_retry_manager = RetryManager(
-            retry_config=RetryConfig(
-                max_retries=settings.screenshot_max_retries,
-                base_delay=settings.screenshot_base_delay,
-                max_delay=settings.screenshot_max_delay,
-                jitter=settings.screenshot_jitter
-            ),
-            circuit_breaker=self._browser_circuit_breaker,
-            name="screenshot_capture"
-        )
-
         # Take the screenshot with a slight delay to ensure content is ready
         await asyncio.sleep(0.5)
 
-        # Check service health before attempting capture
-        if not self._is_service_healthy():
-            self.logger.warning("Service is unhealthy, attempting recovery before screenshot")
-            await self._attempt_service_recovery()
-
-        # Execute the screenshot capture with retry
+        # Take the screenshot directly (no complex retry manager)
         try:
-            result = await screenshot_retry_manager.execute(capture_screenshot, operation_name="capture_screenshot")
-            self._update_health_stats(success=True)
-            return result
+            await page.screenshot(path=filepath, type=format, full_page=True)
+            return filepath
         except Exception as e:
-            self._update_health_stats(success=False)
+            # Log the specific error for debugging
+            self.logger.debug(f"Screenshot capture failed: {str(e)}", {
+                "error": str(e),
+                "error_type": type(e).__name__,
+                "filepath": filepath,
+                "format": format
+            })
+            # Re-raise the exception to be handled by the higher-level retry logic
             raise
 
     async def _scheduled_cleanup_loop(self):
