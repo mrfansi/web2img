@@ -125,6 +125,26 @@ class Settings(BaseModel):
         default_factory=lambda: int(os.getenv("MAX_WAIT_ATTEMPTS", "10"))  # Max attempts to wait for browser
     )
 
+    # Emergency Load Management - New queue and load shedding configuration
+    enable_request_queue: bool = Field(
+        default_factory=lambda: os.getenv("ENABLE_REQUEST_QUEUE", "true").lower() in ("true", "1", "t")
+    )
+    max_queue_size: int = Field(
+        default_factory=lambda: int(os.getenv("MAX_QUEUE_SIZE", "200"))  # Max requests in queue
+    )
+    queue_timeout: int = Field(
+        default_factory=lambda: int(os.getenv("QUEUE_TIMEOUT", "60"))  # Max seconds in queue
+    )
+    enable_load_shedding: bool = Field(
+        default_factory=lambda: os.getenv("ENABLE_LOAD_SHEDDING", "true").lower() in ("true", "1", "t")
+    )
+    load_shedding_threshold: float = Field(
+        default_factory=lambda: float(os.getenv("LOAD_SHEDDING_THRESHOLD", "0.95"))  # Shed load at 95% capacity
+    )
+    emergency_cleanup_interval: int = Field(
+        default_factory=lambda: int(os.getenv("EMERGENCY_CLEANUP_INTERVAL", "10"))  # Emergency cleanup every 10s
+    )
+
     # Tab Pool Configuration - New multi-tab support
     max_tabs_per_browser: int = Field(
         default_factory=lambda: int(os.getenv("MAX_TABS_PER_BROWSER", "20"))  # Maximum tabs per browser instance

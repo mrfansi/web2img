@@ -9,6 +9,7 @@ from app.core.logging import get_logger
 from playwright.async_api import BrowserContext, Page, TimeoutError as PlaywrightTimeoutError
 
 from app.core.config import settings
+from app.core.errors import WebToImgError
 from app.services.browser_pool import BrowserPool
 from app.services.retry import RetryConfig, CircuitBreaker, RetryManager
 from app.services.browser_cache import browser_cache_service
@@ -248,6 +249,16 @@ class ScreenshotService:
 
         # Tab pool is disabled in favor of simplified approach
         self.logger.info("Using simplified context-based approach (tab pool disabled for reliability)")
+
+        # Initialize the request queue manager for extreme load handling
+        try:
+            from app.services.request_queue import queue_manager
+            await queue_manager.initialize()
+            self.logger.info("Request queue manager initialized successfully")
+        except ImportError:
+            self.logger.debug("Request queue manager not available")
+        except Exception as e:
+            self.logger.warning(f"Failed to initialize request queue manager: {str(e)}")
 
         # Start the scheduled cleanup task
         self._start_cleanup_task()
@@ -1092,17 +1103,28 @@ class ScreenshotService:
 
                 last_error = outer_error
 
-                # Check for browser pool exhaustion - don't retry immediately
+                # Check for browser pool exhaustion - implement load shedding
                 if "browser pool exhausted" in str(outer_error).lower() or "pool exhausted" in str(outer_error).lower():
                     self.logger.warning(f"Browser pool exhausted on attempt {attempt + 1} for {url}")
 
+                    # Check if we should implement emergency load shedding
+                    pool_stats = self._browser_pool.get_stats()
+                    pool_utilization = pool_stats["in_use"] / max(pool_stats["size"], 1)
+
+                    if pool_utilization >= 0.95:  # 95% utilization - emergency load shedding
+                        self.logger.error(f"Emergency load shedding activated - pool at {pool_utilization:.1%} capacity")
+                        raise WebToImgError("Service is at maximum capacity. Please try again later.")
+
                     # For pool exhaustion, wait longer before retry and only retry once
                     if attempt < 1:  # Only retry once for pool exhaustion
-                        await asyncio.sleep(2.0)  # Wait 2 seconds for pool to free up
+                        wait_time = min(5.0, 2.0 * (pool_utilization * 2))  # Dynamic wait based on load
+                        self.logger.info(f"Waiting {wait_time:.1f}s for pool capacity (utilization: {pool_utilization:.1%})")
+                        await asyncio.sleep(wait_time)
                         continue
                     else:
                         # Don't retry pool exhaustion more than once
-                        raise
+                        self.logger.error(f"Pool exhaustion retry limit reached for {url}")
+                        raise WebToImgError("Browser pool exhausted. The service is experiencing high load. Please try again later.")
 
                 # If this is not a browser closure issue or it's the last attempt, re-raise
                 if (attempt >= max_retries - 1 or
@@ -1398,6 +1420,16 @@ class ScreenshotService:
 
         # Tab pool is disabled - no shutdown needed
         self.logger.debug("Tab pool disabled - no shutdown required")
+
+        # Shutdown the request queue manager
+        try:
+            from app.services.request_queue import queue_manager
+            await queue_manager.shutdown()
+            self.logger.info("Request queue manager shutdown completed")
+        except ImportError:
+            self.logger.debug("Request queue manager not available for shutdown")
+        except Exception as e:
+            self.logger.warning(f"Error shutting down request queue manager: {str(e)}")
 
         # Shutdown the browser pool
         start_time = time.time()

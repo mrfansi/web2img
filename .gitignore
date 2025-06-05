@@ -67,3 +67,4 @@ coverage.xml
 .windsurf/
 .trae/
 backups/
+.env.production
