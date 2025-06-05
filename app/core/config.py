@@ -91,12 +91,12 @@ class Settings(BaseModel):
         default_factory=lambda: int(os.getenv("WORKERS", "4"))
     )
 
-    # Browser Pool Configuration - Optimized for high concurrency (2000+ requests)
+    # Browser Pool Configuration - Optimized for high concurrency and load handling
     browser_pool_min_size: int = Field(
-        default_factory=lambda: int(os.getenv("BROWSER_POOL_MIN_SIZE", "8"))  # Reduced due to multi-tab support
+        default_factory=lambda: int(os.getenv("BROWSER_POOL_MIN_SIZE", "16"))  # Increased for better high-load handling
     )
     browser_pool_max_size: int = Field(
-        default_factory=lambda: int(os.getenv("BROWSER_POOL_MAX_SIZE", "32"))  # Reduced due to 20 tabs per browser
+        default_factory=lambda: int(os.getenv("BROWSER_POOL_MAX_SIZE", "64"))  # Increased to handle load spikes
     )
     browser_pool_idle_timeout: int = Field(
         default_factory=lambda: int(os.getenv("BROWSER_POOL_IDLE_TIMEOUT", "180"))  # Reduced for faster recycling
@@ -106,6 +106,23 @@ class Settings(BaseModel):
     )
     browser_pool_cleanup_interval: int = Field(
         default_factory=lambda: int(os.getenv("BROWSER_POOL_CLEANUP_INTERVAL", "30"))  # More frequent cleanup
+    )
+
+    # Browser Pool Load Management - New adaptive scaling configuration
+    browser_pool_wait_timeout: int = Field(
+        default_factory=lambda: int(os.getenv("BROWSER_POOL_WAIT_TIMEOUT", "30"))  # Max seconds to wait for browser
+    )
+    browser_pool_scale_threshold: float = Field(
+        default_factory=lambda: float(os.getenv("BROWSER_POOL_SCALE_THRESHOLD", "0.8"))  # Scale when 80% capacity
+    )
+    browser_pool_scale_factor: float = Field(
+        default_factory=lambda: float(os.getenv("BROWSER_POOL_SCALE_FACTOR", "1.5"))  # Scale by 50% when needed
+    )
+    enable_adaptive_scaling: bool = Field(
+        default_factory=lambda: os.getenv("ENABLE_ADAPTIVE_SCALING", "true").lower() in ("true", "1", "t")
+    )
+    max_wait_attempts: int = Field(
+        default_factory=lambda: int(os.getenv("MAX_WAIT_ATTEMPTS", "10"))  # Max attempts to wait for browser
     )
 
     # Tab Pool Configuration - New multi-tab support
@@ -237,12 +254,12 @@ class Settings(BaseModel):
         default_factory=lambda: os.getenv("DISABLE_IMAGES", "False").lower() in ("true", "1", "t")  # Keep images for accurate screenshots
     )
 
-    # Concurrency Control Configuration - Emergency settings for production issues
+    # Concurrency Control Configuration - Optimized for high-load handling
     max_concurrent_screenshots: int = Field(
-        default_factory=lambda: int(os.getenv("MAX_CONCURRENT_SCREENSHOTS", "8"))  # Limit concurrent screenshot operations
+        default_factory=lambda: int(os.getenv("MAX_CONCURRENT_SCREENSHOTS", "32"))  # Increased for high-load handling
     )
     max_concurrent_contexts: int = Field(
-        default_factory=lambda: int(os.getenv("MAX_CONCURRENT_CONTEXTS", "16"))  # Limit concurrent browser contexts
+        default_factory=lambda: int(os.getenv("MAX_CONCURRENT_CONTEXTS", "64"))  # Increased to match browser pool
     )
 
     # Emergency Context Creation Configuration

@@ -1092,6 +1092,18 @@ class ScreenshotService:
 
                 last_error = outer_error
 
+                # Check for browser pool exhaustion - don't retry immediately
+                if "browser pool exhausted" in str(outer_error).lower() or "pool exhausted" in str(outer_error).lower():
+                    self.logger.warning(f"Browser pool exhausted on attempt {attempt + 1} for {url}")
+
+                    # For pool exhaustion, wait longer before retry and only retry once
+                    if attempt < 1:  # Only retry once for pool exhaustion
+                        await asyncio.sleep(2.0)  # Wait 2 seconds for pool to free up
+                        continue
+                    else:
+                        # Don't retry pool exhaustion more than once
+                        raise
+
                 # If this is not a browser closure issue or it's the last attempt, re-raise
                 if (attempt >= max_retries - 1 or
                     not ("closed" in str(outer_error).lower() or "target" in str(outer_error).lower())):
