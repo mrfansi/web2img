@@ -106,6 +106,21 @@ class MetricsCollector:
                 "uptime": 0,
                 "start_time": time.time(),
             },
+            # Health check metrics
+            "health_check": {
+                "enabled": False,
+                "running": False,
+                "last_check_time": None,
+                "last_check_success": None,
+                "last_check_duration": None,
+                "last_error": None,
+                "check_count": 0,
+                "success_count": 0,
+                "failure_count": 0,
+                "success_rate": 0,
+                "interval": 300,
+                "test_url": "",
+            },
         }
         
         # Store raw response times for percentile calculations
@@ -333,6 +348,14 @@ class MetricsCollector:
                     "total_memory": disk_usage["total"],
                 })
     
+    def update_health_check_stats(self, stats: Dict[str, Any]):
+        """Update health check statistics.
+
+        Args:
+            stats: Health check statistics
+        """
+        self._metrics["health_check"].update(stats)
+
     def update_system_metrics(self):
         """Update system-wide metrics."""
         # Update uptime

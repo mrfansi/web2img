@@ -360,6 +360,23 @@ class Settings(BaseModel):
         default_factory=lambda: os.getenv("LOG_PROXY_HEADERS", "false").lower() in ("true", "1", "t")  # For debugging
     )
 
+    # Health Check Configuration
+    health_check_enabled: bool = Field(
+        default_factory=lambda: os.getenv("HEALTH_CHECK_ENABLED", "true").lower() in ("true", "1", "t")
+    )
+    health_check_interval: int = Field(
+        default_factory=lambda: int(os.getenv("HEALTH_CHECK_INTERVAL", "300"))  # 5 minutes
+    )
+    health_check_url: str = Field(
+        default_factory=lambda: os.getenv("HEALTH_CHECK_URL", "https://example.com")  # Default test URL
+    )
+    health_check_timeout: int = Field(
+        default_factory=lambda: int(os.getenv("HEALTH_CHECK_TIMEOUT", "60"))  # 60 seconds timeout
+    )
+    health_check_port: int = Field(
+        default_factory=lambda: int(os.getenv("PORT", "8000"))  # Use same port as the application
+    )
+
     # Use model_config instead of class Config to fix Pydantic v2 deprecation warning
     model_config = ConfigDict()
 

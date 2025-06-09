@@ -9,6 +9,7 @@ from app.schemas.health import HealthResponse
 from app.services.screenshot import screenshot_service
 from app.services.storage import storage_service
 from app.services.cache import cache_service
+from app.services.health_checker import health_check_service
 from app.models.job import job_store
 from app.core.config import settings
 from app.core.monitoring import metrics_collector
@@ -213,7 +214,25 @@ async def health_check() -> HealthResponse:
             "status": "error",
             "message": str(e)
         }
-    
+
+    # Check health check service
+    try:
+        health_check_stats = health_check_service.get_stats()
+        services["health_check"] = {
+            "status": "ok" if health_check_stats["enabled"] and health_check_stats["running"] else "disabled",
+            "enabled": health_check_stats["enabled"],
+            "running": health_check_stats["running"],
+            "last_check_success": health_check_stats["last_check_success"],
+            "success_rate": health_check_stats["success_rate"],
+            "check_count": health_check_stats["check_count"],
+            "interval": health_check_stats["interval"]
+        }
+    except Exception as e:
+        services["health_check"] = {
+            "status": "error",
+            "message": str(e)
+        }
+
     # Return health status
     return HealthResponse(
         status=overall_status,

@@ -24,6 +24,7 @@ from app.core.monitoring import metrics_collector, start_monitoring, stop_monito
 from app.services.screenshot import screenshot_service
 from app.services.storage import storage_service
 from app.services.cache import cache_service
+from app.services.health_checker import health_check_service
 from app.services.batch import batch_service
 from app.services.pool_watchdog import initialize_watchdog
 
@@ -64,6 +65,10 @@ async def lifespan(app: FastAPI):
     # Start monitoring system
     await start_monitoring()
     logger.info("Monitoring system initialized")
+
+    # Start health check service
+    await health_check_service.start()
+    logger.info("Health check service initialized")
     
     # Start batch job scheduler
     await batch_service.start_scheduler()
@@ -80,7 +85,11 @@ async def lifespan(app: FastAPI):
     # Stop batch job scheduler
     await batch_service.stop_scheduler()
     logger.info("Batch job scheduler stopped")
-    
+
+    # Stop health check service
+    await health_check_service.stop()
+    logger.info("Health check service stopped")
+
     # Stop monitoring system
     await stop_monitoring()
     logger.info("Monitoring system stopped")
