@@ -121,7 +121,7 @@ The `/health` endpoint now includes health check statistics:
 
 Health check activities are logged with the `health_checker` logger:
 
-```
+```bash
 2025-06-09 09:41:44.873 | INFO | app.services.health_checker:start:41 - Starting health check service with 300s interval
 2025-06-09 09:45:00.123 | INFO | app.services.health_checker:_perform_health_check:125 - Health check #1 successful
 2025-06-09 09:50:00.456 | ERROR | app.services.health_checker:_handle_health_check_failure:175 - Health check #2 failed
