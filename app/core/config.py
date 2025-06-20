@@ -17,7 +17,7 @@ class Settings(BaseModel):
         default_factory=lambda: int(os.getenv("CACHE_TTL_SECONDS", "3600"))
     )
     cache_max_items: int = Field(
-        default_factory=lambda: int(os.getenv("CACHE_MAX_ITEMS", "100"))
+        default_factory=lambda: int(os.getenv("CACHE_MAX_ITEMS", "300"))  # Optimized default
     )
 
     # R2 Storage Configuration
@@ -88,41 +88,41 @@ class Settings(BaseModel):
 
     # Server settings
     workers: int = Field(
-        default_factory=lambda: int(os.getenv("WORKERS", "4"))
+        default_factory=lambda: int(os.getenv("WORKERS", "8"))  # Optimized default
     )
 
-    # Browser Pool Configuration - Optimized for high concurrency and load handling
+    # Browser Pool Configuration - Optimized for balanced performance and resource usage
     browser_pool_min_size: int = Field(
-        default_factory=lambda: int(os.getenv("BROWSER_POOL_MIN_SIZE", "16"))  # Increased for better high-load handling
+        default_factory=lambda: int(os.getenv("BROWSER_POOL_MIN_SIZE", "4"))  # Optimized default
     )
     browser_pool_max_size: int = Field(
-        default_factory=lambda: int(os.getenv("BROWSER_POOL_MAX_SIZE", "64"))  # Increased to handle load spikes
+        default_factory=lambda: int(os.getenv("BROWSER_POOL_MAX_SIZE", "12"))  # Optimized default
     )
     browser_pool_idle_timeout: int = Field(
-        default_factory=lambda: int(os.getenv("BROWSER_POOL_IDLE_TIMEOUT", "180"))  # Reduced for faster recycling
+        default_factory=lambda: int(os.getenv("BROWSER_POOL_IDLE_TIMEOUT", "1800"))  # 30 minutes - optimized default
     )
     browser_pool_max_age: int = Field(
-        default_factory=lambda: int(os.getenv("BROWSER_POOL_MAX_AGE", "1800"))  # Reduced for better memory management
+        default_factory=lambda: int(os.getenv("BROWSER_POOL_MAX_AGE", "3600"))  # 1 hour - optimized default
     )
     browser_pool_cleanup_interval: int = Field(
-        default_factory=lambda: int(os.getenv("BROWSER_POOL_CLEANUP_INTERVAL", "30"))  # More frequent cleanup
+        default_factory=lambda: int(os.getenv("BROWSER_POOL_CLEANUP_INTERVAL", "300"))  # 5 minutes - optimized default
     )
 
-    # Browser Pool Load Management - New adaptive scaling configuration
+    # Browser Pool Load Management - Optimized adaptive scaling configuration
     browser_pool_wait_timeout: int = Field(
-        default_factory=lambda: int(os.getenv("BROWSER_POOL_WAIT_TIMEOUT", "30"))  # Max seconds to wait for browser
+        default_factory=lambda: int(os.getenv("BROWSER_POOL_WAIT_TIMEOUT", "15"))  # Optimized default
     )
     browser_pool_scale_threshold: float = Field(
-        default_factory=lambda: float(os.getenv("BROWSER_POOL_SCALE_THRESHOLD", "0.8"))  # Scale when 80% capacity
+        default_factory=lambda: float(os.getenv("BROWSER_POOL_SCALE_THRESHOLD", "0.7"))  # Optimized default
     )
     browser_pool_scale_factor: float = Field(
-        default_factory=lambda: float(os.getenv("BROWSER_POOL_SCALE_FACTOR", "1.5"))  # Scale by 50% when needed
+        default_factory=lambda: float(os.getenv("BROWSER_POOL_SCALE_FACTOR", "1.3"))  # Optimized default
     )
     enable_adaptive_scaling: bool = Field(
         default_factory=lambda: os.getenv("ENABLE_ADAPTIVE_SCALING", "true").lower() in ("true", "1", "t")
     )
     max_wait_attempts: int = Field(
-        default_factory=lambda: int(os.getenv("MAX_WAIT_ATTEMPTS", "10"))  # Max attempts to wait for browser
+        default_factory=lambda: int(os.getenv("MAX_WAIT_ATTEMPTS", "3"))  # Optimized default
     )
 
     # Emergency Load Management - New queue and load shedding configuration
@@ -145,18 +145,18 @@ class Settings(BaseModel):
         default_factory=lambda: int(os.getenv("EMERGENCY_CLEANUP_INTERVAL", "10"))  # Emergency cleanup every 10s
     )
 
-    # Tab Pool Configuration - New multi-tab support
+    # Tab Pool Configuration - Optimized multi-tab support
     max_tabs_per_browser: int = Field(
-        default_factory=lambda: int(os.getenv("MAX_TABS_PER_BROWSER", "20"))  # Maximum tabs per browser instance
+        default_factory=lambda: int(os.getenv("MAX_TABS_PER_BROWSER", "5"))  # Optimized default
     )
     tab_idle_timeout: int = Field(
-        default_factory=lambda: int(os.getenv("TAB_IDLE_TIMEOUT", "60"))  # Time before idle tab is closed
+        default_factory=lambda: int(os.getenv("TAB_IDLE_TIMEOUT", "1800"))  # 30 minutes - optimized default
     )
     tab_max_age: int = Field(
-        default_factory=lambda: int(os.getenv("TAB_MAX_AGE", "300"))  # Maximum age for a tab before forced recycling
+        default_factory=lambda: int(os.getenv("TAB_MAX_AGE", "3600"))  # 1 hour - optimized default
     )
     tab_cleanup_interval: int = Field(
-        default_factory=lambda: int(os.getenv("TAB_CLEANUP_INTERVAL", "15"))  # Interval for tab cleanup
+        default_factory=lambda: int(os.getenv("TAB_CLEANUP_INTERVAL", "300"))  # 5 minutes - optimized default
     )
     enable_tab_reuse: bool = Field(
         default_factory=lambda: os.getenv("ENABLE_TAB_REUSE", "true").lower() in ("true", "1", "t")
@@ -164,10 +164,10 @@ class Settings(BaseModel):
 
     # Screenshot Service Configuration
     screenshot_cleanup_interval: int = Field(
-        default_factory=lambda: int(os.getenv("SCREENSHOT_CLEANUP_INTERVAL", "30"))
+        default_factory=lambda: int(os.getenv("SCREENSHOT_CLEANUP_INTERVAL", "1800"))  # 30 minutes - optimized default
     )
     temp_file_retention_hours: int = Field(
-        default_factory=lambda: int(os.getenv("TEMP_FILE_RETENTION_HOURS", "24"))
+        default_factory=lambda: int(os.getenv("TEMP_FILE_RETENTION_HOURS", "6"))  # Optimized default
     )
 
     # Browser Cache Configuration
@@ -175,7 +175,7 @@ class Settings(BaseModel):
         default_factory=lambda: os.getenv("BROWSER_CACHE_ENABLED", "true").lower() in ("true", "1", "t")
     )
     browser_cache_max_size_mb: int = Field(
-        default_factory=lambda: int(os.getenv("BROWSER_CACHE_MAX_SIZE_MB", "500"))
+        default_factory=lambda: int(os.getenv("BROWSER_CACHE_MAX_SIZE_MB", "200"))  # Optimized default
     )
     browser_cache_max_file_size_mb: int = Field(
         default_factory=lambda: int(os.getenv("BROWSER_CACHE_MAX_FILE_SIZE_MB", "10"))
@@ -184,7 +184,7 @@ class Settings(BaseModel):
         default_factory=lambda: int(os.getenv("BROWSER_CACHE_TTL_HOURS", "24"))
     )
     browser_cache_cleanup_interval: int = Field(
-        default_factory=lambda: int(os.getenv("BROWSER_CACHE_CLEANUP_INTERVAL", "3600"))
+        default_factory=lambda: int(os.getenv("BROWSER_CACHE_CLEANUP_INTERVAL", "1800"))  # 30 minutes - optimized default
     )
     browser_cache_all_content: bool = Field(
         default_factory=lambda: os.getenv("BROWSER_CACHE_ALL_CONTENT", "true").lower() in ("true", "1", "t")  # Enable by default for timeout prevention
@@ -247,26 +247,26 @@ class Settings(BaseModel):
         default_factory=lambda: float(os.getenv("CONTEXT_RETRY_JITTER_MULTIPLIER", "2.0"))
     )
 
-    # Screenshot Capture Retry Configuration - Optimized for high concurrency
+    # Screenshot Capture Retry Configuration - Optimized for balanced performance
     screenshot_max_retries: int = Field(
-        default_factory=lambda: int(os.getenv("SCREENSHOT_MAX_RETRIES", "8"))  # Increased from 5
+        default_factory=lambda: int(os.getenv("SCREENSHOT_MAX_RETRIES", "3"))  # Optimized default
     )
     screenshot_base_delay: float = Field(
-        default_factory=lambda: float(os.getenv("SCREENSHOT_BASE_DELAY", "1.5"))  # Increased from 1.0
+        default_factory=lambda: float(os.getenv("SCREENSHOT_BASE_DELAY", "0.5"))  # Optimized default
     )
     screenshot_max_delay: float = Field(
-        default_factory=lambda: float(os.getenv("SCREENSHOT_MAX_DELAY", "15.0"))  # Increased from 10.0
+        default_factory=lambda: float(os.getenv("SCREENSHOT_MAX_DELAY", "4.0"))  # Optimized default
     )
     screenshot_jitter: float = Field(
-        default_factory=lambda: float(os.getenv("SCREENSHOT_JITTER", "0.4"))  # Increased from 0.3
+        default_factory=lambda: float(os.getenv("SCREENSHOT_JITTER", "0.2"))  # Optimized default
     )
 
-    # Circuit Breaker Configuration - Optimized for better resilience under high load
+    # Circuit Breaker Configuration - Optimized for balanced resilience
     circuit_breaker_threshold: int = Field(
-        default_factory=lambda: int(os.getenv("CIRCUIT_BREAKER_THRESHOLD", "8"))  # Increased from 5 for better tolerance
+        default_factory=lambda: int(os.getenv("CIRCUIT_BREAKER_THRESHOLD", "15"))  # Optimized default
     )
     circuit_breaker_reset_time: int = Field(
-        default_factory=lambda: int(os.getenv("CIRCUIT_BREAKER_RESET_TIME", "180"))  # Reduced from 300 for faster recovery
+        default_factory=lambda: int(os.getenv("CIRCUIT_BREAKER_RESET_TIME", "45"))  # Optimized default
     )
 
     # Performance Optimization Configuration - Optimized for timeout prevention
@@ -274,12 +274,12 @@ class Settings(BaseModel):
         default_factory=lambda: os.getenv("DISABLE_IMAGES", "False").lower() in ("true", "1", "t")  # Keep images for accurate screenshots
     )
 
-    # Concurrency Control Configuration - Optimized for high-load handling
+    # Concurrency Control Configuration - Optimized for balanced performance
     max_concurrent_screenshots: int = Field(
-        default_factory=lambda: int(os.getenv("MAX_CONCURRENT_SCREENSHOTS", "32"))  # Increased for high-load handling
+        default_factory=lambda: int(os.getenv("MAX_CONCURRENT_SCREENSHOTS", "32"))  # Optimized default
     )
     max_concurrent_contexts: int = Field(
-        default_factory=lambda: int(os.getenv("MAX_CONCURRENT_CONTEXTS", "64"))  # Increased to match browser pool
+        default_factory=lambda: int(os.getenv("MAX_CONCURRENT_CONTEXTS", "64"))  # Optimized default
     )
 
     # Emergency Context Creation Configuration
@@ -295,10 +295,10 @@ class Settings(BaseModel):
 
     # Resource Management Configuration
     force_browser_restart_interval: int = Field(
-        default_factory=lambda: int(os.getenv("FORCE_BROWSER_RESTART_INTERVAL", "0"))  # 0 = disabled
+        default_factory=lambda: int(os.getenv("FORCE_BROWSER_RESTART_INTERVAL", "7200"))  # 2 hours - optimized default
     )
     memory_cleanup_threshold: int = Field(
-        default_factory=lambda: int(os.getenv("MEMORY_CLEANUP_THRESHOLD", "85"))  # Percentage
+        default_factory=lambda: int(os.getenv("MEMORY_CLEANUP_THRESHOLD", "80"))  # Optimized default
     )
 
     # Performance Logging Configuration
@@ -358,6 +358,24 @@ class Settings(BaseModel):
     )
     log_proxy_headers: bool = Field(
         default_factory=lambda: os.getenv("LOG_PROXY_HEADERS", "false").lower() in ("true", "1", "t")  # For debugging
+    )
+
+    # Pool Watchdog Configuration - Optimized for balanced monitoring
+    # These settings control the browser pool monitoring and automatic cleanup
+    pool_watchdog_interval: int = Field(
+        default_factory=lambda: int(os.getenv("POOL_WATCHDOG_INTERVAL", "300"))  # 5 minutes - optimized default
+    )
+    pool_watchdog_usage_threshold: float = Field(
+        default_factory=lambda: float(os.getenv("POOL_WATCHDOG_USAGE_THRESHOLD", "0.8"))  # 80% - optimized default
+    )
+    pool_watchdog_idle_threshold: int = Field(
+        default_factory=lambda: int(os.getenv("POOL_WATCHDOG_IDLE_THRESHOLD", "1800"))  # 30 minutes - optimized default
+    )
+    pool_watchdog_request_threshold: int = Field(
+        default_factory=lambda: int(os.getenv("POOL_WATCHDOG_REQUEST_THRESHOLD", "20"))  # optimized default
+    )
+    pool_watchdog_force_recycle_age: int = Field(
+        default_factory=lambda: int(os.getenv("POOL_WATCHDOG_FORCE_RECYCLE_AGE", "3600"))  # 1 hour - optimized default
     )
 
     # Health Check Configuration

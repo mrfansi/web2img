@@ -22,12 +22,12 @@ class BrowserPoolWatchdog:
         self.logger = get_logger("pool_watchdog")
         self.browser_pool = browser_pool
 
-        # Configuration with defaults
-        self.check_interval = getattr(settings, "POOL_WATCHDOG_INTERVAL", 60)  # seconds
-        self.idle_threshold = getattr(settings, "POOL_WATCHDOG_IDLE_THRESHOLD", 300)  # seconds
-        self.usage_threshold = getattr(settings, "POOL_WATCHDOG_USAGE_THRESHOLD", 0.7)  # 70%
-        self.request_threshold = getattr(settings, "POOL_WATCHDOG_REQUEST_THRESHOLD", 5)  # requests
-        self.force_recycle_age = getattr(settings, "POOL_WATCHDOG_FORCE_RECYCLE_AGE", 3600)  # 1 hour
+        # Configuration from settings (now properly defined in Settings class)
+        self.check_interval = settings.pool_watchdog_interval  # seconds
+        self.idle_threshold = settings.pool_watchdog_idle_threshold  # seconds
+        self.usage_threshold = settings.pool_watchdog_usage_threshold  # 70%
+        self.request_threshold = settings.pool_watchdog_request_threshold  # requests
+        self.force_recycle_age = settings.pool_watchdog_force_recycle_age  # 1 hour
 
         # State tracking
         self._watchdog_task = None
