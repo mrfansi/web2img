@@ -170,6 +170,14 @@ class Settings(BaseModel):
         default_factory=lambda: int(os.getenv("TEMP_FILE_RETENTION_HOURS", "6"))  # Optimized default
     )
 
+    # Batch Job Persistence Configuration
+    batch_job_persistence_dir: str = Field(
+        default_factory=lambda: os.getenv("BATCH_JOB_PERSISTENCE_DIR", "/tmp/web2img/jobs")
+    )
+    batch_job_persistence_enabled: bool = Field(
+        default_factory=lambda: os.getenv("BATCH_JOB_PERSISTENCE_ENABLED", "true").lower() in ("true", "1", "t")
+    )
+
     # Browser Cache Configuration
     browser_cache_enabled: bool = Field(
         default_factory=lambda: os.getenv("BROWSER_CACHE_ENABLED", "true").lower() in ("true", "1", "t")

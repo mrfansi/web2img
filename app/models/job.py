@@ -1,6 +1,9 @@
 import time
 import uuid
 import heapq
+import json
+import os
+from pathlib import Path
 from typing import Dict, List, Any, Optional, Tuple
 from datetime import datetime, timezone, timedelta
 from enum import Enum
@@ -59,6 +62,23 @@ class JobItem:
             result["cached"] = bool(self.cached)  # Ensure boolean type
         
         return result
+
+    def to_json(self) -> str:
+        """Convert the item to JSON for serialization."""
+        return json.dumps(self.to_dict())
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'JobItem':
+        """Create a JobItem from a dictionary."""
+        item = cls(data["id"], data.get("request_data", {}))
+        item.status = data.get("status", "pending")
+        item.result = data.get("result")
+        item.error = data.get("error")
+        item.start_time = data.get("start_time")
+        item.end_time = data.get("end_time")
+        item.processing_time = data.get("processing_time")
+        item.cached = data.get("cached")
+        return item
 
 
 class JobPriority(str, Enum):
@@ -143,10 +163,10 @@ class BatchJob:
     def update(self) -> None:
         """Update the job status based on item statuses."""
         self.updated_at = time.time()
-        
+
         # Count items by status
         counts = self._count_items_by_status()
-        
+
         # Update job status
         if counts["total"] == 0:
             self.status = "failed"
@@ -158,7 +178,7 @@ class BatchJob:
                     self.status = "failed"
             else:
                 self.status = "completed"
-            
+
             # Record completion time if not already set
             if self.completed_at is None:
                 self.completed_at = time.time()
@@ -166,6 +186,14 @@ class BatchJob:
                     self.total_processing_time = self.completed_at - self.start_time
         else:
             self.status = "processing"
+
+        # Save to disk after updating
+        self._save_to_store()
+
+    def _save_to_store(self):
+        """Save this job to the job store."""
+        # Import here to avoid circular imports
+        job_store.update_job(self)
     
     def _count_items_by_status(self) -> Dict[str, int]:
         """Count items by status."""
@@ -295,6 +323,65 @@ class BatchJob:
         new_job = BatchJob(items, new_config)
         
         return new_job
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert the job to a dictionary for serialization."""
+        return {
+            "job_id": self.job_id,
+            "items": {item_id: item.to_dict() for item_id, item in self.items.items()},
+            "config": self.config,
+            "status": self.status,
+            "created_at": self.created_at,
+            "updated_at": self.updated_at,
+            "completed_at": self.completed_at,
+            "total_processing_time": self.total_processing_time,
+            "start_time": self.start_time,
+            "priority": self.priority.value,
+            "scheduled_time": self.scheduled_time,
+            "recurrence_pattern": self.recurrence_pattern.value,
+            "recurrence_interval": self.recurrence_interval,
+            "recurrence_count": self.recurrence_count,
+            "recurrence_cron": self.recurrence_cron,
+            "next_scheduled_time": self.next_scheduled_time,
+            "parent_job_id": self.parent_job_id
+        }
+
+    def to_json(self) -> str:
+        """Convert the job to JSON for serialization."""
+        return json.dumps(self.to_dict())
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'BatchJob':
+        """Create a BatchJob from a dictionary."""
+        # Create job with empty items first
+        job = cls([], data.get("config", {}))
+
+        # Override with saved data
+        job.job_id = data["job_id"]
+        job.status = data.get("status", "pending")
+        job.created_at = data.get("created_at", time.time())
+        job.updated_at = data.get("updated_at", time.time())
+        job.completed_at = data.get("completed_at")
+        job.total_processing_time = data.get("total_processing_time")
+        job.start_time = data.get("start_time")
+        job.priority = JobPriority(data.get("priority", JobPriority.NORMAL))
+        job.scheduled_time = data.get("scheduled_time")
+        job.recurrence_pattern = RecurrencePattern(data.get("recurrence_pattern", RecurrencePattern.NONE))
+        job.recurrence_interval = data.get("recurrence_interval", 1)
+        job.recurrence_count = data.get("recurrence_count", 0)
+        job.recurrence_cron = data.get("recurrence_cron")
+        job.next_scheduled_time = data.get("next_scheduled_time")
+        job.parent_job_id = data.get("parent_job_id")
+
+        # Restore items
+        job.items = {}
+        for item_id, item_data in data.get("items", {}).items():
+            # Add request_data to item_data if not present
+            if "request_data" not in item_data:
+                item_data["request_data"] = {}
+            job.items[item_id] = JobItem.from_dict(item_data)
+
+        return job
     
     def get_status(self) -> Dict[str, Any]:
         """Get the current status of the job."""
@@ -438,19 +525,118 @@ class PriorityQueue:
 
 
 class JobStore:
-    """Store for batch jobs."""
-    
-    def __init__(self, max_jobs: int = 100, ttl: int = 3600):
+    """Store for batch jobs with persistence support."""
+
+    def __init__(self, max_jobs: int = 100, ttl: int = 3600, persistence_dir: str = "/tmp/web2img/jobs"):
         self.jobs: Dict[str, BatchJob] = {}
         self.max_jobs = max_jobs
         self.ttl = ttl  # Time to live in seconds
         self.last_cleanup = time.time()
-        
+
+        # Persistence configuration
+        self.persistence_dir = Path(persistence_dir)
+        self.persistence_enabled = True
+
+        # Check if persistence is disabled via settings
+        try:
+            from app.core.config import settings
+            if not settings.batch_job_persistence_enabled:
+                self.persistence_enabled = False
+        except ImportError:
+            pass
+
         # Priority queue for pending jobs
         self.pending_queue = PriorityQueue()
-        
+
         # Queue for scheduled jobs (sorted by scheduled time)
         self.scheduled_queue: List[Tuple[float, str]] = []  # (scheduled_time, job_id)
+
+        # Initialize persistence
+        self._init_persistence()
+
+    def _init_persistence(self):
+        """Initialize persistence directory and load existing jobs."""
+        try:
+            # Create persistence directory
+            self.persistence_dir.mkdir(parents=True, exist_ok=True)
+
+            # Load existing jobs
+            self._load_jobs_from_disk()
+
+        except Exception as e:
+            print(f"Warning: Failed to initialize job persistence: {e}")
+            self.persistence_enabled = False
+
+    def _get_job_file_path(self, job_id: str) -> Path:
+        """Get the file path for a job."""
+        return self.persistence_dir / f"{job_id}.json"
+
+    def _save_job_to_disk(self, job: BatchJob):
+        """Save a job to disk."""
+        if not self.persistence_enabled:
+            return
+
+        try:
+            job_file = self._get_job_file_path(job.job_id)
+            with open(job_file, 'w') as f:
+                f.write(job.to_json())
+        except Exception as e:
+            print(f"Warning: Failed to save job {job.job_id} to disk: {e}")
+
+    def _load_job_from_disk(self, job_id: str) -> Optional[BatchJob]:
+        """Load a job from disk."""
+        if not self.persistence_enabled:
+            return None
+
+        try:
+            job_file = self._get_job_file_path(job_id)
+            if job_file.exists():
+                with open(job_file, 'r') as f:
+                    data = json.load(f)
+                return BatchJob.from_dict(data)
+        except Exception as e:
+            print(f"Warning: Failed to load job {job_id} from disk: {e}")
+        return None
+
+    def _delete_job_from_disk(self, job_id: str):
+        """Delete a job from disk."""
+        if not self.persistence_enabled:
+            return
+
+        try:
+            job_file = self._get_job_file_path(job_id)
+            if job_file.exists():
+                job_file.unlink()
+        except Exception as e:
+            print(f"Warning: Failed to delete job {job_id} from disk: {e}")
+
+    def _load_jobs_from_disk(self):
+        """Load all jobs from disk on startup."""
+        if not self.persistence_enabled:
+            return
+
+        try:
+            for job_file in self.persistence_dir.glob("*.json"):
+                try:
+                    with open(job_file, 'r') as f:
+                        data = json.load(f)
+
+                    job = BatchJob.from_dict(data)
+                    self.jobs[job.job_id] = job
+
+                    # Add to appropriate queue based on status
+                    if job.status == "scheduled" and job.scheduled_time:
+                        heapq.heappush(self.scheduled_queue, (job.scheduled_time, job.job_id))
+                    elif job.status == "pending":
+                        self.pending_queue.push(job)
+
+                except Exception as e:
+                    print(f"Warning: Failed to load job from {job_file}: {e}")
+
+            print(f"Loaded {len(self.jobs)} jobs from disk")
+
+        except Exception as e:
+            print(f"Warning: Failed to load jobs from disk: {e}")
     
     def create_job(self, items: List[Dict[str, Any]], config: Optional[Dict[str, Any]] = None) -> BatchJob:
         """Create a new batch job."""
@@ -462,7 +648,10 @@ class JobStore:
         
         # Store the job
         self.jobs[job.job_id] = job
-        
+
+        # Save to disk
+        self._save_job_to_disk(job)
+
         # Add to appropriate queue based on status
         if job.status == "scheduled":
             # Add to scheduled queue
@@ -471,12 +660,24 @@ class JobStore:
         elif job.status == "pending":
             # Add to pending queue
             self.pending_queue.push(job)
-        
+
         return job
     
     def get_job(self, job_id: str) -> Optional[BatchJob]:
         """Get a job by ID."""
-        return self.jobs.get(job_id)
+        # First check memory
+        job = self.jobs.get(job_id)
+        if job:
+            return job
+
+        # If not in memory, try to load from disk
+        job = self._load_job_from_disk(job_id)
+        if job:
+            # Add back to memory
+            self.jobs[job_id] = job
+            return job
+
+        return None
     
     def get_next_pending_job(self) -> Optional[BatchJob]:
         """Get the next pending job based on priority."""
@@ -522,17 +723,25 @@ class JobStore:
         if job_id in self.jobs:
             # Remove from jobs dictionary
             del self.jobs[job_id]
-            
+
+            # Delete from disk
+            self._delete_job_from_disk(job_id)
+
             # Remove from pending queue if it's there
             self.pending_queue.remove(job_id)
-            
+
             # Remove from scheduled queue if it's there
             # This is O(n) operation, but we can't easily remove from a heap
             self.scheduled_queue = [(st, jid) for st, jid in self.scheduled_queue if jid != job_id]
             heapq.heapify(self.scheduled_queue)
-            
+
             return True
         return False
+
+    def update_job(self, job: BatchJob):
+        """Update a job in storage (both memory and disk)."""
+        self.jobs[job.job_id] = job
+        self._save_job_to_disk(job)
     
     def _maybe_cleanup(self) -> None:
         """Clean up old jobs if needed."""
@@ -568,5 +777,16 @@ class JobStore:
                 self.delete_job(job_id)
 
 
-# Create a singleton instance
-job_store = JobStore()
+# Create a singleton instance with settings
+def _create_job_store():
+    """Create job store with settings."""
+    try:
+        from app.core.config import settings
+        return JobStore(
+            persistence_dir=settings.batch_job_persistence_dir
+        )
+    except ImportError:
+        # Fallback if settings not available
+        return JobStore()
+
+job_store = _create_job_store()
