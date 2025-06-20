@@ -338,97 +338,93 @@ class BrowserPool:
                 })
 
             self.logger.warning(f"Browser pool at capacity ({pool_size}/{self._max_size}), waiting for an available browser", log_data)
-        
-            # Use optimized adaptive exponential backoff for high concurrency scenarios
-            # Increase max attempts and reduce wait time for better throughput
-            utilization_factor = in_use_count / max(1, pool_size)  # Avoid division by zero
-            max_wait_attempts = min(25, 10 + int(15 * utilization_factor))  # 10-25 attempts for high concurrency
-            base_wait_time = 0.05 * (1 + utilization_factor * 0.5)  # 0.05-0.075s for faster response
-            
-            for retry in range(max_wait_attempts):
-                # Calculate wait time with optimized exponential backoff for high concurrency
-                wait_time = min(2.0, base_wait_time * (1.5 ** retry))  # Reduced max wait and growth factor
 
-                # Add smaller jitter to prevent thundering herd problem
-                jitter = wait_time * 0.1  # 10% jitter for faster response
-                wait_time = wait_time + (random.random() * 2 - 1) * jitter
-                
-                # Release the lock while waiting to allow other operations
-                self._lock.release()
-                
-                # Wait with backoff
-                self.logger.debug(f"Waiting {wait_time:.2f}s for an available browser (attempt {retry+1}/{max_wait_attempts})", {
-                    "retry": retry + 1,
-                    "max_attempts": max_wait_attempts,
-                    "wait_time": round(wait_time, 2)
-                })
-                
-                await asyncio.sleep(wait_time)
-                
-                # Re-acquire the lock
-                await self._lock.acquire()
-                
+        # Use optimized adaptive exponential backoff for high concurrency scenarios
+        # CRITICAL FIX: Move wait logic outside the lock context to prevent lock issues
+        utilization_factor = in_use_count / max(1, pool_size)  # Avoid division by zero
+        max_wait_attempts = min(25, 10 + int(15 * utilization_factor))  # 10-25 attempts for high concurrency
+        base_wait_time = 0.05 * (1 + utilization_factor * 0.5)  # 0.05-0.075s for faster response
+
+        for retry in range(max_wait_attempts):
+            # Calculate wait time with optimized exponential backoff for high concurrency
+            wait_time = min(2.0, base_wait_time * (1.5 ** retry))  # Reduced max wait and growth factor
+
+            # Add smaller jitter to prevent thundering herd problem
+            jitter = wait_time * 0.1  # 10% jitter for faster response
+            wait_time = wait_time + (random.random() * 2 - 1) * jitter
+
+            # Wait with backoff (no lock held during wait)
+            self.logger.debug(f"Waiting {wait_time:.2f}s for an available browser (attempt {retry+1}/{max_wait_attempts})", {
+                "retry": retry + 1,
+                "max_attempts": max_wait_attempts,
+                "wait_time": round(wait_time, 2)
+            })
+
+            await asyncio.sleep(wait_time)
+
+            # Try to acquire a browser again after waiting
+            async with self._lock:
                 # Check if a browser became available while we were waiting
                 if self._available_browsers:
                     browser_index = self._available_browsers.pop(0)
                     browser_data = self._browsers[browser_index]
-                    
+
                     # Update metadata
                     browser_data["last_used"] = time.time()
                     browser_data["usage_count"] += 1
-                    
+
                     # Update stats
                     self._stats["reused"] += 1
                     self._stats["current_usage"] = len(self._browsers) - len(self._available_browsers)
                     self._stats["peak_usage"] = max(self._stats["peak_usage"], self._stats["current_usage"])
-                    
+
                     self.logger.info(f"Successfully acquired browser after waiting (attempt {retry+1}/{max_wait_attempts})", {
                         "browser_index": browser_index,
                         "wait_attempts": retry + 1,
                         "wait_time_total": round(sum([min(8.0, base_wait_time * (2 ** r)) for r in range(retry + 1)]), 2)
                     })
-                    
+
                     return browser_data["browser"], browser_index
-                
+
                 # Check if the max size has been increased while we were waiting
                 current_dynamic_max_size = settings.browser_pool_max_size
                 if current_dynamic_max_size > self._max_size and len(self._browsers) < current_dynamic_max_size:
                     # Max size has been increased, try to create a new browser
                     self.logger.info(f"Max size increased from {self._max_size} to {current_dynamic_max_size}, creating new browser")
                     self._max_size = current_dynamic_max_size
-                    
+
                     browser_data = await self._create_browser_instance()
                     if browser_data:
                         self._browsers.append(browser_data)
                         browser_index = len(self._browsers) - 1
-                        
+
                         # Update stats
                         self._stats["current_size"] = len(self._browsers)
                         self._stats["current_usage"] = len(self._browsers) - len(self._available_browsers)
                         self._stats["peak_usage"] = max(self._stats["peak_usage"], self._stats["current_usage"])
-                        
+
                         self.logger.info(f"Created new browser {browser_index} after max size increase")
                         return browser_data["browser"], browser_index
-        
-            # If we still don't have an available browser, raise a detailed error
-            from app.core.errors import BrowserPoolExhaustedError
-            
-            # Get detailed stats for error reporting
-            detailed_stats = self.get_stats()
-            
-            context = {
-                "pool_size": len(self._browsers),
-                "max_size": self._max_size,
-                "available": len(self._available_browsers),
-                "in_use": len(self._browsers) - len(self._available_browsers),
-                "utilization_pct": utilization_pct,
-                "wait_attempts": max_wait_attempts,
-                "total_wait_time": round(sum([min(8.0, base_wait_time * (2 ** r)) for r in range(max_wait_attempts)]), 2),
-                "stats": detailed_stats
-            }
-            
-            self.logger.error("Browser pool exhausted after maximum wait attempts", context)
-            raise BrowserPoolExhaustedError(context=context)
+
+        # If we still don't have an available browser, raise a detailed error
+        from app.core.errors import BrowserPoolExhaustedError
+
+        # Get detailed stats for error reporting
+        detailed_stats = self.get_stats()
+
+        context = {
+            "pool_size": len(self._browsers),
+            "max_size": self._max_size,
+            "available": len(self._available_browsers),
+            "in_use": len(self._browsers) - len(self._available_browsers),
+            "utilization_pct": utilization_pct,
+            "wait_attempts": max_wait_attempts,
+            "total_wait_time": round(sum([min(8.0, base_wait_time * (2 ** r)) for r in range(max_wait_attempts)]), 2),
+            "stats": detailed_stats
+        }
+
+        self.logger.error("Browser pool exhausted after maximum wait attempts", context)
+        raise BrowserPoolExhaustedError(context=context)
     
     async def release_browser(self, browser_index: int, is_healthy: bool = True):
         """Return a browser to the pool or recycle it.
