@@ -13,14 +13,20 @@ from app.schemas.batch import (
 )
 from app.services.batch import batch_service
 from app.core.errors import (
-    WebToImgError, 
-    get_error_response, 
+    WebToImgError,
+    get_error_response,
     HTTP_200_OK,
     HTTP_400_BAD_REQUEST,
     HTTP_404_NOT_FOUND,
     HTTP_202_ACCEPTED,
-    HTTP_500_INTERNAL_SERVER_ERROR
+    HTTP_500_INTERNAL_SERVER_ERROR,
+    HTTP_503_SERVICE_UNAVAILABLE,
+    HTTP_429_TOO_MANY_REQUESTS
 )
+from app.core.config import settings
+from app.core.logging import get_logger
+
+logger = get_logger("batch_api")
 
 router = APIRouter(tags=["batch"])
 
@@ -62,14 +68,57 @@ async def create_batch_job(
     Returns a job ID that can be used to check the status of the batch job.
     """
     try:
+        # Check system load and apply load shedding if enabled
+        if settings.enable_load_shedding:
+            try:
+                from app.services.request_queue import queue_manager
+
+                # Check if system is overloaded
+                if queue_manager._should_shed_load():
+                    logger.warning(f"Rejecting batch job due to system overload (user: {user_id})")
+                    raise HTTPException(
+                        status_code=HTTP_503_SERVICE_UNAVAILABLE,
+                        detail={
+                            "error": "service_overloaded",
+                            "message": "Service is currently overloaded. Please try again later.",
+                            "retry_after": 60
+                        }
+                    )
+
+                # Check batch size limits under high load
+                queue_stats = queue_manager.get_stats()
+                if queue_stats.get("load_shedding_active", False):
+                    max_batch_size = 10  # Reduced batch size under load
+                    if len(request.items) > max_batch_size:
+                        logger.warning(f"Rejecting large batch job under load (size: {len(request.items)}, user: {user_id})")
+                        raise HTTPException(
+                            status_code=HTTP_429_TOO_MANY_REQUESTS,
+                            detail={
+                                "error": "batch_too_large",
+                                "message": f"Batch size too large under current load. Maximum allowed: {max_batch_size}",
+                                "max_batch_size": max_batch_size,
+                                "retry_after": 30
+                            }
+                        )
+
+            except ImportError:
+                # Queue manager not available, proceed normally
+                logger.debug("Request queue not available for batch load checking")
+            except Exception as e:
+                logger.error(f"Error checking system load for batch job: {e}")
+                # Continue with batch creation on error
+
         # Create a batch job
         items = [item.model_dump() for item in request.items]
         config = request.config.model_dump() if request.config else {}
-        
+
         # Add user_id to config for tracking
         if user_id:
             config["user_id"] = user_id
-        
+
+        # Log batch job creation
+        logger.info(f"Creating batch job with {len(items)} items (user: {user_id})")
+
         job = await batch_service.create_batch_job(items, config, user_id)
         
         # Return the job status

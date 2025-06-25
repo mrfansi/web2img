@@ -660,34 +660,71 @@ class BrowserPool:
                 return None
     
     async def release_context(self, browser_index: int, context: BrowserContext):
-        """Release a browser context.
-        
+        """Release a browser context with fast release optimization.
+
         Args:
             browser_index: Index of the browser in the pool
             context: The browser context to release
         """
+        from app.core.config import settings
+
         async with self._lock:
             # Check if the browser index is valid
             if browser_index < 0 or browser_index >= len(self._browsers):
                 return
-            
+
             browser_data = self._browsers[browser_index]
-            
-            # Close all pages
-            try:
-                pages = context.pages
-                for page in pages:
-                    if not page.is_closed():
-                        await page.close()
-            except Exception:
-                pass  # Ignore errors during cleanup
-            
-            # Close the context
-            try:
-                await context.close()
-            except Exception:
-                pass  # Ignore errors during cleanup
-            
+
+            # Fast release optimization - close pages with timeout
+            if settings.enable_fast_release:
+                try:
+                    # Close all pages with timeout
+                    pages = context.pages
+                    close_tasks = []
+                    for page in pages:
+                        if not page.is_closed():
+                            close_tasks.append(page.close())
+
+                    if close_tasks:
+                        await asyncio.wait_for(
+                            asyncio.gather(*close_tasks, return_exceptions=True),
+                            timeout=settings.page_close_timeout / 1000.0  # Convert ms to seconds
+                        )
+                except asyncio.TimeoutError:
+                    # Pages didn't close in time - continue anyway
+                    pass
+                except Exception:
+                    # Ignore other errors during fast cleanup
+                    pass
+
+                # Close the context with timeout
+                try:
+                    await asyncio.wait_for(
+                        context.close(),
+                        timeout=settings.context_cleanup_timeout / 1000.0  # Convert ms to seconds
+                    )
+                except asyncio.TimeoutError:
+                    # Context didn't close in time - continue anyway
+                    pass
+                except Exception:
+                    # Ignore errors during fast cleanup
+                    pass
+            else:
+                # Standard release - close all pages
+                try:
+                    pages = context.pages
+                    for page in pages:
+                        if not page.is_closed():
+                            await page.close()
+                except Exception:
+                    pass  # Ignore errors during cleanup
+
+                # Close the context
+                try:
+                    await context.close()
+                except Exception:
+                    pass  # Ignore errors during cleanup
+
             # Remove from contexts list
             if context in browser_data["contexts"]:
                 browser_data["contexts"].remove(context)

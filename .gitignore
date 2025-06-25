@@ -24,7 +24,7 @@ MANIFEST
 # Virtual Environment
 .env
 .venv
-.env.optimized
+.env.*
 env/
 venv/
 ENV/

@@ -1,4 +1,5 @@
 import os
+import uuid
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
@@ -13,7 +14,9 @@ from app.core.errors import (
     WebToImgError,
     get_error_response,
     HTTP_200_OK,
-    HTTP_500_INTERNAL_SERVER_ERROR
+    HTTP_500_INTERNAL_SERVER_ERROR,
+    HTTP_503_SERVICE_UNAVAILABLE,
+    HTTP_429_TOO_MANY_REQUESTS
 )
 from app.core.logging import get_logger
 from app.core.config import settings
@@ -97,7 +100,7 @@ async def capture_screenshot(
     request: ScreenshotRequest,
     cache: bool = Query(True, description="Whether to use cache (if available)")
 ) -> Any:
-    """Capture a screenshot of a website.
+    """Capture a screenshot of a website with intelligent request queuing.
 
     Args:
         request: Screenshot request parameters
@@ -129,7 +132,83 @@ async def capture_screenshot(
         if cached_url:
             # Return the cached URL
             return ScreenshotResponse(url=cached_url)
-    
+
+    # Use request queue for load management if enabled
+    if settings.enable_request_queue:
+        try:
+            from app.services.request_queue import queue_manager, QueueStatus
+
+            # Generate unique request ID
+            request_id = str(uuid.uuid4())
+
+            # Define the screenshot processing function
+            async def process_screenshot():
+                return await _process_screenshot_internal(
+                    original_url=original_url,
+                    transformed_url=transformed_url,
+                    request=request,
+                    cache=cache
+                )
+
+            # Submit to queue
+            status = await queue_manager.submit_request(
+                request_id=request_id,
+                handler=process_screenshot,
+                priority=0,  # Normal priority
+                timeout=settings.queue_timeout
+            )
+
+            # Handle queue response
+            if status == QueueStatus.REJECTED:
+                raise HTTPException(
+                    status_code=HTTP_503_SERVICE_UNAVAILABLE,
+                    detail={
+                        "error": "service_overloaded",
+                        "message": "Service is currently overloaded. Please try again later.",
+                        "retry_after": 30
+                    }
+                )
+            elif status == QueueStatus.TIMEOUT:
+                raise HTTPException(
+                    status_code=HTTP_429_TOO_MANY_REQUESTS,
+                    detail={
+                        "error": "request_timeout",
+                        "message": "Request timed out in queue. Please try again.",
+                        "retry_after": 10
+                    }
+                )
+            elif status == QueueStatus.PROCESSED:
+                # Request was processed directly (queue disabled or low load)
+                return await process_screenshot()
+            else:
+                # Request was queued - this shouldn't happen in sync API
+                # but handle gracefully
+                return await process_screenshot()
+
+        except ImportError:
+            # Queue manager not available, process directly
+            logger.debug("Request queue not available, processing directly")
+        except Exception as e:
+            logger.error(f"Error with request queue: {e}")
+            # Fall back to direct processing
+
+    # Process directly (queue disabled or fallback)
+    return await _process_screenshot_internal(
+        original_url=original_url,
+        transformed_url=transformed_url,
+        request=request,
+        cache=cache
+    )
+
+
+async def _process_screenshot_internal(
+    original_url: str,
+    transformed_url: str,
+    request: ScreenshotRequest,
+    cache: bool
+) -> ScreenshotResponse:
+    """Internal function to process screenshot without queue management."""
+
     # Not in cache or cache disabled, proceed with capture
     screenshot_path = None
     try:
@@ -140,7 +219,7 @@ async def capture_screenshot(
             height=request.height,
             format=request.format,
         )
-        
+
         # Upload to storage (R2 or local)
         storage_url = await storage_service.upload_file(
             file_path=screenshot_path,
@@ -178,10 +257,10 @@ async def capture_screenshot(
         # FastAPI will use our custom exception handler
         if isinstance(e, WebToImgError):
             raise
-        
+
         # Otherwise, convert to an appropriate error response
         error_dict = get_error_response(e)
-        
+
         # Raise HTTPException with the detailed error information
         raise HTTPException(
             status_code=error_dict.get("http_status", HTTP_500_INTERNAL_SERVER_ERROR),

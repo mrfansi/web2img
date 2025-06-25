@@ -1,5 +1,6 @@
 import asyncio
 import time
+import uuid
 from typing import Dict, List, Any, Optional, Tuple, Set, AsyncGenerator
 import httpx
 from datetime import datetime, timezone
@@ -9,6 +10,7 @@ from app.models.job import job_store, BatchJob, JobItem, RecurrencePattern
 from app.services.screenshot import capture_screenshot_with_options
 from app.services.cache import cache_service
 from app.core.logging import get_logger
+from app.core.config import settings
 
 logger = get_logger("batch_service")
 
@@ -560,21 +562,92 @@ class BatchService:
 
         while retry_count < max_retries:
             try:
-                # Attempt to capture screenshot with timeout
-                result = await asyncio.wait_for(
-                    capture_screenshot_with_options(
-                        url=str(item.request_data.get("url")),
-                        width=item.request_data.get("width", 1280),
-                        height=item.request_data.get("height", 720),
-                        format=item.request_data.get("format", "png")
-                    ),
-                    timeout=timeout
-                )
-                return True, result, ""
+                # Use request queue for load management if enabled
+                if settings.enable_request_queue:
+                    try:
+                        from app.services.request_queue import queue_manager, QueueStatus
+
+                        # Generate unique request ID for this batch item
+                        request_id = f"batch-{item.id}-{str(uuid.uuid4())[:8]}"
+
+                        # Define the screenshot processing function
+                        async def process_batch_screenshot():
+                            return await asyncio.wait_for(
+                                capture_screenshot_with_options(
+                                    url=str(item.request_data.get("url")),
+                                    width=item.request_data.get("width", 1280),
+                                    height=item.request_data.get("height", 720),
+                                    format=item.request_data.get("format", "png")
+                                ),
+                                timeout=timeout
+                            )
+
+                        # Submit to queue with batch priority (higher than normal requests)
+                        status = await queue_manager.submit_request(
+                            request_id=request_id,
+                            handler=process_batch_screenshot,
+                            priority=1,  # Higher priority for batch requests
+                            timeout=settings.queue_timeout
+                        )
+
+                        # Handle queue response
+                        if status == QueueStatus.REJECTED:
+                            last_error = "Request rejected due to system overload"
+                            logger.warning(f"Batch item {item.id} rejected by queue (attempt {retry_count+1}/{max_retries})")
+                        elif status == QueueStatus.TIMEOUT:
+                            last_error = "Request timed out in queue"
+                            logger.warning(f"Batch item {item.id} timed out in queue (attempt {retry_count+1}/{max_retries})")
+                        elif status in [QueueStatus.PROCESSED, QueueStatus.QUEUED]:
+                            # Request was processed successfully
+                            result = await process_batch_screenshot()
+                            return True, result, ""
+                        else:
+                            # Fallback to direct processing
+                            result = await process_batch_screenshot()
+                            return True, result, ""
+
+                    except ImportError:
+                        # Queue manager not available, process directly
+                        logger.debug(f"Request queue not available for batch item {item.id}, processing directly")
+                        result = await asyncio.wait_for(
+                            capture_screenshot_with_options(
+                                url=str(item.request_data.get("url")),
+                                width=item.request_data.get("width", 1280),
+                                height=item.request_data.get("height", 720),
+                                format=item.request_data.get("format", "png")
+                            ),
+                            timeout=timeout
+                        )
+                        return True, result, ""
+                    except Exception as e:
+                        logger.error(f"Error with request queue for batch item {item.id}: {e}")
+                        # Fall back to direct processing
+                        result = await asyncio.wait_for(
+                            capture_screenshot_with_options(
+                                url=str(item.request_data.get("url")),
+                                width=item.request_data.get("width", 1280),
+                                height=item.request_data.get("height", 720),
+                                format=item.request_data.get("format", "png")
+                            ),
+                            timeout=timeout
+                        )
+                        return True, result, ""
+                else:
+                    # Queue disabled, process directly
+                    result = await asyncio.wait_for(
+                        capture_screenshot_with_options(
+                            url=str(item.request_data.get("url")),
+                            width=item.request_data.get("width", 1280),
+                            height=item.request_data.get("height", 720),
+                            format=item.request_data.get("format", "png")
+                        ),
+                        timeout=timeout
+                    )
+                    return True, result, ""
 
             except asyncio.TimeoutError:
                 last_error = f"Screenshot capture timed out after {timeout} seconds"
-                logger.warning(f"Timeout for item {item.id} (attempt {retry_count+1}/{max_retries}): {last_error}")
+                logger.warning(f"Timeout for batch item {item.id} (attempt {retry_count+1}/{max_retries}): {last_error}")
 
             except Exception as e:
                 # Check if this is a browser context error that we should retry

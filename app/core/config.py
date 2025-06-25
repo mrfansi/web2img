@@ -60,7 +60,7 @@ class Settings(BaseModel):
         default_factory=lambda: os.getenv("STORAGE_MODE", "r2")  # "r2" or "local"
     )
     local_storage_dir: str = Field(
-        default_factory=lambda: os.getenv("LOCAL_STORAGE_DIR", "/app/screenshots")
+        default_factory=lambda: os.getenv("LOCAL_STORAGE_DIR", "/tmp/web2img/screenshots")
     )
     local_storage_base_url: str = Field(
         default_factory=lambda: os.getenv("LOCAL_STORAGE_BASE_URL", "http://localhost:8000/screenshots")
@@ -137,6 +137,17 @@ class Settings(BaseModel):
     )
     disable_force_browser_restart: bool = Field(
         default_factory=lambda: os.getenv("DISABLE_FORCE_BROWSER_RESTART", "false").lower() in ("true", "1", "t")
+    )
+
+    # Fast Browser Release Configuration
+    enable_fast_release: bool = Field(
+        default_factory=lambda: os.getenv("ENABLE_FAST_RELEASE", "true").lower() in ("true", "1", "t")
+    )
+    context_cleanup_timeout: int = Field(
+        default_factory=lambda: int(os.getenv("CONTEXT_CLEANUP_TIMEOUT", "1000"))  # 1 second default
+    )
+    page_close_timeout: int = Field(
+        default_factory=lambda: int(os.getenv("PAGE_CLOSE_TIMEOUT", "500"))  # 0.5 seconds default
     )
 
     # Emergency Load Management - New queue and load shedding configuration
