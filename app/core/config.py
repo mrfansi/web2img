@@ -122,7 +122,21 @@ class Settings(BaseModel):
         default_factory=lambda: os.getenv("ENABLE_ADAPTIVE_SCALING", "true").lower() in ("true", "1", "t")
     )
     max_wait_attempts: int = Field(
-        default_factory=lambda: int(os.getenv("MAX_WAIT_ATTEMPTS", "3"))  # Optimized default
+        default_factory=lambda: int(os.getenv("MAX_WAIT_ATTEMPTS", "5"))  # Increased default
+    )
+
+    # Browser Cleanup Control - User preference to disable aggressive cleanup
+    disable_browser_cleanup: bool = Field(
+        default_factory=lambda: os.getenv("DISABLE_BROWSER_CLEANUP", "false").lower() in ("true", "1", "t")
+    )
+    disable_browser_recycling: bool = Field(
+        default_factory=lambda: os.getenv("DISABLE_BROWSER_RECYCLING", "false").lower() in ("true", "1", "t")
+    )
+    disable_stuck_browser_detection: bool = Field(
+        default_factory=lambda: os.getenv("DISABLE_STUCK_BROWSER_DETECTION", "false").lower() in ("true", "1", "t")
+    )
+    disable_force_browser_restart: bool = Field(
+        default_factory=lambda: os.getenv("DISABLE_FORCE_BROWSER_RESTART", "false").lower() in ("true", "1", "t")
     )
 
     # Emergency Load Management - New queue and load shedding configuration
