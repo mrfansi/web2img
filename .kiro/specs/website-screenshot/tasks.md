@@ -78,15 +78,15 @@
     - Write unit tests for screenshot capture with mocked browser
     - _Requirements: 1.1, 1.2, 3.1, 3.2, 3.3, 11.4, 11.5_
 
-- [ ] 6. Implement file storage and ImgProxy integration
-  - [ ] 6.1 Create file storage service
+- [x] 6. Implement file storage and ImgProxy integration
+  - [x] 6.1 Create file storage service
     - Implement local file storage with organized directory structure
     - Add file cleanup and temporary file management
     - Create storage health checks and disk space monitoring
     - Write unit tests for file storage operations
     - _Requirements: 1.1, 1.2, 9.4, 9.5_
 
-  - [ ] 6.2 Implement ImgProxy URL generation
+  - [x] 6.2 Implement ImgProxy URL generation
     - Create ImgProxy service with signed URL generation
     - Implement configuration validation for IMGPROXY_URL, IMGPROXY_KEY, IMGPROXY_SALT
     - Add fallback to direct storage URLs when ImgProxy is unavailable
