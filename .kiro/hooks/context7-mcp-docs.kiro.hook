@@ -1,0 +1,21 @@
+{
+  "enabled": true,
+  "name": "Context7 MCP Documentation",
+  "description": "Automatically reminds to use context7 MCP for latest documentation when any project files are modified",
+  "version": "1",
+  "when": {
+    "type": "fileCreated",
+    "patterns": [
+      "**/*.ts",
+      "**/*.js",
+      "**/*.json",
+      "**/*.md",
+      "**/package.json",
+      "**/adonisrc.ts"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "When working on this project, always use context7 mcp (Model Context Protocol) to access the latest documentation. This ensures you have the most up-to-date information about AdonisJS, dependencies, and project-specific configurations. Before making any significant changes or providing guidance, check the latest docs through context7 mcp."
+  }
+}
