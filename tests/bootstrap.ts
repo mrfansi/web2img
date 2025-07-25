@@ -39,9 +39,26 @@ export const runnerHooks: Required<Pick<Config, 'setup' | 'teardown'>> = {
       // Cleanup Redis service after tests
       try {
         await redisService.shutdown()
+        
+        // Also ensure the main Redis connection is properly closed
+        const redis = await import('@adonisjs/redis/services/main')
+        await redis.default.quit()
       } catch (error) {
-        console.warn('Redis service shutdown failed in tests:', error)
+        console.warn('Redis cleanup failed in tests:', error)
+        
+        // Force disconnect if graceful shutdown fails
+        try {
+          const redis = await import('@adonisjs/redis/services/main')
+          await redis.default.disconnect()
+        } catch (disconnectError) {
+          console.warn('Redis force disconnect failed:', disconnectError)
+        }
       }
+      
+      // Force exit after cleanup to prevent hanging
+      setTimeout(() => {
+        process.exit(0)
+      }, 500)
     }
   ],
 }

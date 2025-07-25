@@ -203,10 +203,17 @@ export class RedisService {
   public async shutdown(): Promise<void> {
     this.stopHealthMonitoring()
     try {
+      // First try graceful quit
       await redis.quit()
       logger.info('Redis service shutdown completed')
     } catch (error) {
       logger.error('Error during Redis service shutdown', { error })
+      // Force disconnect if quit fails
+      try {
+        await redis.disconnect()
+      } catch (disconnectError) {
+        logger.error('Error during Redis force disconnect', { error: disconnectError })
+      }
     }
   }
 }
