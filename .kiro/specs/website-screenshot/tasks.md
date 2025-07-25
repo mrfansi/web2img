@@ -6,20 +6,20 @@
   - Set up TypeScript types and interfaces for the screenshot system
   - _Requirements: 2.2, 10.1, 10.2, 10.3_
 
-- [ ] 2. Implement core data models and validation
-  - [ ] 2.1 Create API key model and migration
+- [x] 2. Implement core data models and validation
+  - [x] 2.1 Create API key model and migration
     - Write migration for api_keys table with fields: id, key, name, user_id, rate_limit, is_active
     - Create ApiKey Lucid model with relationships and validation
     - Write unit tests for ApiKey model methods
     - _Requirements: 2.1, 2.2, 2.3_
 
-  - [ ] 2.2 Create batch job model and migration
+  - [x] 2.2 Create batch job model and migration
     - Write migration for batch_jobs table with fields: id, status, total_items, completed_items, failed_items, config, results
     - Create BatchJob Lucid model with JSON fields and status enums
     - Write unit tests for BatchJob model state transitions
     - _Requirements: 4.1, 4.2, 5.1, 5.2, 5.3_
 
-  - [ ] 2.3 Implement request validation schemas
+  - [x] 2.3 Implement request validation schemas
     - Create Vine validation schemas for single screenshot requests (URL, format, dimensions)
     - Create Vine validation schemas for batch screenshot requests with item validation
     - Create validation schemas for batch configuration options

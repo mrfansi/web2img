@@ -44,7 +44,7 @@ export default await Env.create(new URL('../', import.meta.url), {
   | Variables for configuring ImgProxy
   |----------------------------------------------------------
   */
-  IMGPROXY_URL: Env.schema.string.optional({ format: 'url' }),
+  IMGPROXY_BASE_URL: Env.schema.string.optional(),
   IMGPROXY_KEY: Env.schema.string.optional(),
   IMGPROXY_SALT: Env.schema.string.optional(),
 
@@ -54,7 +54,7 @@ export default await Env.create(new URL('../', import.meta.url), {
   |----------------------------------------------------------
   */
   STORAGE_PATH: Env.schema.string(),
-  STORAGE_BASE_URL: Env.schema.string({ format: 'url' }),
+  STORAGE_BASE_URL: Env.schema.string(),
 
   /*
   |----------------------------------------------------------

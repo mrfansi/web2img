@@ -1,0 +1,82 @@
+import env from '#start/env'
+
+/**
+ * Configuration service that provides validated access to environment variables
+ * with additional runtime checks and type safety
+ */
+export class ConfigService {
+    /**
+     * Get ImgProxy configuration with validation
+     */
+    static getImgProxyConfig() {
+        const url = env.get('IMGPROXY_URL')
+        const key = env.get('IMGPROXY_KEY')
+        const salt = env.get('IMGPROXY_SALT')
+
+        // Validate that if ImgProxy is configured, all required fields are present
+        if (url && (!key || !salt)) {
+            throw new Error('IMGPROXY_KEY and IMGPROXY_SALT are required when IMGPROXY_URL is set')
+        }
+
+        return {
+            url,
+            key,
+            salt,
+            isEnabled: Boolean(url && key && salt)
+        }
+    }
+
+    /**
+     * Get storage configuration with validation
+     */
+    static getStorageConfig() {
+        const path = env.get('STORAGE_PATH')
+        const baseUrl = env.get('STORAGE_BASE_URL')
+
+        // Ensure storage path is absolute or relative to project root
+        if (!path.startsWith('/') && !path.startsWith('./')) {
+            throw new Error('STORAGE_PATH must be an absolute path or relative to project root')
+        }
+
+        return {
+            path,
+            baseUrl: baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl // Remove trailing slash
+        }
+    }
+
+    /**
+     * Get screenshot configuration with validation
+     */
+    static getScreenshotConfig() {
+        return {
+            timeout: env.get('SCREENSHOT_TIMEOUT'),
+            cacheTtl: env.get('SCREENSHOT_CACHE_TTL'),
+            maxConcurrent: env.get('SCREENSHOT_MAX_CONCURRENT'),
+            queueConcurrency: env.get('SCREENSHOT_QUEUE_CONCURRENCY')
+        }
+    }
+
+    /**
+     * Get browser configuration
+     */
+    static getBrowserConfig() {
+        return {
+            headless: env.get('BROWSER_HEADLESS'),
+            timeout: env.get('BROWSER_TIMEOUT')
+        }
+    }
+
+    /**
+     * Validate all configurations at startup
+     */
+    static validateAll() {
+        try {
+            this.getImgProxyConfig()
+            this.getStorageConfig()
+            this.getScreenshotConfig()
+            this.getBrowserConfig()
+        } catch (error) {
+            throw new Error(`Configuration validation failed: ${error.message}`)
+        }
+    }
+}
