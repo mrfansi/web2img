@@ -26,15 +26,15 @@
     - Write unit tests for all validation schemas
     - _Requirements: 1.1, 1.3, 3.1, 3.2, 3.3, 4.1, 4.2_
 
-- [ ] 3. Implement authentication and middleware
-  - [ ] 3.1 Create API key authentication middleware
+- [x] 3. Implement authentication and middleware
+  - [x] 3.1 Create API key authentication middleware
     - Write middleware to extract and validate X-API-Key header
     - Implement API key lookup and validation against database
     - Add request context enrichment with authenticated API key data
     - Write unit tests for authentication middleware
     - _Requirements: 2.1, 2.2, 2.3_
 
-  - [ ] 3.2 Implement rate limiting middleware
+  - [x] 3.2 Implement rate limiting middleware
     - Create Redis-based rate limiting middleware using API key limits
     - Implement sliding window rate limiting algorithm
     - Add rate limit headers to responses (X-RateLimit-Limit, X-RateLimit-Remaining)
