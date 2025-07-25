@@ -56,22 +56,22 @@
     - Write unit tests for cache operations and key generation
     - _Requirements: 1.5, 1.6, 8.1, 8.2, 8.4, 8.5_
 
-- [ ] 5. Implement screenshot capture service
-  - [ ] 5.1 Create Playwright browser service
+- [x] 5. Implement screenshot capture service
+  - [x] 5.1 Create Playwright browser service
     - Set up Playwright browser instance management with pooling
     - Implement browser page creation with viewport configuration
     - Add browser cleanup and resource management
     - Write unit tests for browser lifecycle management
     - _Requirements: 11.1, 11.2, 11.3, 11.4, 11.5_
 
-  - [ ] 5.2 Implement URL transformation service
+  - [x] 5.2 Implement URL transformation service
     - Create URL transformation logic for special domains (viding.co, etc.)
     - Implement URL validation and sanitization
     - Add support for redirect following and final URL capture
     - Write unit tests for URL transformation patterns
     - _Requirements: 11.1, 11.2, 11.3_
 
-  - [ ] 5.3 Create screenshot capture worker
+  - [x] 5.3 Create screenshot capture worker
     - Implement core screenshot capture logic using Playwright
     - Add support for different formats (PNG, JPEG, WebP) and quality settings
     - Implement timeout handling and error recovery

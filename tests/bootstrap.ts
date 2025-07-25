@@ -4,6 +4,7 @@ import app from '@adonisjs/core/services/app'
 import type { Config } from '@japa/runner/types'
 import { pluginAdonisJS } from '@japa/plugin-adonisjs'
 import testUtils from '@adonisjs/core/services/test_utils'
+import redisService from '#services/redis_service'
 
 /**
  * This file is imported by the "bin/test.ts" entrypoint file
@@ -23,8 +24,26 @@ export const plugins: Config['plugins'] = [assert(), apiClient(), pluginAdonisJS
  * The teardown functions are executed after all the tests
  */
 export const runnerHooks: Required<Pick<Config, 'setup' | 'teardown'>> = {
-  setup: [],
-  teardown: [],
+  setup: [
+    async () => {
+      // Initialize Redis service for tests
+      try {
+        await redisService.initialize()
+      } catch (error) {
+        console.warn('Redis service initialization failed in tests:', error)
+      }
+    }
+  ],
+  teardown: [
+    async () => {
+      // Cleanup Redis service after tests
+      try {
+        await redisService.shutdown()
+      } catch (error) {
+        console.warn('Redis service shutdown failed in tests:', error)
+      }
+    }
+  ],
 }
 
 /**
