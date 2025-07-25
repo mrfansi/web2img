@@ -41,15 +41,15 @@
     - Write unit tests for rate limiting logic
     - _Requirements: 9.2, 9.3_
 
-- [ ] 4. Set up Redis and caching infrastructure
-  - [ ] 4.1 Configure Redis connection and client
+- [x] 4. Set up Redis and caching infrastructure
+  - [x] 4.1 Configure Redis connection and client
     - Set up Redis connection configuration in config/redis.ts
     - Create Redis service wrapper with connection pooling
     - Implement Redis health check functionality
     - Write unit tests for Redis connection handling
     - _Requirements: 8.1, 8.2, 8.3_
 
-  - [ ] 4.2 Implement cache service for screenshots
+  - [x] 4.2 Implement cache service for screenshots
     - Create CacheService class with get, set, delete methods
     - Implement cache key generation using URL and screenshot options
     - Add cache TTL management and expiration handling
