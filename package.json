@@ -63,6 +63,7 @@
     "@vinejs/vine": "^3.0.1",
     "bullmq": "^5.56.7",
     "cron": "^4.3.2",
+    "edge.js": "^6.3.0",
     "luxon": "^3.7.1",
     "mysql2": "^3.14.2",
     "openapi-types": "^12.1.3",
