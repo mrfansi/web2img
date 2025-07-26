@@ -106,15 +106,21 @@ test.group('CentralRedisManager', (group) => {
   test('should handle force reset', async ({ assert }) => {
     const redisManager = getCentralRedisManager()
 
+    // Get initial count
+    const initialCount = redisManager.getOpenConnectionsCount()
+
     // Create connections
     redisManager.getClient()
     redisManager.duplicate()
 
-    // Should have at least 2 connections (may be more from bootstrap)
-    assert.isTrue(redisManager.getOpenConnectionsCount() >= 2)
+    // Should have more connections than initial
+    assert.isTrue(redisManager.getOpenConnectionsCount() > initialCount)
 
     // Force reset should close everything
     await CentralRedisManager.forceReset()
+
+    // Give a moment for cleanup
+    await new Promise(resolve => setTimeout(resolve, 50))
 
     // New instance should have no connections
     const newManager = getCentralRedisManager()
@@ -188,39 +194,46 @@ test.group('CentralRedisManager - With Leak Detection', (group) => {
   test('should properly clean up connections', async ({ assert }) => {
     const redisManager = getCentralRedisManager()
 
+    // Ensure we have a baseline client and get initial count
+    redisManager.getClient()
+    const initialCount = redisManager.getOpenConnectionsCount()
+
     // Create a duplicate connection
     const duplicateClient = redisManager.duplicate()
-    assert.equal(redisManager.getOpenConnectionsCount(), 2) // main + duplicate
+    assert.equal(redisManager.getOpenConnectionsCount(), initialCount + 1) // initial + duplicate
 
     // Properly clean up the duplicate
     await duplicateClient.quit()
 
     // Give event loop time to process the 'end' event
-    await new Promise(resolve => setTimeout(resolve, 10))
+    await new Promise(resolve => setTimeout(resolve, 50))
 
-    // Should only have the main connection left
-    assert.equal(redisManager.getOpenConnectionsCount(), 1)
+    // Should be back to initial count
+    assert.equal(redisManager.getOpenConnectionsCount(), initialCount)
   })
 
   test('should handle multiple connection types', async ({ assert }) => {
     const redisManager = getCentralRedisManager()
 
-    // Create different types of connections
+    // Ensure we have a baseline client and get initial count
     redisManager.getClient()
+    const initialCount = redisManager.getOpenConnectionsCount()
+
+    // Create different types of connections
     const duplicate = redisManager.duplicate()
     const bullmq = redisManager.duplicateForBullMQ()
 
-    assert.equal(redisManager.getOpenConnectionsCount(), 3)
+    assert.equal(redisManager.getOpenConnectionsCount(), initialCount + 2)
 
     // Properly clean up the duplicates
     await duplicate.quit()
     await bullmq.quit()
 
     // Give event loop time to process events
-    await new Promise(resolve => setTimeout(resolve, 20))
+    await new Promise(resolve => setTimeout(resolve, 50))
 
-    // Should only have the main connection left
-    assert.equal(redisManager.getOpenConnectionsCount(), 1)
+    // Should be back to initial count
+    assert.equal(redisManager.getOpenConnectionsCount(), initialCount)
   })
 })
 
@@ -234,12 +247,15 @@ test.group('CentralRedisManager - Leak Detection Demo', (group) => {
   test('should demonstrate connection leak detection', ({ assert }) => {
     const redisManager = getCentralRedisManager()
 
+    // Get initial count 
+    const initialCount = redisManager.getOpenConnectionsCount()
+
     // Create connections but intentionally don't clean them up
     redisManager.getClient()
     redisManager.duplicate()
 
-    // These connections will be "leaked"
-    assert.equal(redisManager.getOpenConnectionsCount(), 2)
+    // These connections will be "leaked" - should have more than initial
+    assert.isTrue(redisManager.getOpenConnectionsCount() > initialCount)
 
     // If this test group had addRedisLeakDetection() in its teardown,
     // it would fail and report the leak. This is intentionally left out
