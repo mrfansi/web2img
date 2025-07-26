@@ -167,15 +167,15 @@
     - Write unit tests for health check functionality
     - _Requirements: 9.1, 9.2, 9.3, 9.4, 9.5_
 
-- [ ] 11. Write comprehensive tests
-  - [ ] 11.1 Create integration tests
+- [x] 11. Write comprehensive tests
+  - [x] 11.1 Create integration tests
     - Write integration tests for complete screenshot workflow
     - Test batch job processing from creation to completion
     - Test webhook delivery and retry mechanisms
     - Test rate limiting and authentication flows
     - _Requirements: All requirements_
 
-  - [ ] 11.2 Add performance and load tests
+  - [x] 11.2 Add performance and load tests
     - Create load tests for concurrent screenshot requests
     - Test queue performance under high batch job loads
     - Measure memory usage and resource consumption
