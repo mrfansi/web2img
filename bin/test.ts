@@ -51,7 +51,20 @@ new Ignitor(APP_ROOT, { importer: IMPORTER })
       ...config,
       ...{
         setup: runnerHooks.setup,
-        teardown: runnerHooks.teardown.concat([() => app.terminate()]),
+        teardown: runnerHooks.teardown.concat([
+          async () => {
+            // Ensure app termination
+            await app.terminate()
+
+            // Additional cleanup for any lingering connections
+            try {
+              const { CentralRedisManager } = await import('#services/central_redis_manager')
+              await CentralRedisManager.forceReset()
+            } catch (error) {
+              console.warn('Final cleanup failed:', error)
+            }
+          }
+        ]),
       },
     })
   })
