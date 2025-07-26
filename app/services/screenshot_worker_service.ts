@@ -91,13 +91,15 @@ export class ScreenshotWorkerService {
 
       logger.error('Screenshot capture failed', {
         url: jobData.url,
-        error: error.message,
+        errorName: error.name,
+        errorMessage: error.message,
+        errorStack: error.stack,
         processingTime,
         batchId: jobData.batchId,
         itemId: jobData.itemId,
       })
 
-      throw new Error(`Screenshot capture failed: ${error.message}`)
+      throw new Error(`Screenshot capture failed for ${jobData.url}: ${error.message}`)
     }
   }
 
@@ -126,8 +128,14 @@ export class ScreenshotWorkerService {
         height: options.height,
       }
     } catch (error) {
-      logger.error('Failed to capture screenshot', { url, error })
-      throw new Error(`Failed to capture screenshot: ${error.message}`)
+      logger.error('Failed to capture screenshot', {
+        url,
+        options,
+        errorName: error.name,
+        errorMessage: error.message,
+        errorStack: error.stack
+      })
+      throw new Error(`Failed to capture screenshot for ${url}: ${error.message}`)
     }
   }
 
@@ -136,10 +144,10 @@ export class ScreenshotWorkerService {
    */
   private async navigateToUrl(page: Page, url: string, timeout: number): Promise<void> {
     try {
-      logger.debug('Navigating to URL', { url, timeout })
+      logger.info('Navigating to URL', { url, timeout })
 
       const response = await page.goto(url, {
-        waitUntil: 'networkidle',
+        waitUntil: 'domcontentloaded', // Changed from 'networkidle' to be more lenient
         timeout,
       })
 
@@ -152,12 +160,20 @@ export class ScreenshotWorkerService {
         throw new Error(`HTTP ${status}: ${response.statusText()}`)
       }
 
-      logger.debug('Navigation completed', { url, status })
+      logger.info('Navigation completed successfully', { url, status })
     } catch (error) {
+      logger.error('Navigation failed', {
+        url,
+        timeout,
+        errorName: error.name,
+        errorMessage: error.message,
+        errorStack: error.stack
+      })
+
       if (error.name === 'TimeoutError') {
-        throw new Error(`Navigation timeout after ${timeout}ms`)
+        throw new Error(`Navigation timeout after ${timeout}ms for URL: ${url}`)
       }
-      throw error
+      throw new Error(`Navigation failed for ${url}: ${error.message}`)
     }
   }
 
