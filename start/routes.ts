@@ -55,7 +55,7 @@ router.group(() => {
 
   // API Usage tracking endpoints
   router.get('/dashboard/api/usage-overview', '#controllers/dashboard_controller.getUsageOverview')
-  router.get('/dashboard/api/usage/:apiKeyId', '#controllers/dashboard_controller.getApiKeyUsage')
+  router.get('/dashboard/api/usage/:id', '#controllers/dashboard_controller.getApiKeyUsage')
 
   // Error logging endpoints
   router.get('/dashboard/api/errors', '#controllers/dashboard_controller.getErrorLogs')

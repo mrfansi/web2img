@@ -435,7 +435,10 @@ export default class DashboardController {
      */
     public async getApiKeyUsage({ params, request, response }: HttpContext) {
         try {
-            const apiKey = await ApiKey.find(params.id)
+            const apiKey = await ApiKey.query()
+                .where('id', params.id)
+                .preload('user')
+                .first()
 
             if (!apiKey) {
                 response.status(404)
@@ -456,7 +459,8 @@ export default class DashboardController {
                     apiKey: {
                         id: apiKey.id,
                         name: apiKey.name,
-                        rateLimit: apiKey.rateLimit
+                        rateLimit: apiKey.rateLimit,
+                        user: apiKey.user.fullName || apiKey.user.email
                     },
                     stats,
                     recentUsage: recentUsage.map(usage => ({
@@ -861,7 +865,7 @@ export default class DashboardController {
                 </div>
 
                 <!-- API Key Management -->
-                <div class="bg-white overflow-hidden shadow rounded-lg">
+                <div class="bg-white overflow-hidden shadow rounded-lg mb-6">
                     <div class="px-4 py-5 sm:p-6">
                         <div class="flex justify-between items-center mb-4">
                             <h3 class="text-lg leading-6 font-medium text-gray-900">API Key Management</h3>
@@ -884,6 +888,34 @@ export default class DashboardController {
                                 </thead>
                                 <tbody id="api-keys-table" class="bg-white divide-y divide-gray-200">
                                     <!-- API keys will be loaded here -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- User Management -->
+                <div class="bg-white overflow-hidden shadow rounded-lg mb-6">
+                    <div class="px-4 py-5 sm:p-6">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-lg leading-6 font-medium text-gray-900">User Management</h3>
+                            <button onclick="showNewUserModal()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm font-medium">
+                                Create New User
+                            </button>
+                        </div>
+                        
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="users-table" class="bg-white divide-y divide-gray-200">
+                                    <!-- Users will be loaded here -->
                                 </tbody>
                             </table>
                         </div>
@@ -946,41 +978,6 @@ export default class DashboardController {
         </div>
     </div>
 
-    <!-- User Management Section -->
-    <div class="bg-white rounded-lg shadow p-6 mb-6" id="user-management-section">
-        <div class="flex justify-between items-center mb-6">
-            <h3 class="text-lg font-medium text-gray-900">User Management</h3>
-            <button onclick="showNewUserModal()" 
-                    class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm font-medium">
-                Create User
-            </button>
-        </div>
-
-        <div class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-gray-200">
-                <thead class="bg-gray-50">
-                    <tr>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Name
-                        </th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Email
-                        </th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Created
-                        </th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Actions
-                        </th>
-                    </tr>
-                </thead>
-                <tbody class="bg-white divide-y divide-gray-200" id="users-table">
-                    <!-- Users will be loaded here -->
-                </tbody>
-            </table>
-        </div>
-    </div>
-
     <!-- Create User Modal -->
     <div id="new-user-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center p-4 hidden">
         <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
@@ -1020,6 +1017,132 @@ export default class DashboardController {
 
             <div id="user-creation-success" class="hidden mt-4 p-3 bg-green-100 border border-green-400 text-green-700 rounded">
                 User created successfully!
+            </div>
+        </div>
+    </div>
+
+    <!-- API Usage Details Modal -->
+    <div id="api-usage-details-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-lg font-medium text-gray-900">API Key Usage Details</h3>
+                <button onclick="hideApiUsageDetailsModal()" class="text-gray-400 hover:text-gray-600">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Loading state -->
+            <div id="usage-details-loading" class="text-center py-8">
+                <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                <p class="mt-2 text-gray-600">Loading usage details...</p>
+            </div>
+
+            <!-- Content area -->
+            <div id="usage-details-content" class="hidden">
+                <!-- API Key Info -->
+                <div class="bg-gray-50 rounded-lg p-4 mb-6">
+                    <h4 class="text-md font-medium text-gray-900 mb-2">API Key Information</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                            <span class="text-sm text-gray-600">Name:</span>
+                            <span class="ml-2 font-medium" id="detail-api-key-name">-</span>
+                        </div>
+                        <div>
+                            <span class="text-sm text-gray-600">Rate Limit:</span>
+                            <span class="ml-2 font-medium" id="detail-api-key-rate-limit">-</span>
+                        </div>
+                        <div>
+                            <span class="text-sm text-gray-600">Owner:</span>
+                            <span class="ml-2 font-medium" id="detail-api-key-owner">-</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Statistics Overview -->
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                    <div class="bg-blue-50 rounded-lg p-4">
+                        <div class="text-2xl font-bold text-blue-600" id="detail-total-requests">-</div>
+                        <div class="text-sm text-gray-600">Total Requests</div>
+                    </div>
+                    <div class="bg-green-50 rounded-lg p-4">
+                        <div class="text-2xl font-bold text-green-600" id="detail-success-rate">-</div>
+                        <div class="text-sm text-gray-600">Success Rate</div>
+                    </div>
+                    <div class="bg-yellow-50 rounded-lg p-4">
+                        <div class="text-2xl font-bold text-yellow-600" id="detail-avg-response">-</div>
+                        <div class="text-sm text-gray-600">Avg Response (ms)</div>
+                    </div>
+                    <div class="bg-red-50 rounded-lg p-4">
+                        <div class="text-2xl font-bold text-red-600" id="detail-error-count">-</div>
+                        <div class="text-sm text-gray-600">Total Errors</div>
+                    </div>
+                </div>
+
+                <!-- Time Range Selector -->
+                <div class="mb-4">
+                    <label for="detail-timeframe" class="block text-sm font-medium text-gray-700 mb-2">Time Range:</label>
+                    <select id="detail-timeframe" class="border border-gray-300 rounded-md px-3 py-2 text-sm">
+                        <option value="hour">Last Hour</option>
+                        <option value="day" selected>Last 24 Hours</option>
+                        <option value="week">Last Week</option>
+                    </select>
+                </div>
+
+                <!-- Endpoint Statistics -->
+                <div class="mb-6">
+                    <h4 class="text-md font-medium text-gray-900 mb-4">Endpoint Statistics</h4>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Endpoint</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Requests</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Errors</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Error Rate</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Avg Response</th>
+                                </tr>
+                            </thead>
+                            <tbody id="detail-endpoint-stats" class="bg-white divide-y divide-gray-200">
+                                <!-- Endpoint stats will be loaded here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Recent Usage History -->
+                <div>
+                    <h4 class="text-md font-medium text-gray-900 mb-4">Recent Usage History</h4>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Time</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Method</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Endpoint</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Response Time</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">IP Address</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User Agent</th>
+                                </tr>
+                            </thead>
+                            <tbody id="detail-recent-usage" class="bg-white divide-y divide-gray-200">
+                                <!-- Recent usage will be loaded here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Error state -->
+            <div id="usage-details-error" class="hidden text-center py-8">
+                <div class="text-red-600 mb-2">
+                    <svg class="w-12 h-12 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                </div>
+                <p class="text-gray-600" id="usage-details-error-message">Failed to load usage details</p>
             </div>
         </div>
     </div>
@@ -1393,10 +1516,120 @@ export default class DashboardController {
             }
         }
 
-        // View API key details (placeholder for future modal)
-        function viewApiKeyDetails(apiKeyId) {
-            // For now, just show an alert - can be expanded to a modal later
-            alert(\`API Key Details for ID: \${apiKeyId}\nThis feature will show detailed usage statistics in a future update.\`);
+        // View API key details
+        async function viewApiKeyDetails(apiKeyId) {
+            try {
+                // Store API key ID for timeframe changes
+                document.getElementById('detail-timeframe').setAttribute('data-api-key-id', apiKeyId);
+                
+                // Show modal and loading state
+                showApiUsageDetailsModal();
+                showUsageDetailsLoading();
+
+                // Fetch detailed usage data
+                const timeframe = document.getElementById('detail-timeframe').value || 'day';
+                const response = await fetch(\`/dashboard/api/usage/\${apiKeyId}?timeframe=\${timeframe}\`);
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.detail?.message || 'Failed to load usage details');
+                }
+
+                // Update modal content
+                updateUsageDetailsModal(data.data);
+                showUsageDetailsContent();
+
+            } catch (error) {
+                showUsageDetailsError(error.message);
+            }
+        }
+
+        // Show API usage details modal
+        function showApiUsageDetailsModal() {
+            document.getElementById('api-usage-details-modal').classList.remove('hidden');
+        }
+
+        // Hide API usage details modal
+        function hideApiUsageDetailsModal() {
+            document.getElementById('api-usage-details-modal').classList.add('hidden');
+        }
+
+        // Show loading state
+        function showUsageDetailsLoading() {
+            document.getElementById('usage-details-loading').classList.remove('hidden');
+            document.getElementById('usage-details-content').classList.add('hidden');
+            document.getElementById('usage-details-error').classList.add('hidden');
+        }
+
+        // Show content state
+        function showUsageDetailsContent() {
+            document.getElementById('usage-details-loading').classList.add('hidden');
+            document.getElementById('usage-details-content').classList.remove('hidden');
+            document.getElementById('usage-details-error').classList.add('hidden');
+        }
+
+        // Show error state
+        function showUsageDetailsError(message) {
+            document.getElementById('usage-details-loading').classList.add('hidden');
+            document.getElementById('usage-details-content').classList.add('hidden');
+            document.getElementById('usage-details-error').classList.remove('hidden');
+            document.getElementById('usage-details-error-message').textContent = message;
+        }
+
+        // Update modal content with usage data
+        function updateUsageDetailsModal(data) {
+            // Update API key info
+            document.getElementById('detail-api-key-name').textContent = data.apiKey.name;
+            document.getElementById('detail-api-key-rate-limit').textContent = data.apiKey.rateLimit + ' req/hour';
+            document.getElementById('detail-api-key-owner').textContent = data.apiKey.user || 'Unknown';
+
+            // Update statistics
+            const stats = data.stats;
+            document.getElementById('detail-total-requests').textContent = stats.totalRequests;
+            document.getElementById('detail-success-rate').textContent = ((stats.successfulRequests / stats.totalRequests) * 100).toFixed(1) + '%';
+            document.getElementById('detail-avg-response').textContent = Math.round(stats.avgResponseTime);
+            document.getElementById('detail-error-count').textContent = stats.errorRequests;
+
+            // Update endpoint statistics
+            const endpointTable = document.getElementById('detail-endpoint-stats');
+            endpointTable.innerHTML = '';
+            
+            Object.entries(stats.endpointStats).forEach(([endpoint, endpointData]) => {
+                const row = document.createElement('tr');
+                row.innerHTML = \`
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">\${endpoint}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">\${endpointData.count}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">\${endpointData.errors}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">\${((endpointData.errors / endpointData.count) * 100).toFixed(1)}%</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">\${Math.round(endpointData.avgResponseTime)}ms</td>
+                \`;
+                endpointTable.appendChild(row);
+            });
+
+            // Update recent usage history
+            const usageTable = document.getElementById('detail-recent-usage');
+            usageTable.innerHTML = '';
+            
+            data.recentUsage.forEach(usage => {
+                const row = document.createElement('tr');
+                const statusClass = usage.statusCode >= 400 ? 'text-red-600' : 
+                                   usage.statusCode >= 300 ? 'text-yellow-600' : 'text-green-600';
+                
+                row.innerHTML = \`
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        \${new Date(usage.createdAt).toLocaleString()}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">\${usage.method}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">\${usage.endpoint}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm \${statusClass}">\${usage.statusCode}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">\${usage.responseTime}ms</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">\${usage.ipAddress}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500" style="max-width: 200px; overflow: hidden; text-overflow: ellipsis;">
+                        \${usage.userAgent || '-'}
+                    </td>
+                \`;
+                usageTable.appendChild(row);
+            });
         }
 
         // Show success message
@@ -1504,6 +1737,14 @@ export default class DashboardController {
         // Event listeners
         document.getElementById('usage-timeframe').addEventListener('change', loadUsageOverview);
         document.getElementById('error-level').addEventListener('change', loadErrorLogs);
+        
+        // Add event listener for detail modal timeframe selector
+        document.getElementById('detail-timeframe').addEventListener('change', function() {
+            const currentApiKeyId = this.getAttribute('data-api-key-id');
+            if (currentApiKeyId) {
+                viewApiKeyDetails(currentApiKeyId);
+            }
+        });
 
         // Initialize dashboard
         async function initDashboard() {
