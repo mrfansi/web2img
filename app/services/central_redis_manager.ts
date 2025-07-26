@@ -174,6 +174,60 @@ export class CentralRedisManager {
     }
   }
 
+  /**
+   * Perform health check on Redis connection
+   */
+  public async healthCheck(): Promise<{ healthy: boolean; details?: any; error?: string }> {
+    try {
+      const client = this.getClient()
+      const startTime = Date.now()
+
+      // Test basic connectivity with ping
+      const pingResult = await client.ping()
+      const responseTime = Date.now() - startTime
+
+      if (pingResult !== 'PONG') {
+        return {
+          healthy: false,
+          error: 'Redis ping failed',
+          details: { pingResult, responseTime }
+        }
+      }
+
+      // Test basic read/write operation
+      const testKey = 'health_check:' + Date.now()
+      await client.set(testKey, 'test', 'EX', 10)
+      const testValue = await client.get(testKey)
+      await client.del(testKey)
+
+      if (testValue !== 'test') {
+        return {
+          healthy: false,
+          error: 'Redis read/write test failed',
+          details: { testValue, responseTime }
+        }
+      }
+
+      return {
+        healthy: true,
+        details: {
+          responseTime,
+          openConnections: this.getOpenConnectionsCount(),
+          connectionInfo: this.getOpenConnectionsInfo()
+        }
+      }
+    } catch (error) {
+      return {
+        healthy: false,
+        error: error.message || 'Redis health check failed',
+        details: {
+          openConnections: this.getOpenConnectionsCount(),
+          isShuttingDown: this.isShuttingDown
+        }
+      }
+    }
+  }
+
 
 
   /**

@@ -56,12 +56,12 @@ export class ApplicationBootstrap {
 
       // Step 3: Initialize file storage service
       logger.info('Initializing file storage service')
-      await fileStorageService.ensureDirectoriesExist()
+      await fileStorageService.initialize()
       logger.info('File storage service initialized successfully')
 
       // Step 4: Initialize ImgProxy service
       logger.info('Initializing ImgProxy service')
-      const imgProxyConfigured = imgProxyService.isConfigured()
+      const imgProxyConfigured = imgProxyService.isAvailable()
       if (imgProxyConfigured) {
         logger.info('ImgProxy service configured and ready')
       } else {
@@ -70,7 +70,7 @@ export class ApplicationBootstrap {
 
       // Step 5: Initialize browser service
       logger.info('Initializing browser service')
-      await browserService.initialize()
+      // Browser service is initialized on first use, just perform health check
       const browserHealth = await browserService.healthCheck()
       if (!browserHealth.healthy) {
         throw new Error('Browser service failed health check')
@@ -96,7 +96,7 @@ export class ApplicationBootstrap {
       logger.info('Initializing queue workers')
       const screenshotWorker = getScreenshotQueueWorker()
       const batchWorker = getBatchQueueWorker()
-      
+
       await screenshotWorker.start()
       await batchWorker.start()
       logger.info('Queue workers initialized successfully')
@@ -161,7 +161,7 @@ export class ApplicationBootstrap {
       try {
         services.imgProxy = {
           healthy: true,
-          configured: imgProxyService.isConfigured(),
+          configured: imgProxyService.isAvailable(),
           timestamp
         }
       } catch (error) {
@@ -197,7 +197,7 @@ export class ApplicationBootstrap {
       try {
         const screenshotWorker = getScreenshotQueueWorker()
         const batchWorker = getBatchQueueWorker()
-        
+
         services.workers = {
           healthy: true,
           screenshot: {
@@ -391,7 +391,7 @@ export class ApplicationBootstrap {
       const filename = `test-${Date.now()}.png`
       const storagePath = await fileStorageService.saveFile(testBuffer, filename, 'screenshots')
       const directUrl = fileStorageService.getFileUrl(storagePath)
-      
+
       steps.push({
         step: 'File Storage',
         success: true,
@@ -400,7 +400,7 @@ export class ApplicationBootstrap {
       })
 
       // Clean up test file
-      await fileStorageService.deleteFile(storagePath).catch(() => {})
+      await fileStorageService.deleteFile(storagePath).catch(() => { })
     } catch (error) {
       steps.push({
         step: 'File Storage',
@@ -423,8 +423,8 @@ export class ApplicationBootstrap {
         step: 'ImgProxy URL Generation',
         success: true,
         duration: Date.now() - stepStart,
-        result: { 
-          configured: imgProxyService.isConfigured(),
+        result: {
+          configured: imgProxyService.isAvailable(),
           url: imgProxyUrl.substring(0, 50) + '...'
         }
       })
@@ -681,7 +681,7 @@ export class ApplicationBootstrap {
       logger.info('Pausing queue workers')
       const screenshotWorker = getScreenshotQueueWorker()
       const batchWorker = getBatchQueueWorker()
-      
+
       await screenshotWorker.pause()
       await batchWorker.pause()
 
@@ -722,12 +722,12 @@ export class ApplicationBootstrap {
 
       // Step 6: Close browser service
       logger.info('Closing browser service')
-      await browserService.close()
+      await browserService.shutdown()
 
       // Step 7: Close Redis connections (handled by CentralRedisManager)
       logger.info('Closing Redis connections')
       const redisManager = getCentralRedisManager()
-      await redisManager.closeAllConnections()
+      await redisManager.shutdown()
 
       logger.info('Application shutdown completed successfully')
 

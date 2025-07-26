@@ -54,7 +54,7 @@ export class CacheService {
   public async get(key: string): Promise<string | null> {
     try {
       const fullKey = this.keyPrefix + key
-      
+
       return await redisService.executeCommand(
         async () => {
           const result = await redisService.getClient().get(fullKey)
@@ -121,7 +121,7 @@ export class CacheService {
   public generateCacheKey(url: string, options: ScreenshotOptions): string {
     // Normalize URL for consistent caching
     const normalizedUrl = this.normalizeUrl(url)
-    
+
     // Create hash input from URL and options
     const hashInput = JSON.stringify({
       url: normalizedUrl,
@@ -133,13 +133,13 @@ export class CacheService {
 
     // Generate SHA-256 hash for cache key
     const hash = createHash('sha256').update(hashInput).digest('hex')
-    
-    logger.debug('Generated cache key', { 
-      url: normalizedUrl, 
-      options, 
-      key: hash.substring(0, 16) + '...' 
+
+    logger.debug('Generated cache key', {
+      url: normalizedUrl,
+      options,
+      key: hash.substring(0, 16) + '...'
     })
-    
+
     return hash
   }
 
@@ -149,7 +149,7 @@ export class CacheService {
   public async isProcessing(url: string): Promise<boolean> {
     try {
       const lockKey = this.lockPrefix + this.normalizeUrl(url)
-      
+
       return await redisService.executeCommand(
         async () => {
           const result = await redisService.getClient().exists(lockKey)
@@ -213,7 +213,7 @@ export class CacheService {
         async () => {
           const pattern = this.keyPrefix + '*'
           const keys = await redisService.getClient().keys(pattern)
-          
+
           let expiredCount = 0
           for (const key of keys) {
             const ttl = await redisService.getClient().ttl(key)
@@ -222,7 +222,7 @@ export class CacheService {
               expiredCount++
             }
           }
-          
+
           logger.info('Cleared expired cache entries', { count: expiredCount })
           return expiredCount
         },
@@ -244,7 +244,7 @@ export class CacheService {
           const pattern = this.keyPrefix + '*'
           const keys = await redisService.getClient().keys(pattern)
           const info = await redisService.getConnectionInfo()
-          
+
           return {
             totalKeys: keys.length,
             memoryUsage: info.usedMemory
@@ -271,7 +271,7 @@ export class CacheService {
         async () => {
           const pattern = this.keyPrefix + '*'
           const keys = await redisService.getClient().keys(pattern)
-          
+
           if (keys.length > 0) {
             await redisService.getClient().del(...keys)
             logger.info('Flushed cache entries', { count: keys.length })
@@ -290,26 +290,83 @@ export class CacheService {
   }
 
   /**
+   * Perform health check on cache service
+   */
+  public async healthCheck(): Promise<{ healthy: boolean; details?: any; error?: string }> {
+    try {
+      const startTime = Date.now()
+
+      // Test basic cache operations
+      const testKey = 'health_check_' + Date.now()
+      const testValue = 'health_check_value'
+
+      // Test set operation
+      await this.set(testKey, testValue, 60)
+
+      // Test get operation
+      const retrievedValue = await this.get(testKey)
+
+      // Test delete operation
+      await this.del(testKey)
+
+      const responseTime = Date.now() - startTime
+
+      if (retrievedValue !== testValue) {
+        return {
+          healthy: false,
+          error: 'Cache read/write test failed',
+          details: {
+            expected: testValue,
+            retrieved: retrievedValue,
+            responseTime
+          }
+        }
+      }
+
+      // Get cache statistics
+      const stats = await this.getStats()
+
+      return {
+        healthy: true,
+        details: {
+          responseTime,
+          cacheStats: stats,
+          redisHealthy: redisService.isConnectionHealthy(),
+          defaultTtl: this.defaultTtl
+        }
+      }
+    } catch (error) {
+      return {
+        healthy: false,
+        error: error.message || 'Cache health check failed',
+        details: {
+          redisHealthy: redisService.isConnectionHealthy()
+        }
+      }
+    }
+  }
+
+  /**
    * Normalize URL for consistent caching
    * Removes query parameters that don't affect screenshot content
    */
   private normalizeUrl(url: string): string {
     try {
       const urlObj = new URL(url)
-      
+
       // Remove common tracking parameters that don't affect content
       const paramsToRemove = [
         'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content',
         'fbclid', 'gclid', 'ref', 'source', '_ga', '_gid'
       ]
-      
+
       paramsToRemove.forEach(param => {
         urlObj.searchParams.delete(param)
       })
-      
+
       // Sort remaining parameters for consistency
       urlObj.searchParams.sort()
-      
+
       return urlObj.toString()
     } catch (error) {
       logger.warn('Failed to normalize URL, using original', { url, error })
