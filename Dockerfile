@@ -1,7 +1,7 @@
 # Multi-stage Dockerfile for Website Screenshot API
 
 # Stage 1: Build stage
-FROM node:18-alpine AS builder
+FROM node:22-alpine AS builder
 
 # Install system dependencies for building
 RUN apk add --no-cache \
@@ -26,7 +26,7 @@ COPY . .
 RUN npm run build
 
 # Stage 2: Production stage
-FROM node:18-alpine AS production
+FROM node:22-alpine AS production
 
 # Install system dependencies for Playwright
 RUN apk add --no-cache \
