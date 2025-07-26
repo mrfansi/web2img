@@ -2,7 +2,7 @@ import { createHmac } from 'node:crypto'
 import { Exception } from '@adonisjs/core/exceptions'
 import logger from '@adonisjs/core/services/logger'
 import env from '#start/env'
-import type { ImgProxyOptions } from '#types/screenshot'
+import type { ImgProxyOptions } from '../types/screenshot.js'
 
 /**
  * ImgProxy configuration interface
@@ -106,25 +106,25 @@ export class ImgProxyService {
     try {
       // Build processing options string
       const processingOptions = this.buildProcessingOptions(options)
-      
+
       // Encode the source URL
       const encodedUrl = this.encodeUrl(imageUrl)
-      
+
       // Build the path
       const path = `/${processingOptions}/${encodedUrl}`
-      
+
       // Generate signature
       const signature = this.generateSignature(path)
-      
+
       // Build final URL
       const finalUrl = `${this.config.baseUrl}/${signature}${path}`
-      
-      logger.debug('Generated ImgProxy URL', { 
-        originalUrl: imageUrl, 
-        options, 
-        finalUrl: finalUrl.substring(0, 100) + '...' 
+
+      logger.debug('Generated ImgProxy URL', {
+        originalUrl: imageUrl,
+        options,
+        finalUrl: finalUrl.substring(0, 100) + '...'
       })
-      
+
       return finalUrl
     } catch (error) {
       logger.error('Failed to generate ImgProxy URL', { imageUrl, options, error })
@@ -148,9 +148,9 @@ export class ImgProxyService {
     try {
       return this.generateUrl(imageUrl, options)
     } catch (error) {
-      logger.warn('ImgProxy URL generation failed, falling back to direct URL', { 
-        imageUrl, 
-        error: error.message 
+      logger.warn('ImgProxy URL generation failed, falling back to direct URL', {
+        imageUrl,
+        error: error.message
       })
       return imageUrl
     }
@@ -160,7 +160,7 @@ export class ImgProxyService {
    * Generate multiple ImgProxy URLs for different sizes/formats
    */
   public generateMultipleUrls(
-    imageUrl: string, 
+    imageUrl: string,
     optionsArray: ImgProxyProcessingOptions[]
   ): { options: ImgProxyProcessingOptions; url: string }[] {
     return optionsArray.map(options => ({
@@ -224,7 +224,7 @@ export class ImgProxyService {
       const height = options.height || 0
       const enlarge = options.enlarge ? 1 : 0
       const extend = options.extend ? 1 : 0
-      
+
       parts.push(`rs:${resize}:${width}:${height}:${enlarge}:${extend}`)
     }
 
@@ -312,12 +312,12 @@ export class ImgProxyService {
     // Convert hex key and salt to binary
     const keyBinary = Buffer.from(this.config.key, 'hex')
     const saltBinary = Buffer.from(this.config.salt, 'hex')
-    
+
     // Create HMAC with salt + path
     const hmac = createHmac('sha256', keyBinary)
     hmac.update(saltBinary)
     hmac.update(path)
-    
+
     // Return base64url encoded signature
     return hmac.digest('base64url')
   }

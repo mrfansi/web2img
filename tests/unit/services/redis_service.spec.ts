@@ -1,6 +1,6 @@
 import { test } from '@japa/runner'
 import { RedisService } from '#services/redis_service'
-import redis from '@adonisjs/redis/services/main'
+import { getCentralRedisManager } from '#services/central_redis_manager'
 
 test.group('RedisService', (group) => {
   let redisService: RedisService
@@ -51,14 +51,16 @@ test.group('RedisService', (group) => {
 
   test('should get Redis client instance', ({ assert }) => {
     const client = redisService.getClient()
-    assert.strictEqual(client, redis)
+    const centralRedisClient = getCentralRedisManager().getClient()
+    assert.strictEqual(client, centralRedisClient)
   })
 
   test('should execute Redis commands with error handling', async ({ assert }) => {
+    const redisClient = getCentralRedisManager().getClient()
     const result = await redisService.executeCommand(
       async () => {
-        await redis.set('test:key', 'test-value')
-        return await redis.get('test:key')
+        await redisClient.set('test:key', 'test-value')
+        return await redisClient.get('test:key')
       },
       'test operation'
     )
@@ -66,7 +68,7 @@ test.group('RedisService', (group) => {
     assert.equal(result, 'test-value')
     
     // Cleanup
-    await redis.del('test:key')
+    await redisClient.del('test:key')
   })
 
   test('should handle Redis operation errors', async ({ assert }) => {
@@ -96,12 +98,12 @@ test.group('RedisService - Connection Errors', (group) => {
   })
 
   test('should handle connection errors gracefully', async ({ assert }) => {
-    // Create a new instance to avoid affecting other tests
-    const testService = new (RedisService as any)()
+    const testService = RedisService.getInstance()
+    const redisClient = getCentralRedisManager().getClient()
     
     // Mock the ping method to simulate connection error
-    const originalPing = redis.ping
-    redis.ping = async () => {
+    const originalPing = redisClient.ping
+    redisClient.ping = async () => {
       throw new Error('ECONNREFUSED')
     }
 
@@ -111,7 +113,7 @@ test.group('RedisService - Connection Errors', (group) => {
       assert.isFalse(testService.isConnectionHealthy())
     } finally {
       // Restore original method
-      redis.ping = originalPing
+      redisClient.ping = originalPing
     }
   })
 })

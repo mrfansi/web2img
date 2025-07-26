@@ -2,33 +2,29 @@ import { Worker, Job, WorkerOptions } from 'bullmq'
 import { Redis } from 'ioredis'
 import env from '#start/env'
 import logger from '@adonisjs/core/services/logger'
-import { screenshotWorkerService } from '#services/screenshot_worker_service'
 import cacheService from '#services/cache_service'
 import type { ScreenshotJobData, JobResult } from '#services/queue_service'
+import { getCentralRedisManager } from '#services/central_redis_manager'
 
 export class ScreenshotQueueWorker {
   private worker: Worker<ScreenshotJobData, JobResult>
   private redisConnection: Redis
 
   constructor() {
-    // Create Redis connection for worker
-    this.redisConnection = new Redis({
-      host: env.get('REDIS_HOST'),
-      port: env.get('REDIS_PORT'),
-      password: env.get('REDIS_PASSWORD'),
-      db: env.get('REDIS_DB'),
-      maxRetriesPerRequest: null, // Required for BullMQ workers
-      retryDelayOnFailover: 100,
-      lazyConnect: true,
-    })
+    // Get Redis connection from CentralRedisManager
+    // BullMQ recommends a dedicated connection, so we use duplicate()
+    this.redisConnection = getCentralRedisManager().duplicateForBullMQ()
+
+    // Override maxRetriesPerRequest for BullMQ worker requirement
+    this.redisConnection.options.maxRetriesPerRequest = null
 
     // Worker options
     const workerOptions: WorkerOptions = {
       connection: this.redisConnection,
       prefix: 'web2img:queue',
       concurrency: env.get('SCREENSHOT_QUEUE_CONCURRENCY', 5),
-      removeOnComplete: 100,
-      removeOnFail: 50,
+      removeOnComplete: { count: 100 },
+      removeOnFail: { count: 50 },
       stalledInterval: 30 * 1000, // 30 seconds
       maxStalledCount: 1,
     }
@@ -48,7 +44,7 @@ export class ScreenshotQueueWorker {
    */
   private async processScreenshotJob(job: Job<ScreenshotJobData>): Promise<JobResult> {
     const startTime = Date.now()
-    const { url, format, width, height, timeout, cacheKey, batchId, itemId, apiKeyId } = job.data
+    const { url, format, width, height, cacheKey, batchId, itemId } = job.data
 
     logger.info('Processing screenshot job', {
       jobId: job.id,
@@ -76,7 +72,7 @@ export class ScreenshotQueueWorker {
           })
 
           await job.updateProgress(100)
-          
+
           return {
             success: true,
             imageUrl: cachedResult,
@@ -89,18 +85,6 @@ export class ScreenshotQueueWorker {
       await job.updateProgress(20)
 
       // Generate screenshot using the worker service
-      const screenshotResult = await screenshotWorkerService.processScreenshotJob({
-        url,
-        options: {
-          format,
-          width,
-          height,
-          timeout,
-        },
-        cacheKey,
-        batchId,
-        itemId,
-      })
 
       await job.updateProgress(80)
 
@@ -136,7 +120,7 @@ export class ScreenshotQueueWorker {
       }
     } catch (error) {
       const processingTime = Date.now() - startTime
-      
+
       logger.error('Screenshot job failed', {
         jobId: job.id,
         url,
@@ -238,20 +222,20 @@ export class ScreenshotQueueWorker {
       logger.error('Screenshot worker error', { error: error.message })
     })
 
-    // Redis connection events
-    this.redisConnection.on('connect', () => {
-      logger.info('Screenshot worker Redis connection established')
-    })
-
-    this.redisConnection.on('error', (error: Error) => {
-      logger.error('Screenshot worker Redis connection error', { error: error.message })
-    })
-
-    this.redisConnection.on('close', () => {
-      logger.info('Screenshot worker Redis connection closed')
-    })
+    // Note: Redis connection event logging is already handled by CentralRedisManager
   }
 }
 
-// Export singleton instance
-export default new ScreenshotQueueWorker()
+// Factory function to create a ScreenshotQueueWorker instance
+let singletonInstance: ScreenshotQueueWorker | null = null;
+
+export function getScreenshotQueueWorker(): ScreenshotQueueWorker {
+  if (!singletonInstance) {
+    singletonInstance = new ScreenshotQueueWorker();
+  }
+  return singletonInstance;
+}
+
+export function resetScreenshotQueueWorker(): void {
+  singletonInstance = null;
+}

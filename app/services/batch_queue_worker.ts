@@ -4,6 +4,7 @@ import env from '#start/env'
 import logger from '@adonisjs/core/services/logger'
 import queueService from '#services/queue_service'
 import type { BatchJobData, ScreenshotJobData, JobResult } from '#services/queue_service'
+import { getCentralRedisManager } from '#services/central_redis_manager'
 
 export interface BatchResult {
   batchId: string
@@ -26,24 +27,20 @@ export class BatchQueueWorker {
   private redisConnection: Redis
 
   constructor() {
-    // Create Redis connection for worker
-    this.redisConnection = new Redis({
-      host: env.get('REDIS_HOST'),
-      port: env.get('REDIS_PORT'),
-      password: env.get('REDIS_PASSWORD'),
-      db: env.get('REDIS_DB'),
-      maxRetriesPerRequest: null, // Required for BullMQ workers
-      retryDelayOnFailover: 100,
-      lazyConnect: true,
-    })
+    // Get Redis connection from CentralRedisManager
+    // BullMQ recommends a dedicated connection, so we use duplicate()
+    this.redisConnection = getCentralRedisManager().duplicateForBullMQ()
+
+    // Override maxRetriesPerRequest for BullMQ worker requirement
+    this.redisConnection.options.maxRetriesPerRequest = null
 
     // Worker options
     const workerOptions: WorkerOptions = {
       connection: this.redisConnection,
       prefix: 'web2img:queue',
       concurrency: 2, // Lower concurrency for batch jobs since they spawn multiple screenshot jobs
-      removeOnComplete: 50,
-      removeOnFail: 25,
+      removeOnComplete: { count: 50 },
+      removeOnFail: { count: 25 },
       stalledInterval: 60 * 1000, // 60 seconds
       maxStalledCount: 1,
     }
@@ -169,7 +166,8 @@ export class BatchQueueWorker {
   ): Promise<Array<{ itemId: string; jobId: string }>> {
     const jobs: Array<{ itemId: string; jobId: string }> = []
 
-    for (const item of items) {
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i]
       const screenshotJobData: ScreenshotJobData = {
         url: item.url,
         format: item.format || 'png',
@@ -192,6 +190,10 @@ export class BatchQueueWorker {
         itemId: item.id,
         jobId: screenshotJob.id!,
       })
+
+      // Update progress as we create jobs (10% to 20% range)
+      const progress = 10 + Math.floor((i + 1) / items.length * 10)
+      await parentJob.updateProgress(progress).catch(() => {}) // Don't fail on progress update error
     }
 
     logger.info('Created screenshot jobs for batch', {
@@ -261,10 +263,10 @@ export class BatchQueueWorker {
         })
         .finally(() => {
           activeJobs.delete(jobInfo.jobId)
-          
+
           // Update parent job progress
           const progress = 20 + Math.floor((completedCount + failedCount) / jobs.length * 70)
-          parentJob.updateProgress(progress).catch(() => {}) // Don't fail batch on progress update error
+          parentJob.updateProgress(progress).catch(() => { }) // Don't fail batch on progress update error
         })
 
       activeJobs.set(jobInfo.jobId, promise)
@@ -307,7 +309,7 @@ export class BatchQueueWorker {
         })
 
         for (const [jobId] of activeJobs) {
-          await queueService.cancelJob(jobId, 'screenshot').catch(() => {}) // Don't fail on cancel errors
+          await queueService.cancelJob(jobId, 'screenshot').catch(() => { }) // Don't fail on cancel errors
         }
       }
 
@@ -504,20 +506,23 @@ export class BatchQueueWorker {
       logger.error('Batch worker error', { error: error.message })
     })
 
-    // Redis connection events
-    this.redisConnection.on('connect', () => {
-      logger.info('Batch worker Redis connection established')
-    })
-
-    this.redisConnection.on('error', (error: Error) => {
-      logger.error('Batch worker Redis connection error', { error: error.message })
-    })
-
-    this.redisConnection.on('close', () => {
-      logger.info('Batch worker Redis connection closed')
-    })
+    // Note: Redis connection event logging is already handled by CentralRedisManager
   }
 }
 
-// Export singleton instance
-export default new BatchQueueWorker()
+// Export factory function instead of singleton to prevent auto-instantiation
+let instance: BatchQueueWorker | null = null
+
+export function getBatchQueueWorker(): BatchQueueWorker {
+  if (!instance) {
+    instance = new BatchQueueWorker()
+  }
+  return instance
+}
+
+export function resetBatchQueueWorker(): void {
+  instance = null
+}
+
+// Export singleton instance for backward compatibility
+export default getBatchQueueWorker()

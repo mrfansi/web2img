@@ -1,5 +1,5 @@
 import { test } from '@japa/runner'
-import { ScreenshotQueueWorker } from '#services/screenshot_queue_worker'
+import { ScreenshotQueueWorker, getScreenshotQueueWorker, resetScreenshotQueueWorker } from '#services/screenshot_queue_worker'
 import { screenshotWorkerService } from '#services/screenshot_worker_service'
 import cacheService from '#services/cache_service'
 import { Job } from 'bullmq'
@@ -9,11 +9,13 @@ test.group('ScreenshotQueueWorker', (group) => {
   let worker: ScreenshotQueueWorker
 
   group.setup(() => {
-    worker = new ScreenshotQueueWorker()
+    resetScreenshotQueueWorker()
+    worker = getScreenshotQueueWorker()
   })
 
   group.teardown(async () => {
     await worker.stop()
+    resetScreenshotQueueWorker()
   })
 
   test('should create worker with proper configuration', async ({ assert }) => {

@@ -1,5 +1,5 @@
 import { promises as fs } from 'node:fs'
-import { join, dirname, extname, basename } from 'node:path'
+import { join, extname, basename } from 'node:path'
 import { createHash } from 'node:crypto'
 import { Exception } from '@adonisjs/core/exceptions'
 import logger from '@adonisjs/core/services/logger'

@@ -1,6 +1,6 @@
-import redis from '@adonisjs/redis/services/main'
 import { Exception } from '@adonisjs/core/exceptions'
 import logger from '@adonisjs/core/services/logger'
+import { getCentralRedisManager } from '#services/central_redis_manager'
 
 /**
  * Redis service wrapper that provides connection pooling,
@@ -44,7 +44,8 @@ export class RedisService {
   public async healthCheck(): Promise<boolean> {
     try {
       const startTime = Date.now()
-      await redis.ping()
+      const redisClient = getCentralRedisManager().getClient()
+      await redisClient.ping()
       const responseTime = Date.now() - startTime
       
       this.isHealthy = true
@@ -75,9 +76,10 @@ export class RedisService {
     totalSystemMemory: string
   }> {
     try {
-      const info = await redis.info('server')
-      const memory = await redis.info('memory')
-      const clients = await redis.info('clients')
+      const redisClient = getCentralRedisManager().getClient()
+      const info = await redisClient.info('server')
+      const memory = await redisClient.info('memory')
+      const clients = await redisClient.info('clients')
 
       // Parse info strings to extract relevant data
       const serverInfo = this.parseRedisInfo(info)
@@ -104,7 +106,7 @@ export class RedisService {
    * Get Redis client instance
    */
   public getClient() {
-    return redis
+    return getCentralRedisManager().getClient()
   }
 
   /**
@@ -203,17 +205,11 @@ export class RedisService {
   public async shutdown(): Promise<void> {
     this.stopHealthMonitoring()
     try {
-      // First try graceful quit
-      await redis.quit()
+      // Use CentralRedisManager for graceful shutdown
+      await getCentralRedisManager().shutdown()
       logger.info('Redis service shutdown completed')
     } catch (error) {
       logger.error('Error during Redis service shutdown', { error })
-      // Force disconnect if quit fails
-      try {
-        await redis.disconnect()
-      } catch (disconnectError) {
-        logger.error('Error during Redis force disconnect', { error: disconnectError })
-      }
     }
   }
 }

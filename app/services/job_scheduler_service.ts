@@ -1,10 +1,10 @@
-import { Queue, Job } from 'bullmq'
+import { Job } from 'bullmq'
 import { Redis } from 'ioredis'
 import { CronJob } from 'cron'
-import env from '#start/env'
 import logger from '@adonisjs/core/services/logger'
 import queueService from '#services/queue_service'
 import type { ScreenshotJobData, BatchJobData } from '#services/queue_service'
+import { getCentralRedisManager } from '#services/central_redis_manager'
 
 export interface ScheduledJobData {
   id: string
@@ -41,18 +41,9 @@ export class JobSchedulerService {
   private scheduledJobs: Map<string, CronJob> = new Map()
 
   constructor() {
-    // Create Redis connection for scheduler
-    this.redisConnection = new Redis({
-      host: env.get('REDIS_HOST'),
-      port: env.get('REDIS_PORT'),
-      password: env.get('REDIS_PASSWORD'),
-      db: env.get('REDIS_DB'),
-      maxRetriesPerRequest: null, // Required for BullMQ
-      retryDelayOnFailover: 100,
-      lazyConnect: true,
-    })
-
-    this.setupEventListeners()
+    // Get Redis connection from CentralRedisManager
+    // Use duplicate() to get a dedicated connection for the scheduler
+    this.redisConnection = getCentralRedisManager().duplicate()
   }
 
   /**
@@ -168,7 +159,7 @@ export class JobSchedulerService {
     await this.updateScheduledJobStatus(jobData.id, {
       id: jobData.id,
       status: 'scheduled',
-      nextRun: cronJob.nextDate() as Date,
+      nextRun: cronJob.nextDate() as unknown as Date,
       runCount: 0,
       maxRuns: options.maxRuns,
     })
@@ -249,7 +240,7 @@ export class JobSchedulerService {
 
       // Update run count and next run time
       const cronJob = this.scheduledJobs.get(scheduledJobId)
-      const nextRun = cronJob ? cronJob.nextDate() as Date : undefined
+      const nextRun = cronJob ? cronJob.nextDate() as unknown as Date : undefined
 
       await this.updateScheduledJobStatus(scheduledJobId, {
         ...currentStatus,
@@ -305,9 +296,18 @@ export class JobSchedulerService {
         })
       }
 
-      // Try to cancel any pending BullMQ jobs
-      await queueService.cancelJob(`scheduled-${scheduledJobId}`, 'screenshot')
-      await queueService.cancelJob(`scheduled-${scheduledJobId}`, 'batch')
+      // Try to cancel any pending BullMQ jobs (ignore errors if jobs don't exist)
+      try {
+        await queueService.cancelJob(`scheduled-${scheduledJobId}`, 'screenshot')
+      } catch (error) {
+        // Ignore errors - job might not exist
+      }
+      
+      try {
+        await queueService.cancelJob(`scheduled-${scheduledJobId}`, 'batch')
+      } catch (error) {
+        // Ignore errors - job might not exist
+      }
 
       logger.info('Scheduled job cancelled successfully', { scheduledJobId })
       return true
@@ -371,7 +371,7 @@ export class JobSchedulerService {
         if (currentStatus) {
           await this.updateScheduledJobStatus(scheduledJobId, {
             ...currentStatus,
-            nextRun: newCronJob.nextDate() as Date,
+            nextRun: newCronJob.nextDate() as unknown as Date,
           })
         }
       }
@@ -545,13 +545,27 @@ export class JobSchedulerService {
       logger.info('Shutting down job scheduler')
 
       // Stop all cron jobs
-      for (const [jobId, cronJob] of this.scheduledJobs) {
+      for (const [_, cronJob] of this.scheduledJobs) {
         cronJob.stop()
       }
       this.scheduledJobs.clear()
 
-      // Close connections
-      await this.redisConnection.quit()
+      // Close Redis connection gracefully
+      // This is a duplicated connection from CentralRedisManager, so we handle it directly
+      try {
+        await this.redisConnection.quit()
+        logger.info('Job scheduler Redis connection gracefully closed')
+      } catch (quitError) {
+        logger.warn('Job scheduler Redis quit failed, forcing disconnect', { error: quitError })
+        
+        // If quit fails, force disconnect
+        try {
+          this.redisConnection.disconnect()
+          logger.info('Job scheduler Redis connection forcefully disconnected')
+        } catch (disconnectError) {
+          logger.error('Job scheduler Redis disconnect failed', { error: disconnectError })
+        }
+      }
 
       logger.info('Job scheduler shutdown completed')
     } catch (error) {
@@ -643,22 +657,7 @@ export class JobSchedulerService {
     }
   }
 
-  /**
-   * Set up event listeners
-   */
-  private setupEventListeners(): void {
-    this.redisConnection.on('connect', () => {
-      logger.info('Job scheduler Redis connection established')
-    })
-
-    this.redisConnection.on('error', (error: Error) => {
-      logger.error('Job scheduler Redis connection error', { error: error.message })
-    })
-
-    this.redisConnection.on('close', () => {
-      logger.info('Job scheduler Redis connection closed')
-    })
-  }
+  // Note: Redis connection event logging is already handled by CentralRedisManager
 }
 
 // Export singleton instance

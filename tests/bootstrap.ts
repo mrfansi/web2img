@@ -5,6 +5,7 @@ import type { Config } from '@japa/runner/types'
 import { pluginAdonisJS } from '@japa/plugin-adonisjs'
 import testUtils from '@adonisjs/core/services/test_utils'
 import redisService from '#services/redis_service'
+import { getCentralRedisManager } from '#services/central_redis_manager'
 
 /**
  * This file is imported by the "bin/test.ts" entrypoint file
@@ -36,29 +37,20 @@ export const runnerHooks: Required<Pick<Config, 'setup' | 'teardown'>> = {
   ],
   teardown: [
     async () => {
-      // Cleanup Redis service after tests
+      // Register CentralRedisManager shutdown before other services
       try {
-        await redisService.shutdown()
-        
-        // Also ensure the main Redis connection is properly closed
-        const redis = await import('@adonisjs/redis/services/main')
-        await redis.default.quit()
+        const redisManager = getCentralRedisManager()
+        await redisManager.shutdown()
       } catch (error) {
-        console.warn('Redis cleanup failed in tests:', error)
-        
-        // Force disconnect if graceful shutdown fails
-        try {
-          const redis = await import('@adonisjs/redis/services/main')
-          await redis.default.disconnect()
-        } catch (disconnectError) {
-          console.warn('Redis force disconnect failed:', disconnectError)
-        }
+        console.warn('CentralRedisManager shutdown failed in tests:', error)
       }
       
-      // Force exit after cleanup to prevent hanging
-      setTimeout(() => {
-        process.exit(0)
-      }, 500)
+      // Cleanup other services after Redis shutdown
+      try {
+        await redisService.shutdown()
+      } catch (error) {
+        console.warn('Redis service cleanup failed in tests:', error)
+      }
     }
   ],
 }

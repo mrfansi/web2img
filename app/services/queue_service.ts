@@ -1,7 +1,7 @@
-import { Queue, Worker, Job, QueueOptions, WorkerOptions } from 'bullmq'
+import { Queue, Job, QueueOptions, QueueEvents } from 'bullmq'
 import { Redis } from 'ioredis'
-import env from '#start/env'
 import logger from '@adonisjs/core/services/logger'
+import { getCentralRedisManager } from './central_redis_manager.js'
 
 export interface ScreenshotJobData {
   url: string
@@ -55,19 +55,16 @@ export interface QueueMetrics {
 export class QueueService {
   private screenshotQueue: Queue<ScreenshotJobData, JobResult>
   private batchQueue: Queue<BatchJobData, any>
+  private screenshotQueueEvents: QueueEvents
+  private batchQueueEvents: QueueEvents
   private redisConnection: Redis
 
   constructor() {
-    // Create Redis connection for BullMQ
-    this.redisConnection = new Redis({
-      host: env.get('REDIS_HOST'),
-      port: env.get('REDIS_PORT'),
-      password: env.get('REDIS_PASSWORD'),
-      db: env.get('REDIS_DB'),
-      maxRetriesPerRequest: 3,
-      retryDelayOnFailover: 100,
-      lazyConnect: true,
-    })
+    // Create Redis connection for BullMQ using CentralRedisManager
+    // BullMQ suggests separate connections for producers, so we duplicate the shared connection
+    // Use duplicateForBullMQ() to get a connection without keyPrefix (BullMQ manages its own prefixing)
+    const centralRedisManager = getCentralRedisManager()
+    this.redisConnection = centralRedisManager.duplicateForBullMQ()
 
     // Queue options with retry and dead letter queue configuration
     const queueOptions: QueueOptions = {
@@ -87,6 +84,10 @@ export class QueueService {
     // Initialize queues
     this.screenshotQueue = new Queue<ScreenshotJobData, JobResult>('screenshot', queueOptions)
     this.batchQueue = new Queue<BatchJobData, any>('batch', queueOptions)
+
+    // Initialize queue events for monitoring
+    this.screenshotQueueEvents = new QueueEvents('screenshot', { connection: this.redisConnection })
+    this.batchQueueEvents = new QueueEvents('batch', { connection: this.redisConnection })
 
     // Set up event listeners for monitoring
     this.setupEventListeners()
@@ -154,7 +155,7 @@ export class QueueService {
     scheduledTime: Date
   ): Promise<Job> {
     const delay = scheduledTime.getTime() - Date.now()
-    
+
     if (delay <= 0) {
       throw new Error('Scheduled time must be in the future')
     }
@@ -178,7 +179,7 @@ export class QueueService {
   async getJobStatus(jobId: string, queueName: 'screenshot' | 'batch' = 'screenshot'): Promise<any> {
     const queue = queueName === 'screenshot' ? this.screenshotQueue : this.batchQueue
     const job = await queue.getJob(jobId)
-    
+
     if (!job) {
       return null
     }
@@ -201,7 +202,7 @@ export class QueueService {
    */
   async getQueueMetrics(queueName: 'screenshot' | 'batch' = 'screenshot'): Promise<QueueMetrics> {
     const queue = queueName === 'screenshot' ? this.screenshotQueue : this.batchQueue
-    
+
     const [waiting, active, completed, failed, delayed] = await Promise.all([
       queue.getWaiting(),
       queue.getActive(),
@@ -225,7 +226,7 @@ export class QueueService {
   async cancelJob(jobId: string, queueName: 'screenshot' | 'batch' = 'screenshot'): Promise<boolean> {
     const queue = queueName === 'screenshot' ? this.screenshotQueue : this.batchQueue
     const job = await queue.getJob(jobId)
-    
+
     if (!job) {
       return false
     }
@@ -268,14 +269,14 @@ export class QueueService {
   ): Promise<string[]> {
     const queue = queueName === 'screenshot' ? this.screenshotQueue : this.batchQueue
     const jobs = await queue.clean(grace, 100, status)
-    
+
     logger.info('Cleaned old jobs from queue', {
       queueName,
       status,
       cleanedCount: jobs.length,
       grace,
     })
-    
+
     return jobs
   }
 
@@ -293,9 +294,11 @@ export class QueueService {
     await Promise.all([
       this.screenshotQueue.close(),
       this.batchQueue.close(),
+      this.screenshotQueueEvents.close(),
+      this.batchQueueEvents.close(),
       this.redisConnection.quit(),
     ])
-    
+
     logger.info('Queue service closed')
   }
 
@@ -304,63 +307,45 @@ export class QueueService {
    */
   private setupEventListeners(): void {
     // Screenshot queue events
-    this.screenshotQueue.on('completed', (job: Job, result: JobResult) => {
+    this.screenshotQueueEvents.on('completed', ({ jobId, returnvalue }) => {
       logger.info('Screenshot job completed', {
-        jobId: job.id,
-        url: job.data.url,
-        success: result.success,
-        cached: result.cached,
-        processingTime: result.processingTime,
+        jobId,
+        result: returnvalue,
       })
     })
 
-    this.screenshotQueue.on('failed', (job: Job | undefined, error: Error) => {
+    this.screenshotQueueEvents.on('failed', ({ jobId, failedReason }) => {
       logger.error('Screenshot job failed', {
-        jobId: job?.id,
-        url: job?.data?.url,
-        error: error.message,
-        attempts: job?.attemptsMade,
+        jobId,
+        error: failedReason,
       })
     })
 
-    this.screenshotQueue.on('stalled', (jobId: string) => {
+    this.screenshotQueueEvents.on('stalled', ({ jobId }) => {
       logger.warn('Screenshot job stalled', { jobId })
     })
 
     // Batch queue events
-    this.batchQueue.on('completed', (job: Job, result: any) => {
+    this.batchQueueEvents.on('completed', ({ jobId, returnvalue }) => {
       logger.info('Batch job completed', {
-        jobId: job.id,
-        batchId: job.data.id,
-        itemCount: job.data.items.length,
+        jobId,
+        result: returnvalue,
       })
     })
 
-    this.batchQueue.on('failed', (job: Job | undefined, error: Error) => {
+    this.batchQueueEvents.on('failed', ({ jobId, failedReason }) => {
       logger.error('Batch job failed', {
-        jobId: job?.id,
-        batchId: job?.data?.id,
-        error: error.message,
-        attempts: job?.attemptsMade,
+        jobId,
+        error: failedReason,
       })
     })
 
-    this.batchQueue.on('stalled', (jobId: string) => {
+    this.batchQueueEvents.on('stalled', ({ jobId }) => {
       logger.warn('Batch job stalled', { jobId })
     })
 
-    // Connection events
-    this.redisConnection.on('connect', () => {
-      logger.info('Queue Redis connection established')
-    })
-
-    this.redisConnection.on('error', (error: Error) => {
-      logger.error('Queue Redis connection error', { error: error.message })
-    })
-
-    this.redisConnection.on('close', () => {
-      logger.info('Queue Redis connection closed')
-    })
+    // Redis connection events are now handled by CentralRedisManager
+    // No need for redundant event listeners here
   }
 }
 
