@@ -1,6 +1,6 @@
 import { test } from '@japa/runner'
 import { QueueService, type ScreenshotJobData, type BatchJobData } from '#services/queue_service'
-import { Redis } from 'ioredis'
+import type { Redis } from 'ioredis'
 
 test.group('QueueService', (group) => {
   let queueService: QueueService

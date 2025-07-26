@@ -1,5 +1,5 @@
 import { Queue, Job, QueueOptions, QueueEvents } from 'bullmq'
-import { Redis } from 'ioredis'
+import type { Redis } from 'ioredis'
 import logger from '@adonisjs/core/services/logger'
 import { getCentralRedisManager } from './central_redis_manager.js'
 

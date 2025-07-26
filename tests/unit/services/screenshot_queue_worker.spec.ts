@@ -59,8 +59,8 @@ test.group('ScreenshotQueueWorker', (group) => {
     
     // Verify worker has proper configuration for caching
     assert.equal(workerInstance.name, 'screenshot')
-    assert.isNumber(workerInstance.opts.removeOnComplete)
-    assert.isNumber(workerInstance.opts.removeOnFail)
+    assert.isObject(workerInstance.opts.removeOnComplete)
+    assert.isObject(workerInstance.opts.removeOnFail)
     
     // The actual caching logic is tested through integration tests
     assert.isTrue(true) // Configuration test passed
@@ -100,7 +100,7 @@ test.group('ScreenshotQueueWorker', (group) => {
     
     // Verify worker has proper configuration for batch processing
     assert.isTrue(workerInstance.opts.concurrency! > 0)
-    assert.isNumber(workerInstance.opts.removeOnComplete)
+    assert.isObject(workerInstance.opts.removeOnComplete)
     
     // The actual batch job processing is tested through integration tests
     assert.isTrue(true) // Configuration test passed

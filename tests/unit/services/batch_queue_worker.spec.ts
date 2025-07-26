@@ -85,8 +85,8 @@ test.group('BatchQueueWorker', (group) => {
     
     // Verify worker has proper configuration for handling webhooks
     assert.equal(workerInstance.name, 'batch')
-    assert.isNumber(workerInstance.opts.removeOnComplete)
-    assert.isNumber(workerInstance.opts.removeOnFail)
+    assert.isObject(workerInstance.opts.removeOnComplete)
+    assert.isObject(workerInstance.opts.removeOnFail)
     
     // The actual webhook functionality is tested through integration tests
     assert.isTrue(true) // Configuration test passed

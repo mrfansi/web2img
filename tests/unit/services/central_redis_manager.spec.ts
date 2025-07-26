@@ -62,7 +62,7 @@ test.group('CentralRedisManager', (group) => {
     const info = redisManager.getOpenConnectionsInfo()
     assert.isArray(info)
     assert.isTrue(info.length >= 1) // At least one connection (may be more from bootstrap)
-    assert.properties(info[0], ['status', 'readyState'])
+    assert.properties(info[0], ['status'])
   })
 
   test('should properly shutdown all connections', async ({ assert }) => {

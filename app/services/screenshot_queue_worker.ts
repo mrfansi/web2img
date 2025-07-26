@@ -1,5 +1,5 @@
 import { Worker, Job, WorkerOptions } from 'bullmq'
-import { Redis } from 'ioredis'
+import type { Redis } from 'ioredis'
 import env from '#start/env'
 import logger from '@adonisjs/core/services/logger'
 import cacheService from '#services/cache_service'
@@ -14,9 +14,6 @@ export class ScreenshotQueueWorker {
     // Get Redis connection from CentralRedisManager
     // BullMQ recommends a dedicated connection, so we use duplicate()
     this.redisConnection = getCentralRedisManager().duplicateForBullMQ()
-
-    // Override maxRetriesPerRequest for BullMQ worker requirement
-    this.redisConnection.options.maxRetriesPerRequest = null
 
     // Worker options
     const workerOptions: WorkerOptions = {

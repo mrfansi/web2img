@@ -1,6 +1,10 @@
+import redis from '@adonisjs/redis/services/main'
 import { Redis } from 'ioredis'
-import env from '#start/env'
 import logger from '@adonisjs/core/services/logger'
+import config from '@adonisjs/core/services/config'
+
+// Type for AdonisJS Redis connection - this is what redis.connection() actually returns
+export type RedisConnection = ReturnType<typeof redis.connection>
 
 /**
  * CentralRedisManager - A singleton class for managing Redis connections
@@ -14,9 +18,9 @@ import logger from '@adonisjs/core/services/logger'
  */
 export class CentralRedisManager {
   private static instance: CentralRedisManager | null = null
-  private client: Redis | null = null
+  private client: RedisConnection | null = null
   private isShuttingDown = false
-  private openConnections: Set<Redis> = new Set()
+  private openConnections: Set<RedisConnection | Redis> = new Set()
 
   private constructor() { }
 
@@ -33,9 +37,10 @@ export class CentralRedisManager {
   /**
    * Get the shared Redis client instance (lazily initialized)
    */
-  public getClient(): Redis {
+  public getClient(): RedisConnection {
     if (!this.client) {
-      this.client = this.createRedisClient()
+      // Get the underlying ioredis instance from AdonisJS Redis service
+      this.client = redis.connection()
       this.setupEventListeners(this.client, 'main')
       this.trackConnection(this.client)
     }
@@ -45,12 +50,34 @@ export class CentralRedisManager {
   /**
    * Create a duplicate connection for BullMQ or other use cases that need dedicated connections
    */
-  public duplicate(): Redis {
-    const baseClient = this.getClient()
-    const duplicateClient = baseClient.duplicate()
+  public duplicate(): RedisConnection {
+    // For AdonisJS, we create a new connection instance rather than duplicating
+    // This provides the same isolation benefits
+    const duplicateClient = redis.connection()
     this.setupEventListeners(duplicateClient, 'duplicate')
     this.trackConnection(duplicateClient)
     return duplicateClient
+  }
+
+  /**
+   * Create a raw ioredis connection for services that need direct ioredis access
+   */
+  public duplicateRawRedis(): Redis {
+    // Create a new Redis connection using ioredis directly with the same config
+    const redisConfig = config.get<any>('redis')
+    const connectionConfig = redisConfig.connections.main
+
+    const rawClient = new Redis({
+      host: connectionConfig.host,
+      port: connectionConfig.port,
+      password: connectionConfig.password,
+      db: connectionConfig.db,
+      keyPrefix: connectionConfig.keyPrefix || '',
+    })
+
+    this.setupEventListenersForIORedis(rawClient, 'raw-duplicate')
+    this.trackConnection(rawClient)
+    return rawClient
   }
 
   /**
@@ -58,26 +85,23 @@ export class CentralRedisManager {
    * BullMQ manages its own prefixing and doesn't support ioredis keyPrefix
    */
   public duplicateForBullMQ(): Redis {
-    // Create a new Redis connection specifically for BullMQ without keyPrefix
-    const config = {
-      host: env.get('REDIS_HOST'),
-      port: env.get('REDIS_PORT'),
-      password: env.get('REDIS_PASSWORD'),
-      db: env.get('REDIS_DB'),
-      // NOTE: No keyPrefix for BullMQ - it manages its own prefixing
-      // Connection settings for reliability
-      retryDelayOnFailover: 100,
-      maxRetriesPerRequest: 3,
-      lazyConnect: true, // Don't connect immediately, wait for first command
-      // Keepalive settings
-      keepAlive: 30000,
-      // Timeout settings
-      connectTimeout: 10000,
-      commandTimeout: 5000,
-    }
+    // For BullMQ, we need the raw ioredis instance, not the AdonisJS wrapper
+    // Create a new Redis connection using ioredis directly with the same config
+    const redisConfig = config.get<any>('redis')
+    const connectionConfig = redisConfig.connections.main
 
-    const bullmqClient = new Redis(config)
-    this.setupEventListeners(bullmqClient, 'bullmq-duplicate')
+    const bullmqClient = new Redis({
+      host: connectionConfig.host,
+      port: connectionConfig.port,
+      password: connectionConfig.password,
+      db: connectionConfig.db,
+      // BullMQ specific settings - no keyPrefix
+      keyPrefix: '',
+      maxRetriesPerRequest: null, // Required by BullMQ
+      lazyConnect: true, // Don't connect immediately, wait for first command
+    })
+
+    this.setupEventListenersForIORedis(bullmqClient, 'bullmq-duplicate')
     this.trackConnection(bullmqClient)
     return bullmqClient
   }
@@ -150,41 +174,12 @@ export class CentralRedisManager {
     }
   }
 
-  /**
-   * Create a new Redis client with configuration from environment variables
-   */
-  private createRedisClient(): Redis {
-    const config = {
-      host: env.get('REDIS_HOST'),
-      port: env.get('REDIS_PORT'),
-      password: env.get('REDIS_PASSWORD'),
-      db: env.get('REDIS_DB'),
-      keyPrefix: 'web2img:',
-      // Connection settings for reliability
-      retryDelayOnFailover: 100,
-      maxRetriesPerRequest: 3,
-      lazyConnect: true, // Don't connect immediately, wait for first command
-      // Keepalive settings
-      keepAlive: 30000,
-      // Timeout settings
-      connectTimeout: 10000,
-      commandTimeout: 5000,
-    }
 
-    logger.info('CentralRedisManager: Creating Redis client', {
-      host: config.host,
-      port: config.port,
-      db: config.db,
-      keyPrefix: config.keyPrefix,
-    })
-
-    return new Redis(config)
-  }
 
   /**
    * Track a Redis connection for leak detection
    */
-  private trackConnection(client: Redis): void {
+  private trackConnection(client: RedisConnection | Redis): void {
     this.openConnections.add(client)
     logger.info(`CentralRedisManager: Tracking connection (total: ${this.openConnections.size})`)
   }
@@ -192,15 +187,15 @@ export class CentralRedisManager {
   /**
    * Stop tracking a Redis connection
    */
-  private untrackConnection(client: Redis): void {
+  private untrackConnection(client: RedisConnection | Redis): void {
     this.openConnections.delete(client)
     logger.info(`CentralRedisManager: Stopped tracking connection (total: ${this.openConnections.size})`)
   }
 
   /**
-   * Setup event listeners for Redis connection monitoring
+   * Setup event listeners for Redis connection monitoring (AdonisJS connections)
    */
-  private setupEventListeners(client: Redis, clientType: string): void {
+  private setupEventListeners(client: RedisConnection, clientType: string): void {
     client.on('connect', () => {
       logger.info(`CentralRedisManager: Redis ${clientType} client connected`)
     })
@@ -209,10 +204,44 @@ export class CentralRedisManager {
       logger.info(`CentralRedisManager: Redis ${clientType} client ready`)
     })
 
-    client.on('error', (error) => {
+    client.on('error', (error: any) => {
       logger.error(`CentralRedisManager: Redis ${clientType} client error`, {
-        error: error.message,
-        stack: error.stack
+        error: error?.message || String(error),
+        stack: error?.stack || undefined
+      })
+    })
+
+    client.on('close', () => {
+      logger.info(`CentralRedisManager: Redis ${clientType} client connection closed`)
+      this.untrackConnection(client)
+    })
+
+    client.on('reconnecting', (ms: any) => {
+      logger.warn(`CentralRedisManager: Redis ${clientType} client reconnecting in ${ms}ms`)
+    })
+
+    client.on('end', () => {
+      logger.info(`CentralRedisManager: Redis ${clientType} client connection ended`)
+      this.untrackConnection(client)
+    })
+  }
+
+  /**
+   * Setup event listeners for ioredis connections (raw Redis instances for BullMQ)
+   */
+  private setupEventListenersForIORedis(client: Redis, clientType: string): void {
+    client.on('connect', () => {
+      logger.info(`CentralRedisManager: Redis ${clientType} client connected`)
+    })
+
+    client.on('ready', () => {
+      logger.info(`CentralRedisManager: Redis ${clientType} client ready`)
+    })
+
+    client.on('error', (error: any) => {
+      logger.error(`CentralRedisManager: Redis ${clientType} client error`, {
+        error: error?.message || String(error),
+        stack: error?.stack || undefined
       })
     })
 

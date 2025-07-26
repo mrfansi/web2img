@@ -1,5 +1,5 @@
 import { Job } from 'bullmq'
-import { Redis } from 'ioredis'
+import type { Redis } from 'ioredis'
 import { CronJob } from 'cron'
 import logger from '@adonisjs/core/services/logger'
 import queueService from '#services/queue_service'
@@ -42,8 +42,8 @@ export class JobSchedulerService {
 
   constructor() {
     // Get Redis connection from CentralRedisManager
-    // Use duplicate() to get a dedicated connection for the scheduler
-    this.redisConnection = getCentralRedisManager().duplicate()
+    // Use duplicateRawRedis() to get a raw ioredis connection for the scheduler
+    this.redisConnection = getCentralRedisManager().duplicateRawRedis()
   }
 
   /**
@@ -302,7 +302,7 @@ export class JobSchedulerService {
       } catch (error) {
         // Ignore errors - job might not exist
       }
-      
+
       try {
         await queueService.cancelJob(`scheduled-${scheduledJobId}`, 'batch')
       } catch (error) {
@@ -409,13 +409,13 @@ export class JobSchedulerService {
     try {
       const key = `scheduled:status:${scheduledJobId}`
       const statusData = await this.redisConnection.get(key)
-      
+
       if (!statusData) {
         return null
       }
 
       const status = JSON.parse(statusData)
-      
+
       // Convert date strings back to Date objects
       if (status.nextRun) status.nextRun = new Date(status.nextRun)
       if (status.lastRun) status.lastRun = new Date(status.lastRun)
@@ -441,7 +441,7 @@ export class JobSchedulerService {
     try {
       const pattern = 'scheduled:metadata:*'
       const keys = await this.redisConnection.keys(pattern)
-      
+
       const jobs: Array<ScheduledJobData & { status: ScheduledJobStatus }> = []
 
       for (const key of keys) {
@@ -473,7 +473,7 @@ export class JobSchedulerService {
     try {
       const cutoffTime = new Date(Date.now() - olderThanHours * 60 * 60 * 1000)
       const allJobs = await this.listScheduledJobs()
-      
+
       let cleanedCount = 0
 
       for (const job of allJobs) {
@@ -557,7 +557,7 @@ export class JobSchedulerService {
         logger.info('Job scheduler Redis connection gracefully closed')
       } catch (quitError) {
         logger.warn('Job scheduler Redis quit failed, forcing disconnect', { error: quitError })
-        
+
         // If quit fails, force disconnect
         try {
           this.redisConnection.disconnect()
@@ -588,13 +588,13 @@ export class JobSchedulerService {
     try {
       const key = `scheduled:metadata:${scheduledJobId}`
       const data = await this.redisConnection.get(key)
-      
+
       if (!data) {
         return null
       }
 
       const metadata = JSON.parse(data)
-      
+
       // Convert date strings back to Date objects
       metadata.metadata.createdAt = new Date(metadata.metadata.createdAt)
       if (metadata.schedule.executeAt) {
@@ -631,7 +631,7 @@ export class JobSchedulerService {
   private async deleteScheduledJob(scheduledJobId: string): Promise<void> {
     const metadataKey = `scheduled:metadata:${scheduledJobId}`
     const statusKey = `scheduled:status:${scheduledJobId}`
-    
+
     await Promise.all([
       this.redisConnection.del(metadataKey),
       this.redisConnection.del(statusKey),
@@ -650,7 +650,7 @@ export class JobSchedulerService {
    */
   private isValidCronExpression(expression: string): boolean {
     try {
-      new CronJob(expression, () => {}, null, false)
+      new CronJob(expression, () => { }, null, false)
       return true
     } catch {
       return false

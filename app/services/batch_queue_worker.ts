@@ -1,5 +1,5 @@
 import { Worker, Job, WorkerOptions } from 'bullmq'
-import { Redis } from 'ioredis'
+import type { Redis } from 'ioredis'
 import env from '#start/env'
 import logger from '@adonisjs/core/services/logger'
 import queueService from '#services/queue_service'
@@ -30,9 +30,6 @@ export class BatchQueueWorker {
     // Get Redis connection from CentralRedisManager
     // BullMQ recommends a dedicated connection, so we use duplicate()
     this.redisConnection = getCentralRedisManager().duplicateForBullMQ()
-
-    // Override maxRetriesPerRequest for BullMQ worker requirement
-    this.redisConnection.options.maxRetriesPerRequest = null
 
     // Worker options
     const workerOptions: WorkerOptions = {
@@ -193,7 +190,7 @@ export class BatchQueueWorker {
 
       // Update progress as we create jobs (10% to 20% range)
       const progress = 10 + Math.floor((i + 1) / items.length * 10)
-      await parentJob.updateProgress(progress).catch(() => {}) // Don't fail on progress update error
+      await parentJob.updateProgress(progress).catch(() => { }) // Don't fail on progress update error
     }
 
     logger.info('Created screenshot jobs for batch', {
