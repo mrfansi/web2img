@@ -58,13 +58,18 @@
     "@adonisjs/cors": "^2.2.1",
     "@adonisjs/lucid": "^21.6.1",
     "@adonisjs/redis": "^9.2.0",
+    "@types/swagger-jsdoc": "^6.0.4",
+    "@types/swagger-ui-express": "^4.1.8",
     "@vinejs/vine": "^3.0.1",
     "bullmq": "^5.56.7",
     "cron": "^4.3.2",
     "luxon": "^3.7.1",
     "mysql2": "^3.14.2",
+    "openapi-types": "^12.1.3",
     "playwright": "^1.54.1",
-    "reflect-metadata": "^0.2.2"
+    "reflect-metadata": "^0.2.2",
+    "swagger-jsdoc": "^6.2.8",
+    "swagger-ui-express": "^5.0.1"
   },
   "hotHook": {
     "boundaries": [

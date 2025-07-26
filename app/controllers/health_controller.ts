@@ -1,7 +1,6 @@
 import { HttpContext } from '@adonisjs/core/http'
 import { HealthCheckService, HealthStatus } from '#services/health_check_service'
 import { MetricsService } from '#services/metrics_service'
-import { CorrelationService } from '#services/correlation_service'
 
 /**
  * Controller for health checks and metrics endpoints
@@ -11,16 +10,45 @@ export default class HealthController {
   private metricsService = new MetricsService()
 
   /**
+   * @swagger
+   * /health:
+   *   get:
+   *     summary: Basic health check
+   *     description: Returns the overall system health status
+   *     tags:
+   *       - Health & Monitoring
+   *     responses:
+   *       200:
+   *         description: System is healthy
+   *         content:
+   *           application/json:
+   *             schema:
+   *               $ref: '#/components/schemas/HealthResponse'
+   *             example:
+   *               status: "healthy"
+   *               timestamp: "2025-07-26T12:00:00Z"
+   *               uptime: 3600.5
+   *       503:
+   *         description: System is unhealthy
+   *         content:
+   *           application/json:
+   *             schema:
+   *               $ref: '#/components/schemas/HealthResponse'
+   *             example:
+   *               status: "unhealthy"
+   *               timestamp: "2025-07-26T12:00:00Z"
+   *               uptime: 3600.5
+   *
    * Basic health check endpoint
    * GET /health
    */
   public async health({ response }: HttpContext) {
     const health = await this.healthCheckService.checkSystemHealth()
-    
+
     // Set appropriate HTTP status based on health
     const statusCode = this.getHttpStatusFromHealth(health.status)
     response.status(statusCode)
-    
+
     return {
       status: health.status,
       timestamp: health.timestamp,
@@ -29,16 +57,60 @@ export default class HealthController {
   }
 
   /**
+   * @swagger
+   * /health/detailed:
+   *   get:
+   *     summary: Detailed health check
+   *     description: Returns detailed health information for all system components
+   *     tags:
+   *       - Health & Monitoring
+   *     responses:
+   *       200:
+   *         description: Detailed health information
+   *         content:
+   *           application/json:
+   *             schema:
+   *               $ref: '#/components/schemas/DetailedHealthResponse'
+   *             example:
+   *               status: "healthy"
+   *               timestamp: "2025-07-26T12:00:00Z"
+   *               uptime: 3600.5
+   *               components:
+   *                 database:
+   *                   status: "healthy"
+   *                   response_time: 15.2
+   *                   details:
+   *                     connection_count: 5
+   *                     query_performance: "good"
+   *                 redis:
+   *                   status: "healthy"
+   *                   response_time: 2.1
+   *                   details:
+   *                     memory_usage: "45%"
+   *                     connected_clients: 3
+   *                 queues:
+   *                   status: "healthy"
+   *                   details:
+   *                     active_jobs: 12
+   *                     pending_jobs: 0
+   *                     failed_jobs: 0
+   *       503:
+   *         description: One or more components are unhealthy
+   *         content:
+   *           application/json:
+   *             schema:
+   *               $ref: '#/components/schemas/DetailedHealthResponse'
+   *
    * Detailed health check endpoint
    * GET /health/detailed
    */
   public async detailedHealth({ response }: HttpContext) {
     const health = await this.healthCheckService.checkSystemHealth()
-    
+
     // Set appropriate HTTP status based on health
     const statusCode = this.getHttpStatusFromHealth(health.status)
     response.status(statusCode)
-    
+
     return health
   }
 
@@ -76,7 +148,7 @@ export default class HealthController {
 
     const statusCode = this.getHttpStatusFromHealth(componentHealth.status)
     response.status(statusCode)
-    
+
     return {
       component,
       ...componentHealth,
@@ -90,10 +162,10 @@ export default class HealthController {
    */
   public async ready({ response }: HttpContext) {
     const health = await this.healthCheckService.checkSystemHealth()
-    
+
     // System is ready if it's healthy or degraded (but not unhealthy)
     const isReady = health.status !== HealthStatus.UNHEALTHY
-    
+
     if (!isReady) {
       response.status(503)
       return {
@@ -104,7 +176,7 @@ export default class HealthController {
           .map(([name]) => name)
       }
     }
-    
+
     return {
       ready: true,
       status: health.status,
@@ -121,7 +193,7 @@ export default class HealthController {
     try {
       const uptime = process.uptime()
       const memoryUsage = process.memoryUsage()
-      
+
       return {
         alive: true,
         uptime,

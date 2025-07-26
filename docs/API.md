@@ -4,7 +4,31 @@
 
 The Website Screenshot API provides powerful screenshot generation capabilities for web pages through both single and batch processing endpoints. The API supports various screenshot configurations, intelligent caching, queue management, webhook notifications, and scheduled/recurring batch jobs.
 
-## Base URL
+## 📚 Interactive Documentation
+
+**🎯 For the complete, interactive API documentation, visit:**
+```
+http://localhost:3333/swagger
+```
+
+The Swagger UI provides:
+- Complete API reference with all endpoints
+- Interactive testing interface
+- Request/response examples
+- Authentication setup
+- Parameter validation
+- Error code documentation
+
+**📋 OpenAPI Specification:**
+```
+http://localhost:3333/swagger/openapi.json
+```
+
+---
+
+## Quick Reference
+
+### Base URL
 
 ```
 https://your-domain.com

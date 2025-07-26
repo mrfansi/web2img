@@ -2,6 +2,22 @@
 
 A high-performance website screenshot service built with AdonisJS, providing REST APIs for capturing website screenshots and converting them to various image formats.
 
+## 📚 API Documentation
+
+**🎯 Complete Interactive API Documentation:**
+Visit the Swagger UI for comprehensive API documentation with interactive testing:
+```
+http://localhost:3333/swagger
+```
+
+Features:
+- Complete API reference for all endpoints
+- Interactive request testing
+- Authentication setup
+- Request/response examples
+- Parameter validation
+- Error handling documentation
+
 ## Features
 
 - **RESTful API**: Clean API endpoints for screenshot generation
@@ -11,6 +27,7 @@ A high-performance website screenshot service built with AdonisJS, providing RES
 - **Rate Limiting**: Built-in rate limiting and API key authentication
 - **Batch Processing**: Support for bulk screenshot operations
 - **Error Handling**: Comprehensive error handling and logging
+- **OpenAPI Documentation**: Interactive API documentation with Swagger UI
 
 ## Architecture
 
@@ -20,6 +37,7 @@ This application uses a modern, scalable architecture with:
 - **MySQL**: Primary database
 - **Playwright**: For browser automation and screenshot capture
 - **BullMQ**: For background job processing
+- **OpenAPI 3.0**: API documentation and specification
 
 ## CentralRedisManager Usage Guide
 

@@ -41,7 +41,7 @@ router.group(() => {
   router.get('/health/ready', '#controllers/health_controller.ready')
   router.get('/health/live', '#controllers/health_controller.live')
   router.get('/health/:component', '#controllers/health_controller.componentHealth')
-  
+
   // Metrics endpoints
   router.get('/metrics', '#controllers/health_controller.metrics')
   router.get('/metrics/requests', '#controllers/health_controller.requestMetrics')
@@ -64,14 +64,30 @@ router.group(() => {
 router.group(() => {
   // Single screenshot endpoint
   router.post('/screenshot', '#controllers/screenshot_controller.single')
-  
+
   // Batch screenshot endpoints
   router.post('/batch/screenshots', '#controllers/screenshot_controller.createBatch')
   router.get('/batch/screenshots/:job_id', '#controllers/screenshot_controller.getBatchStatus')
-  
+
 }).middleware([
   middleware.requestLogging(),
   middleware.apiKeyAuth(),
   middleware.rateLimit(),
   middleware.metrics()
 ])
+
+/*
+|--------------------------------------------------------------------------
+| API Documentation Routes
+|--------------------------------------------------------------------------
+|
+| OpenAPI/Swagger documentation endpoints (no authentication required)
+|
+*/
+
+// Simple API docs route 
+router.get('/docs', '#controllers/swagger_controller.ui')
+
+// OpenAPI JSON spec
+router.get('/docs/openapi.json', '#controllers/swagger_controller.spec')
+router.get('/docs/openapi', '#controllers/swagger_controller.specPretty')
