@@ -17,7 +17,7 @@ test.group('RedisService', (group) => {
   test('should create singleton instance', ({ assert }) => {
     const instance1 = RedisService.getInstance()
     const instance2 = RedisService.getInstance()
-    
+
     assert.strictEqual(instance1, instance2)
   })
 
@@ -33,7 +33,7 @@ test.group('RedisService', (group) => {
 
   test('should get connection info', async ({ assert }) => {
     const info = await redisService.getConnectionInfo()
-    
+
     assert.properties(info, [
       'status',
       'uptime',
@@ -41,7 +41,7 @@ test.group('RedisService', (group) => {
       'usedMemory',
       'totalSystemMemory'
     ])
-    
+
     assert.equal(info.status, 'connected')
     assert.isNumber(info.uptime)
     assert.isNumber(info.connectedClients)
@@ -64,9 +64,9 @@ test.group('RedisService', (group) => {
       },
       'test operation'
     )
-    
+
     assert.equal(result, 'test-value')
-    
+
     // Cleanup
     await redisClient.del('test:key')
   })
@@ -91,16 +91,14 @@ test.group('RedisService', (group) => {
 })
 
 test.group('RedisService - Connection Errors', (group) => {
-  let redisService: RedisService
-
   group.setup(() => {
-    redisService = RedisService.getInstance()
+    RedisService.getInstance()
   })
 
   test('should handle connection errors gracefully', async ({ assert }) => {
     const testService = RedisService.getInstance()
     const redisClient = getCentralRedisManager().getClient()
-    
+
     // Mock the ping method to simulate connection error
     const originalPing = redisClient.ping
     redisClient.ping = async () => {

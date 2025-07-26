@@ -9,15 +9,11 @@ class TestFileStorageService {
   private readonly basePath: string
   private readonly baseUrl: string
   private readonly maxFileAge: number
-  private readonly maxStorageSize: number
-  private readonly minFreeSpace: number
 
   constructor(basePath: string, baseUrl: string) {
     this.basePath = basePath
     this.baseUrl = baseUrl
     this.maxFileAge = 3600 * 1000 // 1 hour in milliseconds
-    this.maxStorageSize = 10 * 1024 * 1024 * 1024 // 10GB
-    this.minFreeSpace = 1024 * 1024 * 1024 // 1GB
   }
 
   async initialize(): Promise<void> {
@@ -32,15 +28,15 @@ class TestFileStorageService {
     const year = now.getFullYear().toString()
     const month = (now.getMonth() + 1).toString().padStart(2, '0')
     const day = now.getDate().toString().padStart(2, '0')
-    
+
     const categoryPath = join(this.basePath, category, year, month, day)
     await this.ensureDirectoryExists(categoryPath)
-    
+
     const finalFilename = await this.generateUniqueFilename(categoryPath, filename)
     const filePath = join(categoryPath, finalFilename)
-    
+
     await fs.writeFile(filePath, buffer)
-    
+
     return join(category, year, month, day, finalFilename)
   }
 
@@ -69,7 +65,7 @@ class TestFileStorageService {
       const stats = await fs.stat(absolutePath)
       const buffer = await fs.readFile(absolutePath)
       const hash = createHash('sha256').update(buffer).digest('hex')
-      
+
       return {
         path: relativePath,
         size: stats.size,
@@ -94,16 +90,16 @@ class TestFileStorageService {
   async cleanupOldFiles(olderThan?: Date): Promise<number> {
     const cutoffDate = olderThan || new Date(Date.now() - this.maxFileAge)
     let deletedCount = 0
-    
+
     const categories = ['screenshots', 'temp', 'cache']
-    
+
     for (const category of categories) {
       const categoryPath = join(this.basePath, category)
       if (await this.directoryExists(categoryPath)) {
         deletedCount += await this.cleanupDirectory(categoryPath, cutoffDate)
       }
     }
-    
+
     return deletedCount
   }
 
@@ -115,13 +111,13 @@ class TestFileStorageService {
       usedSpace: 0,
       directories: {} as any
     }
-    
+
     const diskStats = await fs.statfs(this.basePath)
     stats.availableSpace = diskStats.bavail * diskStats.bsize
     stats.usedSpace = (diskStats.blocks - diskStats.bavail) * diskStats.bsize
-    
+
     const categories = ['screenshots', 'temp', 'cache']
-    
+
     for (const category of categories) {
       const categoryPath = join(this.basePath, category)
       if (await this.directoryExists(categoryPath)) {
@@ -131,7 +127,7 @@ class TestFileStorageService {
         stats.totalSize += categoryStats.size
       }
     }
-    
+
     return stats
   }
 
@@ -143,16 +139,16 @@ class TestFileStorageService {
       warnings: [] as string[],
       errors: [] as string[]
     }
-    
+
     if (!await this.directoryExists(this.basePath)) {
       health.errors.push('Storage base directory does not exist')
       health.healthy = false
     }
-    
+
     const diskStats = await fs.statfs(this.basePath)
     health.availableSpace = diskStats.bavail * diskStats.bsize
     health.usedSpace = (diskStats.blocks - diskStats.bavail) * diskStats.bsize
-    
+
     return health
   }
 
@@ -178,12 +174,12 @@ class TestFileStorageService {
     const name = basename(filename, ext)
     let counter = 0
     let finalFilename = filename
-    
+
     while (await this.fileExistsInDirectory(directory, finalFilename)) {
       counter++
       finalFilename = `${name}_${counter}${ext}`
     }
-    
+
     return finalFilename
   }
 
@@ -199,13 +195,13 @@ class TestFileStorageService {
 
   private async cleanupDirectory(directory: string, cutoffDate: Date): Promise<number> {
     let deletedCount = 0
-    
+
     try {
       const entries = await fs.readdir(directory, { withFileTypes: true })
-      
+
       for (const entry of entries) {
         const fullPath = join(directory, entry.name)
-        
+
         if (entry.isDirectory()) {
           deletedCount += await this.cleanupDirectory(fullPath, cutoffDate)
         } else if (entry.isFile()) {
@@ -219,20 +215,20 @@ class TestFileStorageService {
     } catch {
       // Ignore errors
     }
-    
+
     return deletedCount
   }
 
   private async getDirectoryStats(directory: string): Promise<{ files: number; size: number }> {
     let files = 0
     let size = 0
-    
+
     try {
       const entries = await fs.readdir(directory, { withFileTypes: true })
-      
+
       for (const entry of entries) {
         const fullPath = join(directory, entry.name)
-        
+
         if (entry.isDirectory()) {
           const subStats = await this.getDirectoryStats(fullPath)
           files += subStats.files
@@ -246,7 +242,7 @@ class TestFileStorageService {
     } catch {
       // Ignore errors
     }
-    
+
     return { files, size }
   }
 }
@@ -258,7 +254,7 @@ test.group('FileStorageService', (group) => {
   group.setup(async () => {
     // Create temporary directory for testing
     tempDir = await fs.mkdtemp(join(tmpdir(), 'storage-test-'))
-    
+
     storageService = new TestFileStorageService(tempDir, 'http://localhost:3333/storage')
     await storageService.initialize()
   })
@@ -287,11 +283,11 @@ test.group('FileStorageService', (group) => {
     const filename = 'test-image.png'
 
     const relativePath = await storageService.saveFile(testBuffer, filename)
-    
+
     assert.isString(relativePath)
     assert.isTrue(relativePath.includes('screenshots'))
     assert.isTrue(relativePath.includes('.png'))
-    
+
     const absolutePath = storageService.getAbsolutePath(relativePath)
     const savedData = await fs.readFile(absolutePath)
     assert.deepEqual(savedData, testBuffer)
@@ -311,14 +307,14 @@ test.group('FileStorageService', (group) => {
   test('should generate correct public URL', async ({ assert }) => {
     const relativePath = 'screenshots/2024/01/15/test.png'
     const url = storageService.getFileUrl(relativePath)
-    
+
     assert.equal(url, 'http://localhost:3333/storage/screenshots/2024/01/15/test.png')
   })
 
   test('should check file existence correctly', async ({ assert }) => {
     const testBuffer = Buffer.from('test data')
     const relativePath = await storageService.saveFile(testBuffer, 'exists.png')
-    
+
     assert.isTrue(await storageService.fileExists(relativePath))
     assert.isFalse(await storageService.fileExists('non-existent/file.png'))
   })
@@ -326,9 +322,9 @@ test.group('FileStorageService', (group) => {
   test('should get file metadata', async ({ assert }) => {
     const testBuffer = Buffer.from('test metadata')
     const relativePath = await storageService.saveFile(testBuffer, 'metadata.png')
-    
+
     const metadata = await storageService.getFileMetadata(relativePath)
-    
+
     assert.isNotNull(metadata)
     assert.equal(metadata!.path, relativePath)
     assert.equal(metadata!.size, testBuffer.length)
@@ -339,18 +335,18 @@ test.group('FileStorageService', (group) => {
   test('should delete file successfully', async ({ assert }) => {
     const testBuffer = Buffer.from('to be deleted')
     const relativePath = await storageService.saveFile(testBuffer, 'delete-me.png')
-    
+
     assert.isTrue(await storageService.fileExists(relativePath))
-    
+
     await storageService.deleteFile(relativePath)
-    
+
     assert.isFalse(await storageService.fileExists(relativePath))
   })
 
   test('should save and auto-cleanup temporary files', async ({ assert }) => {
     const testBuffer = Buffer.from('temporary data')
     const tempPath = await storageService.saveTempFile(testBuffer, 'temp.png')
-    
+
     assert.isTrue(tempPath.includes('temp'))
     assert.isTrue(await storageService.fileExists(tempPath))
   })
@@ -358,15 +354,15 @@ test.group('FileStorageService', (group) => {
   test('should cleanup old files', async ({ assert }) => {
     const testBuffer = Buffer.from('old file')
     const relativePath = await storageService.saveFile(testBuffer, 'old.png')
-    
+
     // Manually set file modification time to past
     const absolutePath = storageService.getAbsolutePath(relativePath)
     const pastTime = new Date(Date.now() - 2 * 60 * 60 * 1000) // 2 hours ago
     await fs.utimes(absolutePath, pastTime, pastTime)
-    
+
     const cutoffDate = new Date(Date.now() - 60 * 60 * 1000) // 1 hour ago
     const deletedCount = await storageService.cleanupOldFiles(cutoffDate)
-    
+
     assert.isAbove(deletedCount, 0)
     assert.isFalse(await storageService.fileExists(relativePath))
   })
@@ -375,9 +371,9 @@ test.group('FileStorageService', (group) => {
     const testBuffer = Buffer.from('stats test data')
     await storageService.saveFile(testBuffer, 'stats1.png')
     await storageService.saveFile(testBuffer, 'stats2.png')
-    
+
     const stats = await storageService.getStorageStats()
-    
+
     assert.isNumber(stats.totalFiles)
     assert.isNumber(stats.totalSize)
     assert.isNumber(stats.availableSpace)
@@ -388,7 +384,7 @@ test.group('FileStorageService', (group) => {
 
   test('should perform health check', async ({ assert }) => {
     const health = await storageService.healthCheck()
-    
+
     assert.isBoolean(health.healthy)
     assert.isNumber(health.availableSpace)
     assert.isNumber(health.usedSpace)
@@ -399,7 +395,7 @@ test.group('FileStorageService', (group) => {
   test('should handle storage errors gracefully', async ({ assert }) => {
     // Test with invalid path
     const invalidService = new TestFileStorageService('/invalid/path/that/does/not/exist', 'http://localhost')
-    
+
     await assert.rejects(
       () => invalidService.saveFile(Buffer.from('test'), 'test.png')
     )

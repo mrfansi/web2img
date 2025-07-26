@@ -1,6 +1,5 @@
 import { test } from '@japa/runner'
 import { QueueService, type ScreenshotJobData, type BatchJobData } from '#services/queue_service'
-import type { Redis } from 'ioredis'
 
 test.group('QueueService', (group) => {
   let queueService: QueueService
@@ -143,7 +142,7 @@ test.group('QueueService', (group) => {
       apiKeyId: 'test-api-key',
     }
 
-    const job = await queueService.addScreenshotJob(jobData, { jobId: 'status-test-job' })
+    await queueService.addScreenshotJob(jobData, { jobId: 'status-test-job' })
     const status = await queueService.getJobStatus('status-test-job')
 
     assert.isNotNull(status)
@@ -193,7 +192,7 @@ test.group('QueueService', (group) => {
       apiKeyId: 'test-api-key',
     }
 
-    const job = await queueService.addScreenshotJob(jobData, { jobId: 'cancel-test-job' })
+    await queueService.addScreenshotJob(jobData, { jobId: 'cancel-test-job' })
     const cancelled = await queueService.cancelJob('cancel-test-job')
 
     assert.isTrue(cancelled)
@@ -228,10 +227,10 @@ test.group('QueueService', (group) => {
     }
 
     await queueService.addScreenshotJob(jobData)
-    
+
     // Clean with very short grace period
     const cleanedJobs = await queueService.cleanQueue('screenshot', 1000, 'completed')
-    
+
     assert.isArray(cleanedJobs)
     // The number of cleaned jobs may vary depending on queue state
     assert.isTrue(cleanedJobs.length >= 0)
@@ -240,14 +239,14 @@ test.group('QueueService', (group) => {
   test('should handle Redis connection configuration', async ({ assert }) => {
     // Test that the service can be created without throwing errors
     const testService = new QueueService()
-    
+
     // Test that queues are properly configured
     const screenshotQueue = testService.getQueue('screenshot')
     const batchQueue = testService.getQueue('batch')
-    
+
     assert.isTrue(screenshotQueue.name === 'screenshot')
     assert.isTrue(batchQueue.name === 'batch')
-    
+
     await testService.close()
   })
 
@@ -263,7 +262,7 @@ test.group('QueueService', (group) => {
     }
 
     const job = await queueService.addScreenshotJob(jobData)
-    
+
     // Check that job has retry configuration
     assert.equal(job.opts.attempts, 3)
     assert.deepEqual(job.opts.backoff, {

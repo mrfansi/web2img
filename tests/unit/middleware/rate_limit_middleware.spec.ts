@@ -59,7 +59,7 @@ test.group('Rate Limit Middleware', (group) => {
     mockApiKey.userId = 1
     mockApiKey.rateLimit = 100
     mockApiKey.isActive = true
-    mockApiKey.user = mockUser
+    mockApiKey.user = mockUser as any
     
     ctx.apiKey = mockApiKey
     
@@ -97,7 +97,7 @@ test.group('Rate Limit Middleware', (group) => {
     mockApiKey.userId = 1
     mockApiKey.rateLimit = 2 // Very low limit for testing
     mockApiKey.isActive = true
-    mockApiKey.user = mockUser
+    mockApiKey.user = mockUser as any
     
     ctx.apiKey = mockApiKey
     
@@ -147,7 +147,7 @@ test.group('Rate Limit Middleware', (group) => {
     mockApiKey.userId = 1
     mockApiKey.rateLimit = 100
     mockApiKey.isActive = true
-    mockApiKey.user = mockUser
+    mockApiKey.user = mockUser as any
     
     ctx.apiKey = mockApiKey
     
@@ -208,7 +208,7 @@ test.group('Rate Limit Middleware', (group) => {
     mockApiKey.userId = 1
     mockApiKey.rateLimit = 10
     mockApiKey.isActive = true
-    mockApiKey.user = mockUser
+    mockApiKey.user = mockUser as any
     
     ctx1.apiKey = mockApiKey
     ctx2.apiKey = mockApiKey

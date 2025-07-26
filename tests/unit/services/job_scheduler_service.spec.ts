@@ -1,5 +1,5 @@
 import { test } from '@japa/runner'
-import { JobSchedulerService, type ScheduledJobData, type ScheduledJobStatus } from '#services/job_scheduler_service'
+import { JobSchedulerService, type ScheduledJobData } from '#services/job_scheduler_service'
 import queueService from '#services/queue_service'
 import type { ScreenshotJobData, BatchJobData } from '#services/queue_service'
 
@@ -182,7 +182,9 @@ test.group('JobSchedulerService', (group) => {
     const invalidCronExpression = 'invalid-cron'
 
     await assert.rejects(
-      () => scheduler.scheduleRecurringJob(scheduledJobData, invalidCronExpression),
+      async () => {
+        await scheduler.scheduleRecurringJob(scheduledJobData, invalidCronExpression)
+      },
       /Invalid cron expression/
     )
   })
@@ -367,7 +369,7 @@ test.group('JobSchedulerService', (group) => {
 
   test('should handle scheduler initialization and shutdown', async ({ assert }) => {
     const testScheduler = new JobSchedulerService()
-    
+
     await assert.doesNotReject(() => testScheduler.initialize())
     await assert.doesNotReject(() => testScheduler.shutdown())
   })

@@ -20,10 +20,10 @@ class TestableScreenshotWorkerService extends ScreenshotWorkerService {
 
   private async processWithMocks(jobData: any): Promise<any> {
     const startTime = Date.now()
-    
+
     // Mock URL processing
     const urlResult = await this.mockUrlTransformationService.processUrl(jobData.url, true)
-    
+
     // Mock browser page creation
     const { page, cleanup } = await this.mockBrowserService.createPage({
       width: jobData.options.width,
@@ -105,23 +105,23 @@ test.group('ScreenshotWorkerService', (group) => {
 
   group.each.setup(() => {
     service = new ScreenshotWorkerService()
-    
+
     // Create mock services
     mockBrowserService = {
-      createPage: async (options: any) => {
+      createPage: async (_options: any) => {
         const mockPage = {
-          goto: async (url: string, options: any) => ({
+          goto: async (_url: string, _options: any) => ({
             status: () => 200,
             statusText: () => 'OK',
           }),
-          waitForLoadState: async (state: string) => {},
-          waitForTimeout: async (timeout: number) => {},
-          evaluate: async (fn: Function) => 'Mock page content',
-          screenshot: async (options: any) => Buffer.from('mock-screenshot-data'),
-          setViewportSize: async (size: any) => {},
-          setDefaultTimeout: (timeout: number) => {},
-          setDefaultNavigationTimeout: (timeout: number) => {},
-          close: async () => {},
+          waitForLoadState: async (_state: string) => { },
+          waitForTimeout: async (_timeout: number) => { },
+          evaluate: async (_fn: Function) => 'Mock page content',
+          screenshot: async (_options: any) => Buffer.from('mock-screenshot-data'),
+          setViewportSize: async (_size: any) => { },
+          setDefaultTimeout: (_timeout: number) => { },
+          setDefaultNavigationTimeout: (_timeout: number) => { },
+          close: async () => { },
         }
 
         const cleanup = async () => {
@@ -137,10 +137,10 @@ test.group('ScreenshotWorkerService', (group) => {
     }
 
     mockUrlTransformationService = {
-      processUrl: async (url: string, followRedirects: boolean) => ({
-        original: url,
-        transformed: url,
-        final: url,
+      processUrl: async (_url: string, _followRedirects: boolean) => ({
+        original: _url,
+        transformed: _url,
+        final: _url,
         wasTransformed: false,
       }),
     }
@@ -160,7 +160,7 @@ test.group('ScreenshotWorkerService', (group) => {
     }
 
     const result = service.validateScreenshotOptions(validOptions)
-    
+
     assert.isTrue(result.isValid)
     assert.isUndefined(result.error)
     assert.isObject(result.validatedOptions)
@@ -193,7 +193,7 @@ test.group('ScreenshotWorkerService', (group) => {
 
   test('should use default values for missing options', async ({ assert }) => {
     const result = service.validateScreenshotOptions({})
-    
+
     assert.isTrue(result.isValid)
     assert.isObject(result.validatedOptions)
     assert.equal(result.validatedOptions!.format, 'png')
@@ -210,7 +210,7 @@ test.group('ScreenshotWorkerService', (group) => {
     }
 
     const result = service.validateScreenshotOptions(jpegOptions)
-    
+
     assert.isTrue(result.isValid)
     assert.equal(result.validatedOptions!.format, 'jpeg')
     assert.equal(result.validatedOptions!.quality, 85)
@@ -228,7 +228,7 @@ test.group('ScreenshotWorkerService', (group) => {
     }
 
     const result = await testableService.processScreenshotJob(jobData)
-    
+
     assert.isObject(result)
     assert.instanceOf(result.buffer, Buffer)
     assert.equal(result.format, 'png')
@@ -256,7 +256,7 @@ test.group('ScreenshotWorkerService', (group) => {
     }
 
     const result = await testableService.processScreenshotJob(jobData)
-    
+
     assert.isObject(result)
     assert.instanceOf(result.buffer, Buffer)
     assert.equal(result.format, 'jpeg')
@@ -267,8 +267,8 @@ test.group('ScreenshotWorkerService', (group) => {
   test('should handle URL transformation in screenshot job', async ({ assert }) => {
     // Mock URL transformation service to return transformed URL
     const originalProcessUrl = mockUrlTransformationService.processUrl
-    mockUrlTransformationService.processUrl = async (url: string) => ({
-      original: url,
+    mockUrlTransformationService.processUrl = async (_url: string) => ({
+      original: _url,
       transformed: 'https://transformed.example.com',
       final: 'https://final.example.com',
       wasTransformed: true,
@@ -285,7 +285,7 @@ test.group('ScreenshotWorkerService', (group) => {
     }
 
     const result = await testableService.processScreenshotJob(jobData)
-    
+
     assert.equal(result.finalUrl, 'https://final.example.com')
     assert.isTrue(result.wasTransformed)
 
@@ -324,14 +324,14 @@ test.group('ScreenshotWorkerService', (group) => {
   test('should handle navigation errors', async ({ assert }) => {
     // Mock page.goto to throw error
     const originalCreatePage = mockBrowserService.createPage
-    mockBrowserService.createPage = async (options: any) => {
+    mockBrowserService.createPage = async (_options: any) => {
       const mockPage = {
         goto: async () => {
           throw new Error('Navigation failed')
         },
-        close: async () => {},
+        close: async () => { },
       }
-      return { page: mockPage, cleanup: async () => {} }
+      return { page: mockPage, cleanup: async () => { } }
     }
 
     const jobData = {
@@ -358,17 +358,17 @@ test.group('ScreenshotWorkerService', (group) => {
   test('should handle HTTP error responses', async ({ assert }) => {
     // Mock page.goto to return 404 response
     const originalCreatePage = mockBrowserService.createPage
-    mockBrowserService.createPage = async (options: any) => {
+    mockBrowserService.createPage = async (_options: any) => {
       const mockPage = {
         goto: async () => ({
           status: () => 404,
           statusText: () => 'Not Found',
         }),
-        waitForLoadState: async () => {},
-        waitForTimeout: async () => {},
-        close: async () => {},
+        waitForLoadState: async () => { },
+        waitForTimeout: async () => { },
+        close: async () => { },
       }
-      return { page: mockPage, cleanup: async () => {} }
+      return { page: mockPage, cleanup: async () => { } }
     }
 
     const jobData = {
@@ -394,7 +394,7 @@ test.group('ScreenshotWorkerService', (group) => {
 
   test('should get health status', async ({ assert }) => {
     const health = await testableService.getHealthStatus()
-    
+
     assert.isObject(health)
     assert.isTrue(health.healthy)
     assert.isObject(health.browserService)
@@ -412,7 +412,7 @@ test.group('ScreenshotWorkerService', (group) => {
     }
 
     const health = await testableService.getHealthStatus()
-    
+
     assert.isFalse(health.healthy)
     assert.isFalse(health.browserService.healthy)
     assert.isString(health.details.error)
@@ -423,7 +423,7 @@ test.group('ScreenshotWorkerService', (group) => {
 
   test('should handle different screenshot formats', async ({ assert }) => {
     const formats: Array<'png' | 'jpeg' | 'webp'> = ['png', 'jpeg', 'webp']
-    
+
     for (const format of formats) {
       const jobData = {
         url: 'https://example.com',
@@ -444,16 +444,16 @@ test.group('ScreenshotWorkerService', (group) => {
   test('should handle timeout errors gracefully', async ({ assert }) => {
     // Mock page.goto to simulate timeout
     const originalCreatePage = mockBrowserService.createPage
-    mockBrowserService.createPage = async (options: any) => {
+    mockBrowserService.createPage = async (_options: any) => {
       const mockPage = {
         goto: async () => {
           const error = new Error('Navigation timeout')
           error.name = 'TimeoutError'
           throw error
         },
-        close: async () => {},
+        close: async () => { },
       }
-      return { page: mockPage, cleanup: async () => {} }
+      return { page: mockPage, cleanup: async () => { } }
     }
 
     const jobData = {

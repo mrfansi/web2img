@@ -1,6 +1,5 @@
 import { test } from '@japa/runner'
 import { BrowserService } from '#services/browser_service'
-import { Browser, BrowserContext, Page } from 'playwright'
 
 test.group('BrowserService', (group) => {
   let browserService: BrowserService
@@ -21,18 +20,18 @@ test.group('BrowserService', (group) => {
   test('should initialize browser service with default options', async ({ assert }) => {
     const service = new BrowserService()
     const stats = service.getPoolStats()
-    
+
     assert.equal(stats.totalBrowsers, 0)
     assert.equal(stats.totalActivePages, 0)
     assert.equal(stats.maxBrowsers, 3)
     assert.equal(stats.maxPagesPerBrowser, 5)
-    
+
     await service.shutdown()
   })
 
   test('should initialize browser service with custom options', async ({ assert }) => {
     const stats = browserService.getPoolStats()
-    
+
     assert.equal(stats.maxBrowsers, 2)
     assert.equal(stats.maxPagesPerBrowser, 3)
   })
@@ -44,17 +43,17 @@ test.group('BrowserService', (group) => {
       timeout: 10000,
     }
 
-    const { page, cleanup } = await browserService.createPage(pageOptions)
-    
-    assert.isTrue(page instanceof Object)
+    const { page: _page, cleanup } = await browserService.createPage(pageOptions)
+
+    assert.isTrue(_page instanceof Object)
     assert.isFunction(cleanup)
-    
+
     const stats = browserService.getPoolStats()
     assert.equal(stats.totalBrowsers, 1)
     assert.equal(stats.totalActivePages, 1)
-    
+
     await cleanup()
-    
+
     const statsAfterCleanup = browserService.getPoolStats()
     assert.equal(statsAfterCleanup.totalActivePages, 0)
   })
@@ -66,13 +65,13 @@ test.group('BrowserService', (group) => {
       timeout: 5000,
     }
 
-    const { page: page1, cleanup: cleanup1 } = await browserService.createPage(pageOptions)
-    const { page: page2, cleanup: cleanup2 } = await browserService.createPage(pageOptions)
-    
+    const { page: _page1, cleanup: cleanup1 } = await browserService.createPage(pageOptions)
+    const { page: _page2, cleanup: cleanup2 } = await browserService.createPage(pageOptions)
+
     const stats = browserService.getPoolStats()
     assert.equal(stats.totalBrowsers, 1) // Should reuse the same browser
     assert.equal(stats.totalActivePages, 2)
-    
+
     await cleanup1()
     await cleanup2()
   })
@@ -90,18 +89,18 @@ test.group('BrowserService', (group) => {
       const pageData = await browserService.createPage(pageOptions)
       pages.push(pageData)
     }
-    
+
     let stats = browserService.getPoolStats()
     assert.equal(stats.totalBrowsers, 1)
     assert.equal(stats.totalActivePages, 3)
-    
+
     // Create one more page, should trigger new browser
-    const { page: extraPage, cleanup: extraCleanup } = await browserService.createPage(pageOptions)
-    
+    const { page: _extraPage, cleanup: extraCleanup } = await browserService.createPage(pageOptions)
+
     stats = browserService.getPoolStats()
     assert.equal(stats.totalBrowsers, 2)
     assert.equal(stats.totalActivePages, 4)
-    
+
     // Cleanup all pages
     for (const { cleanup } of pages) {
       await cleanup()
@@ -125,9 +124,9 @@ test.group('BrowserService', (group) => {
         timeout: 1, // Very short timeout
       }
 
-      const { page, cleanup } = await errorService.createPage(pageOptions)
+      const { page: _page, cleanup } = await errorService.createPage(pageOptions)
       await cleanup()
-      
+
       // If we get here, the service handled the short timeout gracefully
       assert.isTrue(true)
     } catch (error) {
@@ -140,7 +139,7 @@ test.group('BrowserService', (group) => {
 
   test('should perform health check successfully', async ({ assert }) => {
     const healthResult = await browserService.healthCheck()
-    
+
     assert.isTrue(healthResult.healthy)
     assert.isObject(healthResult.details)
     assert.property(healthResult.details, 'totalBrowsers')
@@ -155,7 +154,7 @@ test.group('BrowserService', (group) => {
     assert.equal(initialStats.totalBrowsers, 0)
     assert.equal(initialStats.totalActivePages, 0)
 
-    const { page, cleanup } = await browserService.createPage({
+    const { page: _page, cleanup } = await browserService.createPage({
       width: 1280,
       height: 720,
       timeout: 5000,
@@ -174,21 +173,21 @@ test.group('BrowserService', (group) => {
 
   test('should shutdown gracefully', async ({ assert }) => {
     const testService = new BrowserService()
-    
+
     // Create a page to ensure browser is initialized
-    const { page, cleanup } = await testService.createPage({
+    const { page: _page, cleanup } = await testService.createPage({
       width: 1280,
       height: 720,
       timeout: 5000,
     })
-    
+
     await cleanup()
-    
+
     const statsBeforeShutdown = testService.getPoolStats()
     assert.equal(statsBeforeShutdown.totalBrowsers, 1)
-    
+
     await testService.shutdown()
-    
+
     const statsAfterShutdown = testService.getPoolStats()
     assert.equal(statsAfterShutdown.totalBrowsers, 0)
     assert.equal(statsAfterShutdown.totalActivePages, 0)
@@ -208,7 +207,7 @@ test.group('BrowserService', (group) => {
     }
 
     const results = await Promise.all(promises)
-    
+
     const stats = browserService.getPoolStats()
     assert.equal(stats.totalActivePages, 4)
     // Allow some flexibility in browser count due to concurrent creation
