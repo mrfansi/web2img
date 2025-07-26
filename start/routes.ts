@@ -18,6 +18,30 @@ router.get('/', async () => {
 
 /*
 |--------------------------------------------------------------------------
+| Dashboard Routes
+|--------------------------------------------------------------------------
+|
+| Dashboard web interface and API endpoints (no authentication for demo)
+|
+*/
+
+router.group(() => {
+  // Dashboard web interface
+  router.get('/dashboard', '#controllers/dashboard_controller.index')
+
+  // Dashboard API endpoints
+  router.get('/dashboard/api/data', '#controllers/dashboard_controller.getDashboardData')
+  router.get('/dashboard/api/keys', '#controllers/dashboard_controller.getApiKeys')
+  router.post('/dashboard/api/keys', '#controllers/dashboard_controller.createApiKey')
+  router.patch('/dashboard/api/keys/:id/toggle', '#controllers/dashboard_controller.toggleApiKey')
+  router.delete('/dashboard/api/keys/:id', '#controllers/dashboard_controller.deleteApiKey')
+}).middleware([
+  middleware.requestLogging(),
+  middleware.metrics()
+])
+
+/*
+|--------------------------------------------------------------------------
 | Screenshot API Routes
 |--------------------------------------------------------------------------
 |

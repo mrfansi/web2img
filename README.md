@@ -28,6 +28,39 @@ Features:
 - **Batch Processing**: Support for bulk screenshot operations
 - **Error Handling**: Comprehensive error handling and logging
 - **OpenAPI Documentation**: Interactive API documentation with Swagger UI
+- **Dashboard Interface**: Web-based dashboard for monitoring and API key management
+
+## Dashboard
+
+The Web2Img service includes a built-in dashboard for system monitoring and API key management.
+
+### Access the Dashboard
+
+Visit `http://localhost:57304/dashboard` when your server is running to access:
+
+- **System Health Monitoring** - Real-time system status and component health
+- **Performance Metrics** - Request rates, processing times, and system resource usage
+- **API Key Management** - Create, view, toggle, and delete API keys
+- **Statistics Overview** - Quick stats on API keys, users, and system uptime
+
+### Dashboard Features
+
+- **Real-time Updates** - Dashboard automatically refreshes every 30 seconds
+- **Responsive Design** - Works on desktop and mobile devices
+- **API Key Creation** - Generate new API keys with custom names and rate limits
+- **Security** - API keys are masked in listings for security
+- **Health Checks** - Monitor database, Redis, browser, and storage services
+
+### API Key Management
+
+Through the dashboard, you can:
+1. Create new API keys with custom rate limits (1-10,000 requests/hour)
+2. View all existing API keys (with masked values for security)
+3. Activate/deactivate API keys as needed
+4. Delete unused API keys
+5. Monitor API key usage statistics
+
+For more details, see the [Dashboard Documentation](docs/DASHBOARD.md).
 
 ## Architecture
 

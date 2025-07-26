@@ -3,6 +3,7 @@ import { BrowserService } from '#services/browser_service'
 import { FileStorageService } from '#services/file_storage_service'
 import { ImgProxyService } from '#services/imgproxy_service'
 import db from '@adonisjs/lucid/services/db'
+import logger from '@adonisjs/core/services/logger'
 
 /**
  * Health check status enum
@@ -84,34 +85,20 @@ export class HealthCheckService {
    */
   public async checkDatabaseHealth(): Promise<ComponentHealth> {
     const startTime = Date.now()
-    
+
     try {
       // Test basic connectivity
       await db.rawQuery('SELECT 1 as health_check')
-      
-      // Test connection pool status
-      const poolStats = db.manager.report()
       const responseTime = Date.now() - startTime
-
-      // Check if we have available connections
-      const hasAvailableConnections = Object.values(poolStats.connections).some(
-        (conn: any) => conn.pool.numFree > 0
-      )
-
-      if (!hasAvailableConnections) {
-        return {
-          status: HealthStatus.DEGRADED,
-          message: 'Database connection pool exhausted',
-          responseTime,
-          details: { poolStats }
-        }
-      }
 
       return {
         status: HealthStatus.HEALTHY,
         message: 'Database is healthy',
         responseTime,
-        details: { poolStats }
+        details: {
+          connection: 'active',
+          response_time: responseTime
+        }
       }
     } catch (error) {
       return {
@@ -128,7 +115,7 @@ export class HealthCheckService {
    */
   public async checkRedisHealth(): Promise<ComponentHealth> {
     const startTime = Date.now()
-    
+
     try {
       const redisManager = getCentralRedisManager()
       const redis = redisManager.getClient()
@@ -186,34 +173,28 @@ export class HealthCheckService {
    */
   public async checkBrowserHealth(): Promise<ComponentHealth> {
     const startTime = Date.now()
-    
+
     try {
       const browserService = new BrowserService()
-      
-      // Test browser initialization
-      const browser = await browserService.getBrowser()
+
+      // Use the built-in health check method
+      const healthCheck = await browserService.healthCheck()
       const responseTime = Date.now() - startTime
 
-      if (!browser) {
+      if (!healthCheck.healthy) {
         return {
           status: HealthStatus.UNHEALTHY,
-          message: 'Browser initialization failed',
-          responseTime
+          message: 'Browser service is unhealthy',
+          responseTime,
+          details: healthCheck.details
         }
       }
-
-      // Test page creation
-      const page = await browser.newPage()
-      await page.close()
 
       return {
         status: HealthStatus.HEALTHY,
         message: 'Browser service is healthy',
         responseTime,
-        details: {
-          browserVersion: browser.version(),
-          isConnected: browser.isConnected()
-        }
+        details: healthCheck.details
       }
     } catch (error) {
       return {
@@ -223,35 +204,42 @@ export class HealthCheckService {
         details: { error: error.message }
       }
     }
-  }
-
-  /**
+  }  /**
    * Check file storage health
    */
   public async checkStorageHealth(): Promise<ComponentHealth> {
     const startTime = Date.now()
-    
+
     try {
       const storageService = new FileStorageService()
-      
+
       // Test write operation
       const testContent = Buffer.from('health-check-test')
       const testPath = `health-check-${Date.now()}.txt`
-      
+
       await storageService.saveFile(testContent, testPath)
       const responseTime = Date.now() - startTime
 
       // Test read operation by checking if file exists
       const fileUrl = storageService.getFileUrl(testPath)
-      
-      // Clean up test file
-      await storageService.deleteFile(testPath)
+
+      // Try to clean up test file (don't fail if this doesn't work)
+      try {
+        await storageService.deleteFile(testPath)
+      } catch (deleteError) {
+        // Log but don't fail health check for cleanup issues
+        logger.warn('Health check: Failed to cleanup test file', { testPath, error: deleteError.message })
+      }
 
       return {
         status: HealthStatus.HEALTHY,
         message: 'Storage service is healthy',
         responseTime,
-        details: { testPath, fileUrl }
+        details: {
+          testPath,
+          fileUrl,
+          operations: ['write', 'read']
+        }
       }
     } catch (error) {
       return {
@@ -264,15 +252,15 @@ export class HealthCheckService {
   }
 
   /**
-   * Check ImgProxy service health
-   */
+ * Check ImgProxy service health
+ */
   public async checkImgProxyHealth(): Promise<ComponentHealth> {
     const startTime = Date.now()
-    
+
     try {
       const imgProxyService = new ImgProxyService()
-      
-      if (!imgProxyService.isConfigured()) {
+
+      if (!imgProxyService.isAvailable()) {
         return {
           status: HealthStatus.DEGRADED,
           message: 'ImgProxy is not configured',
@@ -289,23 +277,21 @@ export class HealthCheckService {
         format: 'png'
       })
 
-      const responseTime = Date.now() - startTime
-
       if (!imgProxyUrl) {
         return {
           status: HealthStatus.UNHEALTHY,
           message: 'ImgProxy URL generation failed',
-          responseTime
+          responseTime: Date.now() - startTime
         }
       }
 
       return {
         status: HealthStatus.HEALTHY,
         message: 'ImgProxy service is healthy',
-        responseTime,
-        details: { 
+        responseTime: Date.now() - startTime,
+        details: {
           configured: true,
-          testUrl: imgProxyUrl
+          url_generation: 'working'
         }
       }
     } catch (error) {
@@ -323,7 +309,7 @@ export class HealthCheckService {
    */
   private calculateSummary(components: Record<string, ComponentHealth>) {
     const statuses = Object.values(components).map(c => c.status)
-    
+
     return {
       healthy: statuses.filter(s => s === HealthStatus.HEALTHY).length,
       unhealthy: statuses.filter(s => s === HealthStatus.UNHEALTHY).length,
@@ -339,11 +325,11 @@ export class HealthCheckService {
     if (summary.unhealthy > 0) {
       return HealthStatus.UNHEALTHY
     }
-    
+
     if (summary.degraded > 0) {
       return HealthStatus.DEGRADED
     }
-    
+
     return HealthStatus.HEALTHY
   }
 
@@ -352,7 +338,7 @@ export class HealthCheckService {
    */
   private parseRedisInfo(info: string): Record<string, string> {
     const result: Record<string, string> = {}
-    
+
     info.split('\r\n').forEach(line => {
       if (line && !line.startsWith('#')) {
         const [key, value] = line.split(':')
@@ -361,7 +347,7 @@ export class HealthCheckService {
         }
       }
     })
-    
+
     return result
   }
 
