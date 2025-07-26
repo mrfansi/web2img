@@ -25,6 +25,42 @@ router.get('/', async () => {
 |
 */
 
+/*
+|--------------------------------------------------------------------------
+| Health Check and Metrics Routes
+|--------------------------------------------------------------------------
+|
+| Health check and metrics endpoints (no authentication required)
+|
+*/
+
+router.group(() => {
+  // Basic health checks
+  router.get('/health', '#controllers/health_controller.health')
+  router.get('/health/detailed', '#controllers/health_controller.detailedHealth')
+  router.get('/health/ready', '#controllers/health_controller.ready')
+  router.get('/health/live', '#controllers/health_controller.live')
+  router.get('/health/:component', '#controllers/health_controller.componentHealth')
+  
+  // Metrics endpoints
+  router.get('/metrics', '#controllers/health_controller.metrics')
+  router.get('/metrics/requests', '#controllers/health_controller.requestMetrics')
+  router.get('/metrics/processing', '#controllers/health_controller.processingMetrics')
+  router.get('/metrics/system', '#controllers/health_controller.systemMetrics')
+}).middleware([
+  middleware.requestLogging(),
+  middleware.metrics()
+])
+
+/*
+|--------------------------------------------------------------------------
+| Screenshot API Routes
+|--------------------------------------------------------------------------
+|
+| Screenshot API routes with authentication and rate limiting middleware
+|
+*/
+
 router.group(() => {
   // Single screenshot endpoint
   router.post('/screenshot', '#controllers/screenshot_controller.single')
@@ -36,5 +72,6 @@ router.group(() => {
 }).middleware([
   middleware.requestLogging(),
   middleware.apiKeyAuth(),
-  middleware.rateLimit()
+  middleware.rateLimit(),
+  middleware.metrics()
 ])

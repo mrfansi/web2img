@@ -42,5 +42,6 @@ export const middleware = router.named({
   auth: () => import('#middleware/auth_middleware'),
   apiKeyAuth: () => import('#middleware/api_key_auth_middleware'),
   rateLimit: () => import('#middleware/rate_limit_middleware'),
-  requestLogging: () => import('#middleware/request_logging_middleware')
+  requestLogging: () => import('#middleware/request_logging_middleware'),
+  metrics: () => import('#middleware/metrics_middleware')
 })
