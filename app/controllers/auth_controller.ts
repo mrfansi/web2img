@@ -58,7 +58,7 @@ export default class AuthController {
 
             return response.redirect('/dashboard')
         } catch (error) {
-            return response.redirect('/auth/login?error=Invalid email or password')
+            return response.redirect('/auth/login?error=Invalid credentials')
         }
     }
 

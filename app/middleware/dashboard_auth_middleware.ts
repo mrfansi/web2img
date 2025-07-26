@@ -1,5 +1,6 @@
 import type { HttpContext } from '@adonisjs/core/http'
 import type { NextFn } from '@adonisjs/core/types/http'
+import { Secret } from '@adonisjs/core/helpers'
 import User from '#models/user'
 
 /**
@@ -10,6 +11,8 @@ export default class DashboardAuthMiddleware {
     async handle(ctx: HttpContext, next: NextFn) {
         const { request, response } = ctx
 
+        console.log('Dashboard auth middleware - checking auth for:', request.url())
+
         // Get token from cookie
         const token = request.cookie('auth_token')
 
@@ -18,18 +21,27 @@ export default class DashboardAuthMiddleware {
         }
 
         try {
-            // Verify the token
-            const accessToken = await User.accessTokens.verify(token)
+            // Create a Secret object for verification - this is how AdonisJS expects tokens
+            const tokenValue = new Secret(token)
+            const accessToken = await User.accessTokens.verify(tokenValue)
 
             if (!accessToken) {
                 response.clearCookie('auth_token')
                 return response.redirect('/auth/login')
             }
 
-            // Token is valid, continue
+            // Load the user
+            const user = await User.find(accessToken.tokenableId)
+            if (!user) {
+                response.clearCookie('auth_token')
+                return response.redirect('/auth/login')
+            }
+
+            // Store user in context for dashboard controller to access
+            ctx.user = user
+
             await next()
         } catch (error) {
-            // Token is invalid, clear it and redirect
             response.clearCookie('auth_token')
             return response.redirect('/auth/login')
         }
