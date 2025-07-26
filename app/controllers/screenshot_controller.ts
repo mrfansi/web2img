@@ -88,7 +88,8 @@ export default class ScreenshotController {
    *         $ref: '#/components/responses/RateLimited'
    *       500:
    *         $ref: '#/components/responses/InternalError'
-   *
+   */
+  /**
    * Handle single screenshot request
    * POST /screenshot
    */
@@ -333,7 +334,8 @@ export default class ScreenshotController {
    *         $ref: '#/components/responses/RateLimited'
    *       500:
    *         $ref: '#/components/responses/InternalError'
-   *
+   */
+  /**
    * Create a batch screenshot job
    * POST /batch/screenshots
    */
@@ -579,7 +581,8 @@ export default class ScreenshotController {
    *         $ref: '#/components/responses/RateLimited'
    *       500:
    *         $ref: '#/components/responses/InternalError'
-   *
+   */
+  /**
    * Get batch job status
    * GET /batch/screenshots/{job_id}
    */

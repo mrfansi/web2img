@@ -38,7 +38,8 @@ export default class HealthController {
    *               status: "unhealthy"
    *               timestamp: "2025-07-26T12:00:00Z"
    *               uptime: 3600.5
-   *
+   */
+  /**
    * Basic health check endpoint
    * GET /health
    */
@@ -100,7 +101,8 @@ export default class HealthController {
    *           application/json:
    *             schema:
    *               $ref: '#/components/schemas/DetailedHealthResponse'
-   *
+   */
+  /**
    * Detailed health check endpoint
    * GET /health/detailed
    */

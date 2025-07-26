@@ -30,10 +30,6 @@ class SwaggerService {
                 },
                 servers: [
                     {
-                        url: env.get('APP_URL', 'http://localhost:3333'),
-                        description: 'Development server',
-                    },
-                    {
                         url: 'https://api.web2img.com',
                         description: 'Production server',
                     },
