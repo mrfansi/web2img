@@ -3,6 +3,8 @@ import { HealthCheckService } from '#services/health_check_service'
 import { MetricsService } from '#services/metrics_service'
 import ApiKey from '#models/api_key'
 import User from '#models/user'
+import ApiKeyUsage from '#models/api_key_usage'
+import ErrorLog, { ErrorLevel } from '#models/error_log'
 import vine from '@vinejs/vine'
 
 /**
@@ -428,6 +430,191 @@ export default class DashboardController {
     }
 
     /**
+     * Get API key usage statistics
+     * GET /dashboard/api/keys/:id/usage
+     */
+    public async getApiKeyUsage({ params, request, response }: HttpContext) {
+        try {
+            const apiKey = await ApiKey.find(params.id)
+
+            if (!apiKey) {
+                response.status(404)
+                return {
+                    detail: {
+                        error: 'api_key_not_found',
+                        message: 'API key not found'
+                    }
+                }
+            }
+
+            const timeframe = request.input('timeframe', 'day') as 'hour' | 'day' | 'week'
+            const stats = await ApiKeyUsage.getUsageStats(apiKey.id, timeframe)
+            const recentUsage = await ApiKeyUsage.getRecentUsage(apiKey.id, 20)
+
+            return {
+                data: {
+                    apiKey: {
+                        id: apiKey.id,
+                        name: apiKey.name,
+                        rateLimit: apiKey.rateLimit
+                    },
+                    stats,
+                    recentUsage: recentUsage.map(usage => ({
+                        id: usage.id,
+                        endpoint: usage.endpoint,
+                        method: usage.method,
+                        statusCode: usage.statusCode,
+                        responseTime: usage.responseTime,
+                        ipAddress: usage.ipAddress,
+                        userAgent: usage.userAgent,
+                        createdAt: usage.createdAt
+                    }))
+                }
+            }
+        } catch (error) {
+            response.status(500)
+            return {
+                detail: {
+                    error: 'usage_stats_fetch_failed',
+                    message: 'Failed to fetch usage statistics'
+                }
+            }
+        }
+    }
+
+    /**
+     * Get error logs
+     * GET /dashboard/api/errors
+     */
+    public async getErrorLogs({ request, response }: HttpContext) {
+        try {
+            const level = request.input('level') as ErrorLevel | undefined
+            const limit = request.input('limit', 100)
+            const timeframe = request.input('timeframe', 'day') as 'hour' | 'day' | 'week'
+
+            const errors = await ErrorLog.getRecentErrors(limit, level)
+            const stats = await ErrorLog.getErrorStats(timeframe)
+
+            return {
+                data: {
+                    errors: errors.map(error => ({
+                        id: error.id,
+                        level: error.level,
+                        message: error.message,
+                        endpoint: error.endpoint,
+                        method: error.method,
+                        ipAddress: error.ipAddress,
+                        correlationId: error.correlationId,
+                        apiKeyId: error.apiKeyId,
+                        createdAt: error.createdAt,
+                        context: error.parsedContext
+                    })),
+                    stats
+                }
+            }
+        } catch (error) {
+            response.status(500)
+            return {
+                detail: {
+                    error: 'error_logs_fetch_failed',
+                    message: 'Failed to fetch error logs'
+                }
+            }
+        }
+    }
+
+    /**
+     * Log a new error (for testing purposes)
+     * POST /dashboard/api/errors
+     */
+    public async logError({ request, response }: HttpContext) {
+        try {
+            const { level, message, context } = request.only(['level', 'message', 'context'])
+
+            const errorLog = await ErrorLog.logError({
+                level: level || ErrorLevel.ERROR,
+                message: message || 'Test error from dashboard',
+                context: context || { source: 'dashboard', test: true },
+                endpoint: '/dashboard/api/errors',
+                method: 'POST',
+                ipAddress: request.ip(),
+                userAgent: request.header('user-agent')
+            })
+
+            return {
+                data: {
+                    id: errorLog.id,
+                    level: errorLog.level,
+                    message: errorLog.message,
+                    createdAt: errorLog.createdAt
+                }
+            }
+        } catch (error) {
+            response.status(500)
+            return {
+                detail: {
+                    error: 'error_log_creation_failed',
+                    message: 'Failed to create error log'
+                }
+            }
+        }
+    }
+
+    /**
+     * Get overall API usage statistics
+     * GET /dashboard/api/usage-overview
+     */
+    public async getUsageOverview({ request, response }: HttpContext) {
+        try {
+            const timeframe = request.input('timeframe', 'day') as 'hour' | 'day' | 'week'
+
+            // Get all API keys and their usage stats
+            const apiKeys = await ApiKey.query().preload('user')
+            const usageData = await Promise.all(
+                apiKeys.map(async (key) => {
+                    const stats = await ApiKeyUsage.getUsageStats(key.id, timeframe)
+                    return {
+                        apiKey: {
+                            id: key.id,
+                            name: key.name,
+                            user: key.user.fullName || key.user.email
+                        },
+                        ...stats
+                    }
+                })
+            )
+
+            // Calculate totals
+            const totalRequests = usageData.reduce((sum, data) => sum + data.totalRequests, 0)
+            const totalErrors = usageData.reduce((sum, data) => sum + data.errorRequests, 0)
+            const avgResponseTime = totalRequests > 0
+                ? usageData.reduce((sum, data) => sum + (data.avgResponseTime * data.totalRequests), 0) / totalRequests
+                : 0
+
+            return {
+                data: {
+                    overview: {
+                        totalRequests,
+                        totalErrors,
+                        errorRate: totalRequests > 0 ? (totalErrors / totalRequests) * 100 : 0,
+                        avgResponseTime,
+                        timeframe
+                    },
+                    apiKeyUsage: usageData.filter(data => data.totalRequests > 0)
+                }
+            }
+        } catch (error) {
+            response.status(500)
+            return {
+                detail: {
+                    error: 'usage_overview_fetch_failed',
+                    message: 'Failed to fetch usage overview'
+                }
+            }
+        }
+    }
+
+    /**
      * Generate the dashboard HTML
      */
     private getDashboardHTML(): string {
@@ -562,6 +749,113 @@ export default class DashboardController {
                                 <span class="text-sm text-gray-600">Active Workers</span>
                                 <span class="font-medium" id="active-workers">-</span>
                             </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- API Usage Overview -->
+                <div class="bg-white overflow-hidden shadow rounded-lg mb-6">
+                    <div class="px-4 py-5 sm:p-6">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-lg leading-6 font-medium text-gray-900">API Usage Overview</h3>
+                            <select id="usage-timeframe" class="border border-gray-300 rounded-md px-3 py-1 text-sm">
+                                <option value="hour">Last Hour</option>
+                                <option value="day" selected>Last 24 Hours</option>
+                                <option value="week">Last Week</option>
+                            </select>
+                        </div>
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                            <div class="text-center">
+                                <div class="text-2xl font-bold text-gray-900" id="usage-total-requests">-</div>
+                                <p class="text-sm text-gray-500">Total Requests</p>
+                            </div>
+                            <div class="text-center">
+                                <div class="text-2xl font-bold text-gray-900" id="usage-total-errors">-</div>
+                                <p class="text-sm text-gray-500">Total Errors</p>
+                            </div>
+                            <div class="text-center">
+                                <div class="text-2xl font-bold text-gray-900" id="usage-error-rate">-</div>
+                                <p class="text-sm text-gray-500">Error Rate (%)</p>
+                            </div>
+                            <div class="text-center">
+                                <div class="text-2xl font-bold text-gray-900" id="usage-avg-response">-</div>
+                                <p class="text-sm text-gray-500">Avg Response (ms)</p>
+                            </div>
+                        </div>
+
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">API Key</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Requests</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Errors</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Error Rate</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Avg Response</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="usage-table" class="bg-white divide-y divide-gray-200">
+                                    <!-- Usage data will be loaded here -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Error Logs -->
+                <div class="bg-white overflow-hidden shadow rounded-lg mb-6">
+                    <div class="px-4 py-5 sm:p-6">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-lg leading-6 font-medium text-gray-900">Recent Error Logs</h3>
+                            <div class="flex space-x-2">
+                                <select id="error-level" class="border border-gray-300 rounded-md px-3 py-1 text-sm">
+                                    <option value="">All Levels</option>
+                                    <option value="error">Error</option>
+                                    <option value="warn">Warning</option>
+                                    <option value="fatal">Fatal</option>
+                                </select>
+                                <button onclick="testErrorLog()" class="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded-md text-sm">
+                                    Test Error
+                                </button>
+                                <button onclick="loadErrorLogs()" class="bg-gray-600 hover:bg-gray-700 text-white px-3 py-1 rounded-md text-sm">
+                                    Refresh
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                            <div class="text-center">
+                                <div class="text-2xl font-bold text-red-600" id="error-count">-</div>
+                                <p class="text-sm text-gray-500">Total Errors</p>
+                            </div>
+                            <div class="text-center">
+                                <div class="text-2xl font-bold text-yellow-600" id="warning-count">-</div>
+                                <p class="text-sm text-gray-500">Warnings</p>
+                            </div>
+                            <div class="text-center">
+                                <div class="text-2xl font-bold text-red-800" id="fatal-count">-</div>
+                                <p class="text-sm text-gray-500">Fatal Errors</p>
+                            </div>
+                        </div>
+
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Level</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Message</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Endpoint</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">IP Address</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Time</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="error-logs-table" class="bg-white divide-y divide-gray-200">
+                                    <!-- Error logs will be loaded here -->
+                                </tbody>
+                            </table>
                         </div>
                     </div>
                 </div>
@@ -884,11 +1178,206 @@ export default class DashboardController {
             }, 30000);
         }
 
+        // Load API usage overview
+        async function loadUsageOverview() {
+            try {
+                const timeframe = document.getElementById('usage-timeframe').value;
+                const response = await fetch(\`/dashboard/api/usage-overview?timeframe=\${timeframe}\`);
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.detail?.message || 'Failed to load usage overview');
+                }
+                
+                updateUsageOverview(data.data);
+            } catch (error) {
+                showError('Failed to load usage overview: ' + error.message);
+            }
+        }
+
+        // Update usage overview display
+        function updateUsageOverview(data) {
+            document.getElementById('usage-total-requests').textContent = data.overview.totalRequests;
+            document.getElementById('usage-total-errors').textContent = data.overview.totalErrors;
+            document.getElementById('usage-error-rate').textContent = data.overview.errorRate.toFixed(2);
+            document.getElementById('usage-avg-response').textContent = Math.round(data.overview.avgResponseTime);
+
+            const tbody = document.getElementById('usage-table');
+            tbody.innerHTML = '';
+
+            data.apiKeyUsage.forEach(usage => {
+                const row = document.createElement('tr');
+                row.innerHTML = \`
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">\${usage.apiKey.name}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">\${usage.apiKey.user}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">\${usage.totalRequests}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">\${usage.errorRequests}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">\${usage.errorRate.toFixed(2)}%</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">\${Math.round(usage.avgResponseTime)}ms</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <button onclick="viewApiKeyDetails(\${usage.apiKey.id})" class="text-indigo-600 hover:text-indigo-900">
+                            View Details
+                        </button>
+                    </td>
+                \`;
+                tbody.appendChild(row);
+            });
+        }
+
+        // Load error logs
+        async function loadErrorLogs() {
+            try {
+                const level = document.getElementById('error-level').value;
+                const params = new URLSearchParams();
+                if (level) params.append('level', level);
+                
+                const response = await fetch(\`/dashboard/api/errors?\${params}\`);
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.detail?.message || 'Failed to load error logs');
+                }
+                
+                updateErrorLogs(data.data);
+            } catch (error) {
+                showError('Failed to load error logs: ' + error.message);
+            }
+        }
+
+        // Update error logs display
+        function updateErrorLogs(data) {
+            document.getElementById('error-count').textContent = data.stats.errorsByLevel.error || 0;
+            document.getElementById('warning-count').textContent = data.stats.errorsByLevel.warn || 0;
+            document.getElementById('fatal-count').textContent = data.stats.errorsByLevel.fatal || 0;
+
+            const tbody = document.getElementById('error-logs-table');
+            tbody.innerHTML = '';
+
+            data.errors.forEach(error => {
+                const row = document.createElement('tr');
+                const levelClass = error.level === 'fatal' ? 'text-red-800' : 
+                                 error.level === 'error' ? 'text-red-600' : 'text-yellow-600';
+                
+                row.innerHTML = \`
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium \${levelClass}">
+                            \${error.level.toUpperCase()}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 text-sm text-gray-900" style="max-width: 300px; overflow: hidden; text-overflow: ellipsis;">
+                        \${error.message}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">\${error.endpoint || '-'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">\${error.ipAddress || '-'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        \${new Date(error.createdAt).toLocaleString()}
+                    </td>
+                \`;
+                tbody.appendChild(row);
+            });
+        }
+
+        // Test error logging
+        async function testErrorLog() {
+            try {
+                const response = await fetch('/dashboard/api/errors', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        level: 'error',
+                        message: 'Test error generated from dashboard',
+                        context: { test: true, timestamp: new Date().toISOString() }
+                    })
+                });
+
+                const result = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(result.detail?.message || 'Failed to create test error');
+                }
+
+                await loadErrorLogs(); // Refresh the error logs
+                showSuccess('Test error logged successfully');
+            } catch (error) {
+                showError('Failed to create test error: ' + error.message);
+            }
+        }
+
+        // View API key details (placeholder for future modal)
+        function viewApiKeyDetails(apiKeyId) {
+            // For now, just show an alert - can be expanded to a modal later
+            alert(\`API Key Details for ID: \${apiKeyId}\nThis feature will show detailed usage statistics in a future update.\`);
+        }
+
+        // Show success message
+        function showSuccess(message) {
+            // Create a temporary success message element
+            const successDiv = document.createElement('div');
+            successDiv.className = 'fixed top-4 right-4 bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded z-50';
+            successDiv.textContent = message;
+            document.body.appendChild(successDiv);
+            
+            setTimeout(() => {
+                document.body.removeChild(successDiv);
+            }, 3000);
+        }
+
+        // Event listeners
+        document.getElementById('usage-timeframe').addEventListener('change', loadUsageOverview);
+        document.getElementById('error-level').addEventListener('change', loadErrorLogs);
+
+        // Initialize dashboard
+        async function initDashboard() {
+            await loadDashboardData();
+            await loadApiKeys();
+            await loadUsageOverview();
+            await loadErrorLogs();
+            
+            // Auto-refresh every 30 seconds
+            setInterval(() => {
+                loadDashboardData();
+                loadUsageOverview();
+                loadErrorLogs();
+            }, 30000);
+        }
+
         // Start the dashboard when page loads
         document.addEventListener('DOMContentLoaded', initDashboard);
     </script>
 </body>
 </html>
     `
+    }
+
+    async createTestError({ request, response }: HttpContext) {
+        try {
+            const { level, message, context } = request.body()
+
+            const errorLog = await ErrorLog.create({
+                level: level || 'error',
+                message: message || 'Test error generated from dashboard',
+                context: JSON.stringify(context || { test: true }),
+                endpoint: '/dashboard/api/errors',
+                ipAddress: request.ip()
+            })
+
+            return {
+                success: true,
+                data: {
+                    id: errorLog.id,
+                    message: 'Test error logged successfully'
+                }
+            }
+        } catch (error) {
+            response.status(500)
+            return {
+                detail: {
+                    error: 'test_error_creation_failed',
+                    message: 'Failed to create test error'
+                }
+            }
+        }
     }
 }

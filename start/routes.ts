@@ -35,6 +35,14 @@ router.group(() => {
   router.post('/dashboard/api/keys', '#controllers/dashboard_controller.createApiKey')
   router.patch('/dashboard/api/keys/:id/toggle', '#controllers/dashboard_controller.toggleApiKey')
   router.delete('/dashboard/api/keys/:id', '#controllers/dashboard_controller.deleteApiKey')
+
+  // API Usage tracking endpoints
+  router.get('/dashboard/api/usage-overview', '#controllers/dashboard_controller.getUsageOverview')
+  router.get('/dashboard/api/usage/:apiKeyId', '#controllers/dashboard_controller.getApiKeyUsage')
+
+  // Error logging endpoints
+  router.get('/dashboard/api/errors', '#controllers/dashboard_controller.getErrorLogs')
+  router.post('/dashboard/api/errors', '#controllers/dashboard_controller.createTestError')
 }).middleware([
   middleware.requestLogging(),
   middleware.metrics()
