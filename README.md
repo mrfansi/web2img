@@ -7,7 +7,7 @@ A high-performance website screenshot service built with AdonisJS, providing RES
 **🎯 Complete Interactive API Documentation:**
 Visit the Swagger UI for comprehensive API documentation with interactive testing:
 ```
-http://localhost:3333/swagger
+http://localhost:3333/docs
 ```
 
 Features:

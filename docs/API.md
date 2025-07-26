@@ -8,7 +8,7 @@ The Website Screenshot API provides powerful screenshot generation capabilities 
 
 **🎯 For the complete, interactive API documentation, visit:**
 ```
-http://localhost:3333/swagger
+http://localhost:3333/docs
 ```
 
 The Swagger UI provides:
@@ -21,7 +21,7 @@ The Swagger UI provides:
 
 **📋 OpenAPI Specification:**
 ```
-http://localhost:3333/swagger/openapi.json
+http://localhost:3333/docs/openapi.json
 ```
 
 ---
