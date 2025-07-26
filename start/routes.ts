@@ -10,18 +10,35 @@
 import router from '@adonisjs/core/services/router'
 import { middleware } from './kernel.js'
 
-router.get('/', async () => {
-  return {
-    hello: 'world',
-  }
+router.get('/', async ({ response }) => {
+  return response.redirect('/auth/login')
 })
+
+/*
+|--------------------------------------------------------------------------
+| Authentication Routes
+|--------------------------------------------------------------------------
+|
+| Login routes (no authentication required)
+|
+*/
+
+router.group(() => {
+  // Login page and logout
+  router.get('/auth/login', '#controllers/auth_controller.showLogin')
+  router.post('/auth/login', '#controllers/auth_controller.login')
+  router.post('/auth/logout', '#controllers/auth_controller.logout')
+}).middleware([
+  middleware.requestLogging(),
+  middleware.metrics()
+])
 
 /*
 |--------------------------------------------------------------------------
 | Dashboard Routes
 |--------------------------------------------------------------------------
 |
-| Dashboard web interface and API endpoints (no authentication for demo)
+| Dashboard web interface and API endpoints (authentication required)
 |
 */
 
@@ -43,12 +60,15 @@ router.group(() => {
   // Error logging endpoints
   router.get('/dashboard/api/errors', '#controllers/dashboard_controller.getErrorLogs')
   router.post('/dashboard/api/errors', '#controllers/dashboard_controller.createTestError')
+
+  // User management endpoints
+  router.get('/dashboard/api/users', '#controllers/auth_controller.getUsers')
+  router.post('/dashboard/api/users', '#controllers/auth_controller.createUser')
 }).middleware([
+  middleware.dashboardAuth(),
   middleware.requestLogging(),
   middleware.metrics()
-])
-
-/*
+])/*
 |--------------------------------------------------------------------------
 | Screenshot API Routes
 |--------------------------------------------------------------------------

@@ -40,6 +40,7 @@ router.use([() => import('@adonisjs/core/bodyparser_middleware'), () => import('
  */
 export const middleware = router.named({
   auth: () => import('#middleware/auth_middleware'),
+  dashboardAuth: () => import('#middleware/dashboard_auth_middleware'),
   apiKeyAuth: () => import('#middleware/api_key_auth_middleware'),
   rateLimit: () => import('#middleware/rate_limit_middleware'),
   requestLogging: () => import('#middleware/request_logging_middleware'),

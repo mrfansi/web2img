@@ -946,6 +946,94 @@ export default class DashboardController {
         </div>
     </div>
 
+    <!-- User Management Section -->
+    <div class="bg-white rounded-lg shadow p-6 mb-6" id="user-management-section">
+        <div class="flex justify-between items-center mb-6">
+            <h3 class="text-lg font-medium text-gray-900">User Management</h3>
+            <button onclick="showNewUserModal()" 
+                    class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm font-medium">
+                Create User
+            </button>
+        </div>
+
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Name
+                        </th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Email
+                        </th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Created
+                        </th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Actions
+                        </th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200" id="users-table">
+                    <!-- Users will be loaded here -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Create User Modal -->
+    <div id="new-user-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
+            <h3 class="text-lg font-medium text-gray-900 mb-4">Create New User</h3>
+            
+            <form id="create-user-form" class="space-y-4">
+                <div>
+                    <label for="user-name" class="block text-sm font-medium text-gray-700">Full Name</label>
+                    <input type="text" id="user-name" name="fullName" required
+                           class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                </div>
+                
+                <div>
+                    <label for="user-email" class="block text-sm font-medium text-gray-700">Email</label>
+                    <input type="email" id="user-email" name="email" required
+                           class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                </div>
+                
+                <div>
+                    <label for="user-password" class="block text-sm font-medium text-gray-700">Password</label>
+                    <input type="password" id="user-password" name="password" required minlength="6"
+                           class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                    <p class="mt-1 text-xs text-gray-500">Minimum 6 characters</p>
+                </div>
+                
+                <div class="flex space-x-3">
+                    <button type="submit" 
+                            class="flex-1 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm font-medium">
+                        Create User
+                    </button>
+                    <button type="button" onclick="hideNewUserModal()"
+                            class="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-700 px-4 py-2 rounded-md text-sm font-medium">
+                        Cancel
+                    </button>
+                </div>
+            </form>
+
+            <div id="user-creation-success" class="hidden mt-4 p-3 bg-green-100 border border-green-400 text-green-700 rounded">
+                User created successfully!
+            </div>
+        </div>
+    </div>
+
+    <!-- Logout Button -->
+    <div class="fixed top-4 right-4 z-10">
+        <form action="/auth/logout" method="POST" class="inline">
+            <button type="submit" 
+                    class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md text-sm font-medium">
+                Logout
+            </button>
+        </form>
+    </div>
+
     <script>
         let dashboardData = null;
         let apiKeys = [];
@@ -1324,6 +1412,95 @@ export default class DashboardController {
             }, 3000);
         }
 
+        // Load users
+        async function loadUsers() {
+            try {
+                const response = await fetch('/dashboard/api/users');
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.detail?.message || 'Failed to load users');
+                }
+                
+                updateUsersTable(data.data);
+            } catch (error) {
+                showError('Failed to load users: ' + error.message);
+            }
+        }
+
+        // Update users table
+        function updateUsersTable(users) {
+            const tbody = document.getElementById('users-table');
+            tbody.innerHTML = '';
+
+            users.forEach(user => {
+                const row = document.createElement('tr');
+                row.innerHTML = \`
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">\${user.fullName}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">\${user.email}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        \${new Date(user.createdAt).toLocaleDateString()}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <span class="text-gray-400">View Details</span>
+                    </td>
+                \`;
+                tbody.appendChild(row);
+            });
+        }
+
+        // Show create user modal
+        function showNewUserModal() {
+            document.getElementById('new-user-modal').classList.remove('hidden');
+        }
+
+        // Hide create user modal
+        function hideNewUserModal() {
+            document.getElementById('new-user-modal').classList.add('hidden');
+            document.getElementById('create-user-form').reset();
+            document.getElementById('user-creation-success').classList.add('hidden');
+        }
+
+        // Create user
+        document.getElementById('create-user-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(this);
+            const userData = {
+                fullName: formData.get('fullName'),
+                email: formData.get('email'),
+                password: formData.get('password')
+            };
+
+            try {
+                const response = await fetch('/dashboard/api/users', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(userData)
+                });
+
+                const result = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(result.detail?.message || 'Failed to create user');
+                }
+
+                document.getElementById('user-creation-success').classList.remove('hidden');
+                document.getElementById('create-user-form').reset();
+                
+                await loadUsers(); // Refresh users list
+                
+                setTimeout(() => {
+                    hideNewUserModal();
+                }, 2000);
+                
+            } catch (error) {
+                showError('Failed to create user: ' + error.message);
+            }
+        });
+
         // Event listeners
         document.getElementById('usage-timeframe').addEventListener('change', loadUsageOverview);
         document.getElementById('error-level').addEventListener('change', loadErrorLogs);
@@ -1332,6 +1509,7 @@ export default class DashboardController {
         async function initDashboard() {
             await loadDashboardData();
             await loadApiKeys();
+            await loadUsers();
             await loadUsageOverview();
             await loadErrorLogs();
             
