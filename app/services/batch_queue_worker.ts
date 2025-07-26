@@ -1,0 +1,523 @@
+import { Worker, Job, WorkerOptions } from 'bullmq'
+import { Redis } from 'ioredis'
+import env from '#start/env'
+import logger from '@adonisjs/core/services/logger'
+import queueService from '#services/queue_service'
+import type { BatchJobData, ScreenshotJobData, JobResult } from '#services/queue_service'
+
+export interface BatchResult {
+  batchId: string
+  totalItems: number
+  completedItems: number
+  failedItems: number
+  results: Array<{
+    itemId: string
+    success: boolean
+    imageUrl?: string
+    error?: string
+    processingTime?: number
+  }>
+  totalProcessingTime: number
+  webhookSent?: boolean
+}
+
+export class BatchQueueWorker {
+  private worker: Worker<BatchJobData, BatchResult>
+  private redisConnection: Redis
+
+  constructor() {
+    // Create Redis connection for worker
+    this.redisConnection = new Redis({
+      host: env.get('REDIS_HOST'),
+      port: env.get('REDIS_PORT'),
+      password: env.get('REDIS_PASSWORD'),
+      db: env.get('REDIS_DB'),
+      maxRetriesPerRequest: null, // Required for BullMQ workers
+      retryDelayOnFailover: 100,
+      lazyConnect: true,
+    })
+
+    // Worker options
+    const workerOptions: WorkerOptions = {
+      connection: this.redisConnection,
+      prefix: 'web2img:queue',
+      concurrency: 2, // Lower concurrency for batch jobs since they spawn multiple screenshot jobs
+      removeOnComplete: 50,
+      removeOnFail: 25,
+      stalledInterval: 60 * 1000, // 60 seconds
+      maxStalledCount: 1,
+    }
+
+    // Create worker
+    this.worker = new Worker<BatchJobData, BatchResult>(
+      'batch',
+      this.processBatchJob.bind(this),
+      workerOptions
+    )
+
+    this.setupEventListeners()
+  }
+
+  /**
+   * Process a batch job
+   */
+  private async processBatchJob(job: Job<BatchJobData>): Promise<BatchResult> {
+    const startTime = Date.now()
+    const { id: batchId, items, config, apiKeyId } = job.data
+
+    logger.info('Processing batch job', {
+      jobId: job.id,
+      batchId,
+      itemCount: items.length,
+      config,
+    })
+
+    try {
+      await job.updateProgress(5)
+
+      // Validate batch configuration
+      const validatedConfig = this.validateBatchConfig(config)
+      const concurrency = validatedConfig.parallel || 3
+      const timeout = validatedConfig.timeout || env.get('SCREENSHOT_TIMEOUT', 30000)
+
+      await job.updateProgress(10)
+
+      // Create screenshot jobs for all items
+      const screenshotJobs = await this.createScreenshotJobs(
+        batchId,
+        items,
+        { timeout, apiKeyId },
+        job
+      )
+
+      await job.updateProgress(20)
+
+      // Process jobs with controlled concurrency
+      const results = await this.processScreenshotJobsWithConcurrency(
+        screenshotJobs,
+        concurrency,
+        validatedConfig.fail_fast || false,
+        job
+      )
+
+      await job.updateProgress(90)
+
+      // Send webhook if configured
+      let webhookSent = false
+      if (validatedConfig.webhook) {
+        webhookSent = await this.sendWebhook(
+          validatedConfig.webhook,
+          validatedConfig.webhook_auth,
+          batchId,
+          results
+        )
+      }
+
+      await job.updateProgress(100)
+
+      const totalProcessingTime = Date.now() - startTime
+      const completedItems = results.filter(r => r.success).length
+      const failedItems = results.length - completedItems
+
+      const batchResult: BatchResult = {
+        batchId,
+        totalItems: items.length,
+        completedItems,
+        failedItems,
+        results,
+        totalProcessingTime,
+        webhookSent,
+      }
+
+      logger.info('Batch job completed', {
+        jobId: job.id,
+        batchId,
+        totalItems: items.length,
+        completedItems,
+        failedItems,
+        totalProcessingTime,
+        webhookSent,
+      })
+
+      return batchResult
+    } catch (error) {
+      const processingTime = Date.now() - startTime
+
+      logger.error('Batch job failed', {
+        jobId: job.id,
+        batchId,
+        error: error.message,
+        processingTime,
+        attempt: job.attemptsMade,
+      })
+
+      // Update progress to indicate failure
+      await job.updateProgress(0)
+
+      throw error
+    }
+  }
+
+  /**
+   * Create screenshot jobs for all batch items
+   */
+  private async createScreenshotJobs(
+    batchId: string,
+    items: BatchJobData['items'],
+    options: { timeout: number; apiKeyId: string },
+    parentJob: Job<BatchJobData>
+  ): Promise<Array<{ itemId: string; jobId: string }>> {
+    const jobs: Array<{ itemId: string; jobId: string }> = []
+
+    for (const item of items) {
+      const screenshotJobData: ScreenshotJobData = {
+        url: item.url,
+        format: item.format || 'png',
+        width: item.width || 1280,
+        height: item.height || 720,
+        timeout: options.timeout,
+        cacheKey: '', // Will be generated by the screenshot service
+        batchId,
+        itemId: item.id,
+        apiKeyId: options.apiKeyId,
+      }
+
+      // Add job with high priority (batch jobs should be processed quickly)
+      const screenshotJob = await queueService.addScreenshotJob(screenshotJobData, {
+        priority: 10,
+        jobId: `${batchId}-${item.id}`,
+      })
+
+      jobs.push({
+        itemId: item.id,
+        jobId: screenshotJob.id!,
+      })
+    }
+
+    logger.info('Created screenshot jobs for batch', {
+      batchId,
+      jobCount: jobs.length,
+    })
+
+    return jobs
+  }
+
+  /**
+   * Process screenshot jobs with controlled concurrency
+   */
+  private async processScreenshotJobsWithConcurrency(
+    jobs: Array<{ itemId: string; jobId: string }>,
+    concurrency: number,
+    failFast: boolean,
+    parentJob: Job<BatchJobData>
+  ): Promise<BatchResult['results']> {
+    const results: BatchResult['results'] = []
+    const activeJobs = new Map<string, Promise<JobResult>>()
+    let jobIndex = 0
+    let completedCount = 0
+    let failedCount = 0
+
+    logger.info('Starting batch processing with concurrency control', {
+      totalJobs: jobs.length,
+      concurrency,
+      failFast,
+    })
+
+    // Helper function to start a job
+    const startJob = (jobInfo: { itemId: string; jobId: string }) => {
+      const promise = this.waitForScreenshotJob(jobInfo.jobId)
+        .then(result => {
+          completedCount++
+          results.push({
+            itemId: jobInfo.itemId,
+            success: result.success,
+            imageUrl: result.imageUrl,
+            error: result.error,
+            processingTime: result.processingTime,
+          })
+
+          if (!result.success) {
+            failedCount++
+            if (failFast) {
+              throw new Error(`Batch failed fast due to item ${jobInfo.itemId}: ${result.error}`)
+            }
+          }
+
+          return result
+        })
+        .catch(error => {
+          failedCount++
+          results.push({
+            itemId: jobInfo.itemId,
+            success: false,
+            error: error.message,
+          })
+
+          if (failFast) {
+            throw error
+          }
+
+          return { success: false, error: error.message }
+        })
+        .finally(() => {
+          activeJobs.delete(jobInfo.jobId)
+          
+          // Update parent job progress
+          const progress = 20 + Math.floor((completedCount + failedCount) / jobs.length * 70)
+          parentJob.updateProgress(progress).catch(() => {}) // Don't fail batch on progress update error
+        })
+
+      activeJobs.set(jobInfo.jobId, promise)
+      return promise
+    }
+
+    try {
+      // Start initial batch of jobs
+      while (jobIndex < jobs.length && activeJobs.size < concurrency) {
+        startJob(jobs[jobIndex])
+        jobIndex++
+      }
+
+      // Process remaining jobs as others complete
+      while (activeJobs.size > 0 || jobIndex < jobs.length) {
+        if (activeJobs.size > 0) {
+          // Wait for at least one job to complete
+          await Promise.race(Array.from(activeJobs.values()))
+        }
+
+        // Start new jobs if we have capacity and remaining jobs
+        while (jobIndex < jobs.length && activeJobs.size < concurrency) {
+          startJob(jobs[jobIndex])
+          jobIndex++
+        }
+      }
+
+      logger.info('Batch processing completed', {
+        totalJobs: jobs.length,
+        completedCount,
+        failedCount,
+      })
+
+      return results
+    } catch (error) {
+      // Cancel remaining jobs if fail_fast is enabled
+      if (failFast) {
+        logger.warn('Cancelling remaining jobs due to fail_fast', {
+          remainingJobs: activeJobs.size,
+        })
+
+        for (const [jobId] of activeJobs) {
+          await queueService.cancelJob(jobId, 'screenshot').catch(() => {}) // Don't fail on cancel errors
+        }
+      }
+
+      throw error
+    }
+  }
+
+  /**
+   * Wait for a screenshot job to complete and return its result
+   */
+  private async waitForScreenshotJob(jobId: string): Promise<JobResult> {
+    const maxWaitTime = 5 * 60 * 1000 // 5 minutes
+    const pollInterval = 1000 // 1 second
+    const startTime = Date.now()
+
+    while (Date.now() - startTime < maxWaitTime) {
+      const jobStatus = await queueService.getJobStatus(jobId, 'screenshot')
+
+      if (!jobStatus) {
+        throw new Error(`Screenshot job ${jobId} not found`)
+      }
+
+      // Job completed successfully
+      if (jobStatus.finishedOn && jobStatus.returnvalue) {
+        return jobStatus.returnvalue as JobResult
+      }
+
+      // Job failed
+      if (jobStatus.failedReason) {
+        return {
+          success: false,
+          error: jobStatus.failedReason,
+        }
+      }
+
+      // Job still processing, wait and check again
+      await new Promise(resolve => setTimeout(resolve, pollInterval))
+    }
+
+    throw new Error(`Screenshot job ${jobId} timed out after ${maxWaitTime}ms`)
+  }
+
+  /**
+   * Send webhook notification
+   */
+  private async sendWebhook(
+    webhookUrl: string,
+    authHeader: string | undefined,
+    batchId: string,
+    results: BatchResult['results']
+  ): Promise<boolean> {
+    try {
+      const payload = {
+        batchId,
+        timestamp: new Date().toISOString(),
+        totalItems: results.length,
+        completedItems: results.filter(r => r.success).length,
+        failedItems: results.filter(r => !r.success).length,
+        results,
+      }
+
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'User-Agent': 'web2img-batch-processor/1.0',
+      }
+
+      if (authHeader) {
+        headers['Authorization'] = authHeader
+      }
+
+      const response = await fetch(webhookUrl, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload),
+      })
+
+      if (!response.ok) {
+        throw new Error(`Webhook failed with status ${response.status}: ${response.statusText}`)
+      }
+
+      logger.info('Webhook sent successfully', {
+        batchId,
+        webhookUrl,
+        status: response.status,
+      })
+
+      return true
+    } catch (error) {
+      logger.error('Failed to send webhook', {
+        batchId,
+        webhookUrl,
+        error: error.message,
+      })
+
+      return false
+    }
+  }
+
+  /**
+   * Validate and normalize batch configuration
+   */
+  private validateBatchConfig(config: BatchJobData['config']): Required<BatchJobData['config']> {
+    return {
+      parallel: Math.max(1, Math.min(config.parallel || 3, 10)), // Limit to 1-10
+      timeout: Math.max(5000, Math.min(config.timeout || 30000, 60000)), // 5s to 60s
+      webhook: config.webhook || '',
+      webhook_auth: config.webhook_auth || '',
+      fail_fast: config.fail_fast || false,
+      cache: config.cache !== false, // Default to true
+      priority: config.priority || 'normal',
+    }
+  }
+
+  /**
+   * Start the worker
+   */
+  async start(): Promise<void> {
+    logger.info('Starting batch queue worker', {
+      concurrency: this.worker.opts.concurrency,
+    })
+  }
+
+  /**
+   * Stop the worker
+   */
+  async stop(): Promise<void> {
+    logger.info('Stopping batch queue worker')
+    await this.worker.close()
+    await this.redisConnection.quit()
+  }
+
+  /**
+   * Pause the worker
+   */
+  async pause(): Promise<void> {
+    await this.worker.pause()
+    logger.info('Batch queue worker paused')
+  }
+
+  /**
+   * Resume the worker
+   */
+  async resume(): Promise<void> {
+    await this.worker.resume()
+    logger.info('Batch queue worker resumed')
+  }
+
+  /**
+   * Get worker instance for external use
+   */
+  getWorker(): Worker<BatchJobData, BatchResult> {
+    return this.worker
+  }
+
+  /**
+   * Set up event listeners for monitoring
+   */
+  private setupEventListeners(): void {
+    this.worker.on('ready', () => {
+      logger.info('Batch queue worker is ready')
+    })
+
+    this.worker.on('active', (job: Job<BatchJobData>) => {
+      logger.debug('Batch job started processing', {
+        jobId: job.id,
+        batchId: job.data.id,
+        itemCount: job.data.items.length,
+      })
+    })
+
+    this.worker.on('completed', (job: Job<BatchJobData>, result: BatchResult) => {
+      logger.debug('Batch job completed in worker', {
+        jobId: job.id,
+        batchId: result.batchId,
+        completedItems: result.completedItems,
+        failedItems: result.failedItems,
+      })
+    })
+
+    this.worker.on('failed', (job: Job<BatchJobData> | undefined, error: Error) => {
+      logger.error('Batch job failed in worker', {
+        jobId: job?.id,
+        batchId: job?.data?.id,
+        error: error.message,
+        attempts: job?.attemptsMade,
+      })
+    })
+
+    this.worker.on('stalled', (jobId: string) => {
+      logger.warn('Batch job stalled in worker', { jobId })
+    })
+
+    this.worker.on('error', (error: Error) => {
+      logger.error('Batch worker error', { error: error.message })
+    })
+
+    // Redis connection events
+    this.redisConnection.on('connect', () => {
+      logger.info('Batch worker Redis connection established')
+    })
+
+    this.redisConnection.on('error', (error: Error) => {
+      logger.error('Batch worker Redis connection error', { error: error.message })
+    })
+
+    this.redisConnection.on('close', () => {
+      logger.info('Batch worker Redis connection closed')
+    })
+  }
+}
+
+// Export singleton instance
+export default new BatchQueueWorker()

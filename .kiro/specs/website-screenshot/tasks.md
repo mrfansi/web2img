@@ -93,22 +93,22 @@
     - Write unit tests for ImgProxy URL generation and signing
     - _Requirements: 10.1, 10.2, 10.3, 10.4, 10.5_
 
-- [ ] 7. Set up BullMQ job queue system
-  - [ ] 7.1 Configure BullMQ queues and workers
+- [x] 7. Set up BullMQ job queue system
+  - [x] 7.1 Configure BullMQ queues and workers
     - Set up BullMQ queue configuration with Redis connection
     - Create screenshot job queue with appropriate concurrency settings
     - Implement job retry logic and dead letter queue handling
     - Write unit tests for queue configuration and job lifecycle
     - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5, 4.6_
 
-  - [ ] 7.2 Implement batch job processing
+  - [x] 7.2 Implement batch job processing
     - Create batch job processor that handles multiple screenshot items
     - Implement parallel processing with configurable concurrency limits
     - Add individual item failure handling without failing entire batch
     - Write unit tests for batch processing logic
     - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5, 4.6_
 
-  - [ ] 7.3 Add job scheduling and recurrence
+  - [x] 7.3 Add job scheduling and recurrence
     - Implement scheduled job execution using BullMQ delayed jobs
     - Create recurring job system with cron expression support
     - Add job cancellation and modification capabilities
