@@ -34,6 +34,13 @@ new Ignitor(APP_ROOT, { importer: IMPORTER })
     app.booting(async () => {
       await import('#start/env')
     })
+    
+    app.ready(async () => {
+      // Initialize the application bootstrap after the app is ready
+      const { default: applicationBootstrap } = await import('#services/application_bootstrap')
+      await applicationBootstrap.initialize()
+    })
+    
     app.listen('SIGTERM', () => app.terminate())
     app.listenIf(app.managedByPm2, 'SIGINT', () => app.terminate())
   })

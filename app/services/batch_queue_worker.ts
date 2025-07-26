@@ -350,7 +350,7 @@ export class BatchQueueWorker {
   }
 
   /**
-   * Send webhook notification
+   * Send webhook notification using the webhook service
    */
   private async sendWebhook(
     webhookUrl: string,
@@ -359,41 +359,45 @@ export class BatchQueueWorker {
     results: BatchResult['results']
   ): Promise<boolean> {
     try {
-      const payload = {
+      const webhookService = (await import('#services/webhook_service')).default
+      
+      // Create webhook payload using the webhook service
+      const payload = webhookService.createBatchCompletionPayload(
         batchId,
-        timestamp: new Date().toISOString(),
-        totalItems: results.length,
-        completedItems: results.filter(r => r.success).length,
-        failedItems: results.filter(r => !r.success).length,
-        results,
+        'completed',
+        results.length,
+        results.filter(r => r.success).length,
+        results.filter(r => !r.success).length,
+        new Date(Date.now() - 60000), // Approximate start time
+        new Date(),
+        results.map(r => ({
+          itemId: r.itemId,
+          status: r.success ? 'success' as const : 'error' as const,
+          url: r.imageUrl,
+          error: r.error,
+          cached: false, // This would need to be tracked from the screenshot job
+          processingTime: r.processingTime
+        }))
+      )
+
+      // Send webhook with retry logic
+      const webhookData = {
+        url: webhookUrl,
+        payload,
+        auth: authHeader,
+        maxRetries: 3
       }
 
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-        'User-Agent': 'web2img-batch-processor/1.0',
-      }
+      const result = await webhookService.deliverWebhook(webhookData)
 
-      if (authHeader) {
-        headers['Authorization'] = authHeader
-      }
-
-      const response = await fetch(webhookUrl, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(payload),
-      })
-
-      if (!response.ok) {
-        throw new Error(`Webhook failed with status ${response.status}: ${response.statusText}`)
-      }
-
-      logger.info('Webhook sent successfully', {
+      logger.info('Webhook delivery completed', {
         batchId,
         webhookUrl,
-        status: response.status,
+        success: result.success,
+        attempt: result.attempt
       })
 
-      return true
+      return result.success
     } catch (error) {
       logger.error('Failed to send webhook', {
         batchId,

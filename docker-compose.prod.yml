@@ -1,0 +1,216 @@
+version: '3.8'
+
+services:
+  # Main application with production optimizations
+  web2img:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    deploy:
+      replicas: 3
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '1.0'
+          memory: 1G
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+    environment:
+      NODE_ENV: production
+      PORT: 3333
+      HOST: 0.0.0.0
+      APP_KEY: ${APP_KEY}
+      LOG_LEVEL: info
+      
+      # Database
+      DB_HOST: ${DB_HOST:-mysql}
+      DB_PORT: 3306
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_DATABASE: ${DB_DATABASE}
+      
+      # Redis
+      REDIS_HOST: ${REDIS_HOST:-redis}
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      REDIS_DB: 0
+      
+      # ImgProxy
+      IMGPROXY_BASE_URL: ${IMGPROXY_BASE_URL}
+      IMGPROXY_KEY: ${IMGPROXY_KEY}
+      IMGPROXY_SALT: ${IMGPROXY_SALT}
+      
+      # Storage
+      STORAGE_PATH: /app/storage
+      STORAGE_BASE_URL: ${STORAGE_BASE_URL}
+      
+      # Production screenshot settings
+      SCREENSHOT_TIMEOUT: 30000
+      SCREENSHOT_CACHE_TTL: 7200
+      SCREENSHOT_MAX_CONCURRENT: 50
+      SCREENSHOT_QUEUE_CONCURRENCY: 20
+      
+      # Browser
+      BROWSER_HEADLESS: true
+      BROWSER_TIMEOUT: 30000
+    volumes:
+      - screenshot_storage:/app/storage
+    networks:
+      - web2img_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3333/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Load Balancer (Nginx)
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - screenshot_storage:/var/www/storage:ro
+    depends_on:
+      - web2img
+    networks:
+      - web2img_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Redis Cluster (Production)
+  redis-master:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
+    volumes:
+      - redis_master_data:/data
+    networks:
+      - web2img_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  redis-replica:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD} --replicaof redis-master 6379 --masterauth ${REDIS_PASSWORD}
+    volumes:
+      - redis_replica_data:/data
+    depends_on:
+      - redis-master
+    networks:
+      - web2img_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ImgProxy with production settings
+  imgproxy:
+    image: darthsim/imgproxy:latest
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    environment:
+      IMGPROXY_BIND: 0.0.0.0:8080
+      IMGPROXY_KEY: ${IMGPROXY_KEY}
+      IMGPROXY_SALT: ${IMGPROXY_SALT}
+      IMGPROXY_LOCAL_FILESYSTEM_ROOT: /app/storage
+      IMGPROXY_USE_ETAG: true
+      IMGPROXY_TTL: 7200
+      IMGPROXY_MAX_SRC_RESOLUTION: 50
+      IMGPROXY_JPEG_PROGRESSIVE: true
+      IMGPROXY_PNG_INTERLACED: true
+      IMGPROXY_QUALITY: 85
+      IMGPROXY_GZIP_COMPRESSION: 6
+      IMGPROXY_WORKERS: 4
+    volumes:
+      - screenshot_storage:/app/storage:ro
+    networks:
+      - web2img_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Monitoring with Prometheus
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    networks:
+      - web2img_network
+    restart: unless-stopped
+
+  # Grafana for visualization
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+    networks:
+      - web2img_network
+    restart: unless-stopped
+
+volumes:
+  redis_master_data:
+    driver: local
+  redis_replica_data:
+    driver: local
+  screenshot_storage:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+
+networks:
+  web2img_network:
+    driver: overlay
+    attachable: true

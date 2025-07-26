@@ -82,14 +82,44 @@ export class ScreenshotQueueWorker {
       await job.updateProgress(20)
 
       // Generate screenshot using the worker service
+      const { screenshotWorkerService } = await import('#services/screenshot_worker_service')
+      const screenshotResult = await screenshotWorkerService.processScreenshotJob({
+        url,
+        options: {
+          format: format as 'png' | 'jpeg' | 'webp',
+          width,
+          height,
+          timeout: job.data.timeout
+        },
+        cacheKey,
+        batchId,
+        itemId
+      })
 
       await job.updateProgress(80)
 
-      await job.updateProgress(90)
+      // Store the screenshot and generate URL
+      const fileStorageService = (await import('#services/file_storage_service')).default
+      const imgProxyService = (await import('#services/imgproxy_service')).default
+      
+      const filename = `${Date.now()}.${screenshotResult.format}`
+      const storagePath = await fileStorageService.saveFile(
+        screenshotResult.buffer,
+        filename,
+        'screenshots'
+      )
+      
+      // Generate direct storage URL
+      const directUrl = fileStorageService.getFileUrl(storagePath)
+      
+      // Generate ImgProxy URL with fallback to direct URL
+      const imageUrl = imgProxyService.generateUrlWithFallback(directUrl, {
+        format: screenshotResult.format as 'png' | 'jpeg' | 'webp',
+        width: screenshotResult.width,
+        height: screenshotResult.height
+      })
 
-      // Store the screenshot and generate URL (this would typically involve file storage and imgproxy)
-      // For now, we'll create a mock URL - this should be replaced with actual storage logic
-      const imageUrl = `https://storage.example.com/screenshots/${Date.now()}.${format}`
+      await job.updateProgress(90)
 
       // Cache the result if cacheKey is provided
       if (cacheKey) {
