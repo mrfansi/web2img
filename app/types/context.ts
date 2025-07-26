@@ -5,5 +5,6 @@ declare module '@adonisjs/core/http' {
   interface HttpContext {
     apiKey?: ApiKey
     user?: User
+    correlationId?: string
   }
 }

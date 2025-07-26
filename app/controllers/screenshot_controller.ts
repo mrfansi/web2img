@@ -1,0 +1,422 @@
+import type { HttpContext } from '@adonisjs/core/http'
+import logger from '@adonisjs/core/services/logger'
+import { validateSingleScreenshotRequest, validateBatchRequest } from '#validators/screenshot_validator'
+import cacheService from '#services/cache_service'
+import { screenshotWorkerService } from '#services/screenshot_worker_service'
+import fileStorageService from '#services/file_storage_service'
+import imgProxyService from '#services/imgproxy_service'
+import queueService from '#services/queue_service'
+import BatchJob from '#models/batch_job'
+import { DateTime } from 'luxon'
+
+/**
+ * Screenshot controller for handling single and batch screenshot requests
+ */
+export default class ScreenshotController {
+  /**
+   * Handle single screenshot request
+   * POST /screenshot
+   */
+  async single({ request, response }: HttpContext) {
+    const startTime = Date.now()
+    
+    try {
+      // Validate request data
+      const validatedData = await validateSingleScreenshotRequest(request.all())
+      
+      // Set defaults for optional parameters
+      const screenshotOptions = {
+        format: validatedData.format || 'png',
+        width: validatedData.width || 1280,
+        height: validatedData.height || 720,
+        timeout: validatedData.timeout || 30000,
+        useCache: validatedData.cache !== false // Default to true unless explicitly false
+      }
+      
+      logger.info('Processing single screenshot request', {
+        url: validatedData.url,
+        options: screenshotOptions
+      })
+      
+      // Generate cache key
+      const cacheKey = cacheService.generateCacheKey(validatedData.url, {
+        format: screenshotOptions.format as 'png' | 'jpeg' | 'webp',
+        width: screenshotOptions.width,
+        height: screenshotOptions.height
+      })
+      
+      // Check cache if enabled
+      let cachedUrl: string | null = null
+      if (screenshotOptions.useCache) {
+        cachedUrl = await cacheService.get(cacheKey)
+        if (cachedUrl) {
+          logger.info('Returning cached screenshot', {
+            url: validatedData.url,
+            cacheKey: cacheKey.substring(0, 16) + '...',
+            processingTime: Date.now() - startTime
+          })
+          
+          return response.json({
+            url: cachedUrl,
+            cached: true
+          })
+        }
+      }
+      
+      // Check if URL is currently being processed to prevent duplicate work
+      if (await cacheService.isProcessing(validatedData.url)) {
+        return response.status(429).json({
+          detail: {
+            error: 'processing_in_progress',
+            message: 'This URL is currently being processed. Please try again in a moment.'
+          }
+        })
+      }
+      
+      // Set processing lock
+      await cacheService.setProcessingLock(validatedData.url, 300) // 5 minutes
+      
+      try {
+        // Capture screenshot using worker service
+        const screenshotResult = await screenshotWorkerService.processScreenshotJob({
+          url: validatedData.url,
+          options: {
+            format: screenshotOptions.format as 'png' | 'jpeg' | 'webp',
+            width: screenshotOptions.width,
+            height: screenshotOptions.height,
+            timeout: screenshotOptions.timeout
+          }
+        })
+        
+        // Save screenshot to storage
+        const filename = `${Date.now()}.${screenshotResult.format}`
+        const storagePath = await fileStorageService.saveFile(
+          screenshotResult.buffer,
+          filename,
+          'screenshots'
+        )
+        
+        // Generate direct storage URL
+        const directUrl = fileStorageService.getFileUrl(storagePath)
+        
+        // Generate ImgProxy URL with fallback to direct URL
+        const finalUrl = imgProxyService.generateUrlWithFallback(directUrl, {
+          format: screenshotOptions.format as 'png' | 'jpeg' | 'webp',
+          width: screenshotOptions.width,
+          height: screenshotOptions.height
+        })
+        
+        // Cache the result if caching is enabled
+        if (screenshotOptions.useCache) {
+          await cacheService.set(cacheKey, finalUrl)
+        }
+        
+        const processingTime = Date.now() - startTime
+        
+        logger.info('Screenshot processed successfully', {
+          url: validatedData.url,
+          finalUrl: finalUrl.substring(0, 100) + '...',
+          processingTime,
+          cached: false
+        })
+        
+        return response.json({
+          url: finalUrl,
+          cached: false
+        })
+        
+      } finally {
+        // Always remove processing lock
+        await cacheService.removeProcessingLock(validatedData.url)
+      }
+      
+    } catch (error) {
+      const processingTime = Date.now() - startTime
+      
+      logger.error('Screenshot processing failed', {
+        url: request.input('url'),
+        error: error.message,
+        processingTime
+      })
+      
+      // Handle validation errors
+      if (error.messages) {
+        return response.status(400).json({
+          detail: {
+            error: 'validation_failed',
+            message: 'Request validation failed',
+            errors: error.messages
+          }
+        })
+      }
+      
+      // Handle timeout errors
+      if (error.message.includes('timeout') || error.message.includes('Navigation timeout')) {
+        return response.status(408).json({
+          detail: {
+            error: 'timeout',
+            message: 'Screenshot capture timed out. The website may be slow to load or unresponsive.'
+          }
+        })
+      }
+      
+      // Handle URL-related errors
+      if (error.message.includes('HTTP 4') || error.message.includes('HTTP 5')) {
+        return response.status(400).json({
+          detail: {
+            error: 'invalid_url',
+            message: `Unable to access the provided URL: ${error.message}`
+          }
+        })
+      }
+      
+      // Handle storage errors
+      if (error.code === 'STORAGE_SAVE_FAILED') {
+        return response.status(500).json({
+          detail: {
+            error: 'storage_error',
+            message: 'Failed to save screenshot to storage'
+          }
+        })
+      }
+      
+      // Generic error response
+      return response.status(500).json({
+        detail: {
+          error: 'screenshot_failed',
+          message: 'Failed to capture screenshot. Please try again later.'
+        }
+      })
+    }
+  }
+
+  /**
+   * Create a batch screenshot job
+   * POST /batch/screenshots
+   */
+  async createBatch({ request, response }: HttpContext) {
+    const startTime = Date.now()
+    
+    try {
+      // Validate request data
+      const validatedData = await validateBatchRequest(request.all())
+      
+      logger.info('Processing batch screenshot request', {
+        itemCount: validatedData.items.length,
+        config: validatedData.config
+      })
+      
+      // Set defaults for batch configuration
+      const batchConfig = {
+        parallel: validatedData.config?.parallel || 3,
+        timeout: validatedData.config?.timeout || 30000,
+        webhook: validatedData.config?.webhook,
+        webhook_auth: validatedData.config?.webhook_auth,
+        fail_fast: validatedData.config?.fail_fast || false,
+        cache: validatedData.config?.cache !== false, // Default to true
+        priority: validatedData.config?.priority || 'normal',
+        scheduled_time: validatedData.config?.scheduled_time,
+        recurrence: validatedData.config?.recurrence,
+        recurrence_interval: validatedData.config?.recurrence_interval,
+        recurrence_count: validatedData.config?.recurrence_count,
+        recurrence_cron: validatedData.config?.recurrence_cron,
+        rate_limit: validatedData.config?.rate_limit
+      }
+      
+      // Determine if this is a scheduled job
+      let scheduledAt: DateTime | undefined
+      if (batchConfig.scheduled_time) {
+        scheduledAt = DateTime.fromISO(batchConfig.scheduled_time)
+        if (!scheduledAt.isValid) {
+          return response.status(400).json({
+            detail: {
+              error: 'invalid_scheduled_time',
+              message: 'scheduled_time must be a valid ISO 8601 date string'
+            }
+          })
+        }
+      }
+      
+      // Create batch job in database
+      const batchJob = await BatchJob.createBatchJob(
+        validatedData.items.length,
+        batchConfig,
+        scheduledAt
+      )
+      
+      // Initialize results array with pending status for all items
+      const initialResults = validatedData.items.map(item => ({
+        itemId: item.id,
+        status: 'pending' as const,
+        url: undefined,
+        error: undefined,
+        cached: undefined,
+        processingTime: undefined
+      }))
+      
+      batchJob.results = initialResults
+      await batchJob.save()
+      
+      // Prepare batch job data for queue
+      const batchJobData = {
+        id: batchJob.id.toString(),
+        items: validatedData.items.map(item => ({
+          id: item.id,
+          url: item.url,
+          format: item.format || 'png',
+          width: item.width || 1280,
+          height: item.height || 720
+        })),
+        config: batchConfig,
+        apiKeyId: 'placeholder' // This should come from auth middleware
+      }
+      
+      // Add job to queue (scheduled or immediate)
+      if (scheduledAt) {
+        await queueService.scheduleJob('batch', batchJobData, scheduledAt.toJSDate())
+        logger.info('Batch job scheduled', {
+          batchId: batchJob.id,
+          scheduledTime: scheduledAt.toISO()
+        })
+      } else {
+        const priority = batchConfig.priority === 'high' ? 10 : batchConfig.priority === 'low' ? -10 : 0
+        await queueService.addBatchJob(batchJobData, { priority })
+        logger.info('Batch job queued', {
+          batchId: batchJob.id,
+          priority: batchConfig.priority
+        })
+      }
+      
+      const processingTime = Date.now() - startTime
+      
+      logger.info('Batch job created successfully', {
+        batchId: batchJob.id,
+        itemCount: validatedData.items.length,
+        processingTime
+      })
+      
+      // Return batch job status
+      return response.status(202).json({
+        job_id: batchJob.id.toString(),
+        status: batchJob.status,
+        total: batchJob.totalItems,
+        completed: batchJob.completedItems,
+        failed: batchJob.failedItems,
+        created_at: batchJob.createdAt.toISO(),
+        updated_at: batchJob.updatedAt?.toISO(),
+        scheduled_time: batchJob.scheduledAt?.toISO(),
+        next_scheduled_time: undefined, // TODO: Implement for recurring jobs
+        estimated_completion: batchJob.estimatedCompletion?.toISO()
+      })
+      
+    } catch (error) {
+      const processingTime = Date.now() - startTime
+      
+      logger.error('Batch job creation failed', {
+        error: error.message,
+        processingTime
+      })
+      
+      // Handle validation errors
+      if (error.messages) {
+        return response.status(400).json({
+          detail: {
+            error: 'validation_failed',
+            message: 'Request validation failed',
+            errors: error.messages
+          }
+        })
+      }
+      
+      // Handle specific validation errors from custom validators
+      if (error.message.includes('webhook_auth') || 
+          error.message.includes('recurrence') || 
+          error.message.includes('scheduled_time') ||
+          error.message.includes('dimensions')) {
+        return response.status(400).json({
+          detail: {
+            error: 'validation_failed',
+            message: error.message
+          }
+        })
+      }
+      
+      // Generic error response
+      return response.status(500).json({
+        detail: {
+          error: 'batch_creation_failed',
+          message: 'Failed to create batch job. Please try again later.'
+        }
+      })
+    }
+  }
+
+  /**
+   * Get batch job status
+   * GET /batch/screenshots/{job_id}
+   */
+  async getBatchStatus({ params, response }: HttpContext) {
+    try {
+      const jobId = params.job_id
+      
+      if (!jobId) {
+        return response.status(400).json({
+          detail: {
+            error: 'missing_job_id',
+            message: 'job_id parameter is required'
+          }
+        })
+      }
+      
+      // Find batch job by ID
+      const batchJob = await BatchJob.find(parseInt(jobId))
+      
+      if (!batchJob) {
+        return response.status(404).json({
+          detail: {
+            error: 'job_not_found',
+            message: 'Batch job not found'
+          }
+        })
+      }
+      
+      logger.debug('Retrieved batch job status', {
+        jobId: batchJob.id,
+        status: batchJob.status,
+        progress: batchJob.progressPercentage
+      })
+      
+      // Return comprehensive batch job status
+      return response.json({
+        job_id: batchJob.id.toString(),
+        status: batchJob.status,
+        total: batchJob.totalItems,
+        completed: batchJob.completedItems,
+        failed: batchJob.failedItems,
+        progress_percentage: batchJob.progressPercentage,
+        created_at: batchJob.createdAt.toISO(),
+        updated_at: batchJob.updatedAt?.toISO(),
+        scheduled_time: batchJob.scheduledAt?.toISO(),
+        completed_at: batchJob.completedAt?.toISO(),
+        estimated_completion: batchJob.estimatedCompletion?.toISO(),
+        config: batchJob.config,
+        results: batchJob.results,
+        successful_results: batchJob.successfulResults,
+        failed_results: batchJob.failedResults
+      })
+      
+    } catch (error) {
+      logger.error('Failed to get batch job status', {
+        jobId: params.job_id,
+        error: error.message
+      })
+      
+      return response.status(500).json({
+        detail: {
+          error: 'status_retrieval_failed',
+          message: 'Failed to retrieve batch job status'
+        }
+      })
+    }
+  }
+}

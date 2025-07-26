@@ -130,22 +130,22 @@
     - Write unit tests for retry mechanism and failure handling
     - _Requirements: 6.1, 6.2, 6.3, 6.4_
 
-- [ ] 9. Create API controllers and routes
-  - [ ] 9.1 Implement single screenshot endpoint
+- [x] 9. Create API controllers and routes
+  - [x] 9.1 Implement single screenshot endpoint
     - Create POST /screenshot controller method
     - Add request validation and authentication checks
     - Implement cache checking and screenshot generation workflow
     - Write unit tests for single screenshot endpoint
     - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6_
 
-  - [ ] 9.2 Implement batch screenshot endpoints
+  - [x] 9.2 Implement batch screenshot endpoints
     - Create POST /batch/screenshots controller for batch job creation
     - Create GET /batch/screenshots/{job_id} controller for status checking
     - Add batch job validation and queue submission logic
     - Write unit tests for batch endpoints
     - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5, 4.6, 5.1, 5.2, 5.3_
 
-  - [ ] 9.3 Set up API routes and middleware chain
+  - [x] 9.3 Set up API routes and middleware chain
     - Configure routes in start/routes.ts with proper middleware order
     - Add CORS configuration for API endpoints
     - Implement request logging and error handling middleware
