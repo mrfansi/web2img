@@ -1,7 +1,6 @@
 import swaggerJsdoc from 'swagger-jsdoc'
 import swaggerUiExpress from 'swagger-ui-express'
 import type { OpenAPIV3 } from 'openapi-types'
-import env from '#start/env'
 
 /**
  * Service for handling OpenAPI/Swagger documentation
