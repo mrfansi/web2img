@@ -1,6 +1,5 @@
-import { Exception } from '@adonisjs/core/exceptions'
 import logger from '@adonisjs/core/services/logger'
-import type { WebhookData } from '#types/screenshot'
+import type { WebhookData } from '../types/screenshot.js'
 import webhookDeliveryTracker from './webhook_delivery_tracker.js'
 
 /**
@@ -62,7 +61,7 @@ export class WebhookService {
    */
   public async sendWebhook(url: string, payload: WebhookPayload, auth?: string): Promise<WebhookDeliveryResult> {
     const startTime = Date.now()
-    
+
     try {
       // Validate webhook URL
       if (!this.validateWebhookUrl(url)) {
@@ -110,7 +109,7 @@ export class WebhookService {
       } else {
         const errorText = await response.text().catch(() => 'Unknown error')
         deliveryResult.error = `HTTP ${response.status}: ${errorText}`
-        
+
         logger.warn('Webhook delivery failed', {
           url,
           jobId: payload.job_id,
@@ -143,14 +142,16 @@ export class WebhookService {
    * Retry webhook delivery with exponential backoff
    */
   public async retryWebhook(webhookData: WebhookData, attempt: number): Promise<WebhookDeliveryResult> {
-    if (attempt > this.maxRetries) {
-      const error = `Maximum retry attempts (${this.maxRetries}) exceeded`
+    const maxRetries = webhookData.maxRetries || this.maxRetries
+
+    if (attempt > maxRetries) {
+      const error = `Maximum retry attempts (${maxRetries}) exceeded`
       logger.error('Webhook retry limit exceeded', {
         url: webhookData.url,
         attempt,
-        maxRetries: this.maxRetries
+        maxRetries
       })
-      
+
       return {
         success: false,
         error,
@@ -169,7 +170,7 @@ export class WebhookService {
       url: webhookData.url,
       attempt,
       delay,
-      maxRetries: this.maxRetries
+      maxRetries
     })
 
     // Wait for the calculated delay
@@ -184,7 +185,7 @@ export class WebhookService {
 
       result.attempt = attempt
 
-      if (!result.success && attempt < this.maxRetries) {
+      if (!result.success && attempt < maxRetries) {
         // Recursively retry if failed and haven't reached max attempts
         return await this.retryWebhook(webhookData, attempt + 1)
       }
@@ -197,7 +198,7 @@ export class WebhookService {
         error: error instanceof Error ? error.message : 'Unknown error'
       })
 
-      if (attempt < this.maxRetries) {
+      if (attempt < maxRetries) {
         return await this.retryWebhook(webhookData, attempt + 1)
       }
 
@@ -216,7 +217,7 @@ export class WebhookService {
   public validateWebhookUrl(url: string): boolean {
     try {
       const urlObj = new URL(url)
-      
+
       // Only allow HTTP and HTTPS protocols
       if (!['http:', 'https:'].includes(urlObj.protocol)) {
         logger.warn('Invalid webhook URL protocol', { url, protocol: urlObj.protocol })
@@ -225,7 +226,7 @@ export class WebhookService {
 
       // Reject localhost and private IP ranges for security
       const hostname = urlObj.hostname.toLowerCase()
-      
+
       // Check for localhost
       if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1') {
         logger.warn('Webhook URL points to localhost', { url, hostname })
@@ -286,7 +287,7 @@ export class WebhookService {
    */
   public async deliverWebhook(webhookData: WebhookData): Promise<WebhookDeliveryResult> {
     const trackingId = this.generateTrackingId(webhookData.url, webhookData.payload.job_id)
-    
+
     logger.info('Starting webhook delivery', {
       trackingId,
       url: webhookData.url,
@@ -335,7 +336,7 @@ export class WebhookService {
         attempt,
         maxRetries: webhookData.maxRetries
       })
-      
+
       const result: WebhookDeliveryResult = {
         success: false,
         error,

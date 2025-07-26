@@ -1,7 +1,7 @@
 import { test } from '@japa/runner'
 import { WebhookService } from '#services/webhook_service'
-import type { WebhookPayload, WebhookDeliveryResult } from '#services/webhook_service'
-import type { WebhookData } from '#types/screenshot'
+import type { WebhookPayload } from '#services/webhook_service'
+import type { WebhookData } from '../../../app/types/screenshot.js'
 
 // Mock fetch globally
 const mockFetch = {
@@ -28,7 +28,7 @@ test.group('WebhookService', (group) => {
   test('should be a singleton', ({ assert }) => {
     const instance1 = WebhookService.getInstance()
     const instance2 = WebhookService.getInstance()
-    
+
     assert.strictEqual(instance1, instance2)
   })
 
@@ -130,13 +130,13 @@ test.group('WebhookService', (group) => {
     let capturedHeaders: Record<string, string> = {}
 
     // Mock fetch to capture headers
-    global.fetch = async (url: string, options: any) => {
-      capturedHeaders = options.headers
+    global.fetch = async (_input: string | URL | Request, options: any) => {
+      capturedHeaders = options?.headers || {}
       return {
         ok: true,
         status: 200,
         text: async () => 'OK'
-      } as any
+      } as Response
     }
 
     const payload: WebhookPayload = {
@@ -235,7 +235,7 @@ test.group('WebhookService', (group) => {
     }
 
     const result = await webhookService.sendWebhook('invalid-url', payload)
-    
+
     assert.isFalse(result.success)
     assert.include(result.error!, 'Invalid webhook URL')
   })

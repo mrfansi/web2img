@@ -81,13 +81,13 @@ export class WebhookDeliveryTracker {
         async () => {
           const key = this.keyPrefix + id
           const ttl = this.maxTrackingDays * 24 * 60 * 60 // 7 days in seconds
-          
+
           await redisService.getClient().setex(
             key,
             ttl,
             JSON.stringify(status)
           )
-          
+
           logger.info('Started tracking webhook delivery', {
             id,
             url,
@@ -114,19 +114,19 @@ export class WebhookDeliveryTracker {
         async () => {
           const key = this.keyPrefix + id
           const statusData = await redisService.getClient().get(key)
-          
+
           if (!statusData) {
             logger.warn('Webhook delivery status not found for update', { id })
             return
           }
 
           const status: WebhookDeliveryStatus = JSON.parse(statusData)
-          
+
           // Update status
           status.attempts = result.attempt
           status.lastAttemptAt = result.deliveredAt
           status.deliveryResults.push(result)
-          
+
           if (result.success) {
             status.status = 'delivered'
             status.completedAt = result.deliveredAt
@@ -148,7 +148,7 @@ export class WebhookDeliveryTracker {
           )
 
           // Update statistics
-          await this.updateStats(status, result)
+          await this.updateStats(status)
 
           // Check for alerting conditions
           if (status.status === 'failed') {
@@ -178,20 +178,20 @@ export class WebhookDeliveryTracker {
         async () => {
           const key = this.keyPrefix + id
           const statusData = await redisService.getClient().get(key)
-          
+
           if (!statusData) {
             return null
           }
 
           const status: WebhookDeliveryStatus = JSON.parse(statusData)
-          
+
           // Convert date strings back to Date objects
           status.createdAt = new Date(status.createdAt)
           status.lastAttemptAt = new Date(status.lastAttemptAt)
           if (status.completedAt) {
             status.completedAt = new Date(status.completedAt)
           }
-          
+
           status.deliveryResults = status.deliveryResults.map(result => ({
             ...result,
             deliveredAt: new Date(result.deliveredAt)
@@ -215,7 +215,7 @@ export class WebhookDeliveryTracker {
       return await redisService.executeCommand(
         async () => {
           const statsData = await redisService.getClient().get(this.statsKey)
-          
+
           if (!statsData) {
             return {
               totalDeliveries: 0,
@@ -253,14 +253,14 @@ export class WebhookDeliveryTracker {
         async () => {
           const pattern = this.keyPrefix + '*'
           const keys = await redisService.getClient().keys(pattern)
-          
+
           const failures: WebhookDeliveryStatus[] = []
-          
+
           for (const key of keys.slice(0, limit * 2)) { // Get more keys to filter
             const statusData = await redisService.getClient().get(key)
             if (statusData) {
               const status: WebhookDeliveryStatus = JSON.parse(statusData)
-              
+
               if (status.status === 'failed') {
                 // Convert date strings back to Date objects
                 status.createdAt = new Date(status.createdAt)
@@ -268,7 +268,7 @@ export class WebhookDeliveryTracker {
                 if (status.completedAt) {
                   status.completedAt = new Date(status.completedAt)
                 }
-                
+
                 failures.push(status)
               }
             }
@@ -300,16 +300,16 @@ export class WebhookDeliveryTracker {
         async () => {
           const pattern = this.keyPrefix + '*'
           const keys = await redisService.getClient().keys(pattern)
-          
+
           let cleanedCount = 0
           const cutoffTime = Date.now() - (this.maxTrackingDays * 24 * 60 * 60 * 1000)
-          
+
           for (const key of keys) {
             const statusData = await redisService.getClient().get(key)
             if (statusData) {
               const status: WebhookDeliveryStatus = JSON.parse(statusData)
               const createdTime = new Date(status.createdAt).getTime()
-              
+
               if (createdTime < cutoffTime) {
                 await redisService.getClient().del(key)
                 cleanedCount++
@@ -332,8 +332,7 @@ export class WebhookDeliveryTracker {
    * Update delivery statistics
    */
   private async updateStats(
-    status: WebhookDeliveryStatus,
-    result: WebhookDeliveryResult
+    status: WebhookDeliveryStatus
   ): Promise<void> {
     try {
       const statsData = await redisService.getClient().get(this.statsKey)
@@ -349,15 +348,15 @@ export class WebhookDeliveryTracker {
       // Update counters only when delivery is complete
       if (status.status === 'delivered' || status.status === 'failed') {
         const wasAlreadyCounted = status.deliveryResults.length > 1
-        
+
         if (!wasAlreadyCounted) {
           stats.totalDeliveries++
-          
+
           if (status.status === 'delivered') {
             stats.successfulDeliveries++
           } else {
             stats.failedDeliveries++
-            
+
             // Track common errors
             if (status.lastError) {
               const existingError = stats.commonErrors.find(e => e.error === status.lastError)
@@ -366,7 +365,7 @@ export class WebhookDeliveryTracker {
               } else {
                 stats.commonErrors.push({ error: status.lastError, count: 1 })
               }
-              
+
               // Keep only top 10 most common errors
               stats.commonErrors = stats.commonErrors
                 .sort((a, b) => b.count - a.count)
@@ -375,14 +374,14 @@ export class WebhookDeliveryTracker {
           }
 
           // Recalculate derived stats
-          stats.successRate = stats.totalDeliveries > 0 
-            ? stats.successfulDeliveries / stats.totalDeliveries 
+          stats.successRate = stats.totalDeliveries > 0
+            ? stats.successfulDeliveries / stats.totalDeliveries
             : 0
-          
+
           // Calculate average attempts (simplified)
           const totalAttempts = stats.successfulDeliveries + (stats.failedDeliveries * 5) // Assume failed ones used max retries
-          stats.averageAttempts = stats.totalDeliveries > 0 
-            ? totalAttempts / stats.totalDeliveries 
+          stats.averageAttempts = stats.totalDeliveries > 0
+            ? totalAttempts / stats.totalDeliveries
             : 0
         }
       }
@@ -405,7 +404,7 @@ export class WebhookDeliveryTracker {
   private async checkAlertConditions(status: WebhookDeliveryStatus): Promise<void> {
     try {
       const stats = await this.getDeliveryStats()
-      
+
       // Alert if success rate drops below threshold
       if (stats.totalDeliveries >= 10 && stats.successRate < this.alertThreshold) {
         logger.error('Webhook delivery success rate alert', {
@@ -423,7 +422,7 @@ export class WebhookDeliveryTracker {
         jobId: status.jobId,
         attempts: status.attempts,
         lastError: status.lastError,
-        duration: status.completedAt 
+        duration: status.completedAt
           ? status.completedAt.getTime() - status.createdAt.getTime()
           : 0
       })
