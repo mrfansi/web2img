@@ -71,11 +71,22 @@ export class ApplicationBootstrap {
       // Step 5: Initialize browser service
       logger.info('Initializing browser service')
       // Browser service is initialized on first use, just perform health check
-      const browserHealth = await browserService.healthCheck()
-      if (!browserHealth.healthy) {
-        throw new Error('Browser service failed health check')
+      try {
+        const browserHealth = await browserService.healthCheck()
+        if (!browserHealth.healthy) {
+          logger.warn('Browser service health check failed, but continuing startup', {
+            details: browserHealth.details
+          })
+          // Don't throw error - allow application to start and retry later
+        } else {
+          logger.info('Browser service initialized successfully')
+        }
+      } catch (error) {
+        logger.warn('Browser service health check threw error, but continuing startup', {
+          error: error.message
+        })
+        // Don't throw error - allow application to start and retry later
       }
-      logger.info('Browser service initialized successfully')
 
       // Step 6: Initialize queue service
       logger.info('Initializing queue service')

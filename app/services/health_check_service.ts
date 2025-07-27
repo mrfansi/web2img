@@ -1,5 +1,5 @@
 import { getCentralRedisManager } from '#services/central_redis_manager'
-import { BrowserService } from '#services/browser_service'
+import { browserService } from '#services/browser_service'
 import { FileStorageService } from '#services/file_storage_service'
 import { ImgProxyService } from '#services/imgproxy_service'
 import db from '@adonisjs/lucid/services/db'
@@ -175,9 +175,7 @@ export class HealthCheckService {
     const startTime = Date.now()
 
     try {
-      const browserService = new BrowserService()
-
-      // Use the built-in health check method
+      // Use the singleton browser service instance
       const healthCheck = await browserService.healthCheck()
       const responseTime = Date.now() - startTime
 

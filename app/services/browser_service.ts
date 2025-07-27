@@ -45,8 +45,27 @@ export class BrowserService {
      */
     async initializeBrowser(): Promise<BrowserInstance> {
         try {
+            // Determine the executable path based on environment
+            const executablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH || 
+                                 process.env.CHROME_BIN || 
+                                 process.env.CHROMIUM_PATH ||
+                                 undefined
+
+            logger.info('Launching browser with configuration', {
+                executablePath,
+                headless: true,
+                environment: {
+                    PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH,
+                    CHROME_BIN: process.env.CHROME_BIN,
+                    CHROMIUM_PATH: process.env.CHROMIUM_PATH,
+                    PLAYWRIGHT_BROWSERS_PATH: process.env.PLAYWRIGHT_BROWSERS_PATH,
+                    PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: process.env.PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD
+                }
+            })
+
             const browser = await chromium.launch({
                 headless: true,
+                executablePath,
                 args: [
                     '--no-sandbox',
                     '--disable-setuid-sandbox',
@@ -58,6 +77,12 @@ export class BrowserService {
                     '--disable-background-timer-throttling',
                     '--disable-backgrounding-occluded-windows',
                     '--disable-renderer-backgrounding',
+                    '--disable-extensions',
+                    '--disable-plugins',
+                    '--disable-web-security',
+                    '--allow-running-insecure-content',
+                    '--disable-features=TranslateUI',
+                    '--disable-ipc-flooding-protection',
                 ],
             })
 
@@ -255,15 +280,19 @@ export class BrowserService {
         try {
             const stats = this.getPoolStats()
 
-            // Try to create a test page
+            logger.info('Starting browser service health check')
+
+            // Try to create a test page with a longer timeout for Docker environments
             const testPage = await this.createPage({
                 width: 1280,
                 height: 720,
-                timeout: 5000,
+                timeout: 15000, // Increased timeout for Docker
             })
 
+            logger.info('Test page created successfully, cleaning up')
             await testPage.cleanup()
 
+            logger.info('Browser service health check passed')
             return {
                 healthy: true,
                 details: {
@@ -272,11 +301,15 @@ export class BrowserService {
                 },
             }
         } catch (error) {
-            logger.error('Browser service health check failed', { error })
+            logger.error('Browser service health check failed', { 
+                error: error.message,
+                stack: error.stack
+            })
             return {
                 healthy: false,
                 details: {
                     error: error.message,
+                    stack: error.stack,
                     poolStats: this.getPoolStats(),
                 },
             }
