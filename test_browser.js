@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 // Simple browser test script for debugging Docker issues
-const { chromium } = require('playwright');
+import { chromium } from 'playwright';
 
 async function testBrowser() {
     console.log('Testing browser initialization...');
