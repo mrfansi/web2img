@@ -65,14 +65,13 @@ COPY --from=build --chown=web2img:nodejs /app/build /app
 COPY --chown=web2img:nodejs test_browser.js /app/test_browser.js
 COPY --chown=web2img:nodejs scripts/docker-entrypoint.sh /app/docker-entrypoint.sh
 
-# Make scripts executable
-USER root
-RUN chmod +x /app/docker-entrypoint.sh
-USER web2img
-
-# Create storage directories
+# Create storage directories and set permissions as root
 RUN mkdir -p storage/screenshots/cache storage/screenshots/screenshots storage/screenshots/temp && \
-    chown -R web2img:nodejs storage
+    chmod +x /app/docker-entrypoint.sh && \
+    chown -R web2img:nodejs /app
+
+# Switch to non-root user
+USER web2img
 
 # Set Playwright environment variables
 ENV PLAYWRIGHT_BROWSERS_PATH=/usr/bin
@@ -82,9 +81,6 @@ ENV PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium-browser
 # Additional environment variables for headless operation
 ENV DISPLAY=:99
 ENV DBUS_SESSION_BUS_ADDRESS=/dev/null
-
-# Switch to non-root user
-USER web2img
 
 # Expose port
 EXPOSE 3333
