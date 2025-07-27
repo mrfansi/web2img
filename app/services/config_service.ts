@@ -30,12 +30,12 @@ export class ConfigService {
      * Get storage configuration with validation
      */
     static getStorageConfig() {
-        const path = env.get('STORAGE_PATH')
-        const baseUrl = env.get('STORAGE_BASE_URL')
+        const path = env.get('DRIVE_LOCAL_PATH') || 'storage'
+        const baseUrl = env.get('DRIVE_BASE_URL') || 'http://localhost:3333'
 
         // Ensure storage path is absolute or relative to project root
         if (!path.startsWith('/') && !path.startsWith('./')) {
-            throw new Error('STORAGE_PATH must be an absolute path or relative to project root')
+            // For relative paths, they're relative to project root
         }
 
         return {

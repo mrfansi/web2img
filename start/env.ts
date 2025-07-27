@@ -50,11 +50,24 @@ export default await Env.create(new URL('../', import.meta.url), {
 
   /*
   |----------------------------------------------------------
-  | Variables for configuring screenshot storage
+  | Variables for configuring drive storage
   |----------------------------------------------------------
   */
-  STORAGE_PATH: Env.schema.string(),
-  STORAGE_BASE_URL: Env.schema.string(),
+  DRIVE_DISK: Env.schema.enum(['fs', 'r2'] as const),
+  DRIVE_LOCAL_PATH: Env.schema.string.optional(),
+  DRIVE_BASE_URL: Env.schema.string.optional(),
+
+  /*
+  |----------------------------------------------------------
+  | Variables for configuring Cloudflare R2
+  |----------------------------------------------------------
+  */
+  R2_KEY: Env.schema.string(),
+  R2_SECRET: Env.schema.string(),
+  R2_BUCKET: Env.schema.string(),
+  R2_ENDPOINT: Env.schema.string(),
+  R2_REGION: Env.schema.string.optional(),
+  R2_PUBLIC_URL: Env.schema.string.optional(),
 
   /*
   |----------------------------------------------------------
@@ -65,6 +78,8 @@ export default await Env.create(new URL('../', import.meta.url), {
   SCREENSHOT_CACHE_TTL: Env.schema.number(),
   SCREENSHOT_MAX_CONCURRENT: Env.schema.number(),
   SCREENSHOT_QUEUE_CONCURRENCY: Env.schema.number(),
+  SCREENSHOT_CLEANUP_INTERVAL: Env.schema.number.optional(),
+  SCREENSHOT_MAX_AGE_DAYS: Env.schema.number.optional(),
 
   /*
   |----------------------------------------------------------
@@ -72,16 +87,5 @@ export default await Env.create(new URL('../', import.meta.url), {
   |----------------------------------------------------------
   */
   BROWSER_HEADLESS: Env.schema.boolean(),
-  BROWSER_TIMEOUT: Env.schema.number(),
-
-  /*
-  |----------------------------------------------------------
-  | Variables for configuring the drive package
-  |----------------------------------------------------------
-  */
-  DRIVE_DISK: Env.schema.enum(['fs', 'r2'] as const),
-  R2_KEY: Env.schema.string(),
-  R2_SECRET: Env.schema.string(),
-  R2_BUCKET: Env.schema.string(),
-  R2_ENDPOINT: Env.schema.string()
+  BROWSER_TIMEOUT: Env.schema.number()
 })
