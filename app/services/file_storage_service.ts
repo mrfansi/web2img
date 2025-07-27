@@ -82,7 +82,7 @@ export class FileStorageService {
       await this.ensureDirectoryExists(join(this.basePath, 'screenshots'))
       await this.ensureDirectoryExists(join(this.basePath, 'temp'))
       await this.ensureDirectoryExists(join(this.basePath, 'cache'))
-      
+
       logger.info('File storage initialized', { basePath: this.basePath })
     } catch (error) {
       logger.error('Failed to initialize file storage', { error })
@@ -104,26 +104,26 @@ export class FileStorageService {
       const year = now.getFullYear().toString()
       const month = (now.getMonth() + 1).toString().padStart(2, '0')
       const day = now.getDate().toString().padStart(2, '0')
-      
+
       const categoryPath = join(this.basePath, category, year, month, day)
       await this.ensureDirectoryExists(categoryPath)
-      
+
       // Generate unique filename if file already exists
       const finalFilename = await this.generateUniqueFilename(categoryPath, filename)
       const filePath = join(categoryPath, finalFilename)
-      
+
       // Write file to disk
       await fs.writeFile(filePath, buffer)
-      
+
       // Generate relative path for URL generation
       const relativePath = join(category, year, month, day, finalFilename)
-      
-      logger.debug('File saved to storage', { 
-        path: relativePath, 
+
+      logger.debug('File saved to storage', {
+        path: relativePath,
         size: buffer.length,
-        category 
+        category
       })
-      
+
       return relativePath
     } catch (error) {
       logger.error('Failed to save file to storage', { filename, category, error })
@@ -173,7 +173,7 @@ export class FileStorageService {
       const stats = await fs.stat(absolutePath)
       const buffer = await fs.readFile(absolutePath)
       const hash = createHash('sha256').update(buffer).digest('hex')
-      
+
       return {
         path: relativePath,
         size: stats.size,
@@ -194,7 +194,7 @@ export class FileStorageService {
     try {
       const absolutePath = this.getAbsolutePath(relativePath)
       await fs.unlink(absolutePath)
-      
+
       logger.debug('File deleted from storage', { path: relativePath })
     } catch (error) {
       logger.error('Failed to delete file from storage', { path: relativePath, error })
@@ -211,7 +211,7 @@ export class FileStorageService {
    */
   public async saveTempFile(buffer: Buffer, filename: string): Promise<string> {
     const tempPath = await this.saveFile(buffer, filename, 'temp')
-    
+
     // Schedule cleanup after 1 hour
     setTimeout(async () => {
       try {
@@ -220,7 +220,7 @@ export class FileStorageService {
         logger.warn('Failed to cleanup temp file', { path: tempPath, error })
       }
     }, 60 * 60 * 1000) // 1 hour
-    
+
     return tempPath
   }
 
@@ -230,17 +230,17 @@ export class FileStorageService {
   public async cleanupOldFiles(olderThan?: Date): Promise<number> {
     const cutoffDate = olderThan || new Date(Date.now() - this.maxFileAge)
     let deletedCount = 0
-    
+
     try {
       const categories = ['screenshots', 'temp', 'cache']
-      
+
       for (const category of categories) {
         const categoryPath = join(this.basePath, category)
         if (await this.directoryExists(categoryPath)) {
           deletedCount += await this.cleanupDirectory(categoryPath, cutoffDate)
         }
       }
-      
+
       logger.info('Cleanup completed', { deletedFiles: deletedCount, cutoffDate })
       return deletedCount
     } catch (error) {
@@ -265,15 +265,15 @@ export class FileStorageService {
         usedSpace: 0,
         directories: {}
       }
-      
+
       // Get disk space information
       const diskStats = await fs.statfs(this.basePath)
       stats.availableSpace = diskStats.bavail * diskStats.bsize
       stats.usedSpace = (diskStats.blocks - diskStats.bavail) * diskStats.bsize
-      
+
       // Scan directories for file statistics
       const categories = ['screenshots', 'temp', 'cache']
-      
+
       for (const category of categories) {
         const categoryPath = join(this.basePath, category)
         if (await this.directoryExists(categoryPath)) {
@@ -283,7 +283,7 @@ export class FileStorageService {
           stats.totalSize += categoryStats.size
         }
       }
-      
+
       return stats
     } catch (error) {
       logger.error('Failed to get storage stats', { error })
@@ -306,7 +306,7 @@ export class FileStorageService {
       warnings: [],
       errors: []
     }
-    
+
     try {
       // Check if base directory exists and is writable
       if (!await this.directoryExists(this.basePath)) {
@@ -323,12 +323,12 @@ export class FileStorageService {
           health.healthy = false
         }
       }
-      
+
       // Check disk space
       const diskStats = await fs.statfs(this.basePath)
       health.availableSpace = diskStats.bavail * diskStats.bsize
       health.usedSpace = (diskStats.blocks - diskStats.bavail) * diskStats.bsize
-      
+
       if (health.availableSpace < this.minFreeSpace) {
         health.warnings.push(`Low disk space: ${Math.round(health.availableSpace / 1024 / 1024)} MB remaining`)
         if (health.availableSpace < this.minFreeSpace / 2) {
@@ -336,18 +336,18 @@ export class FileStorageService {
           health.errors.push('Critically low disk space')
         }
       }
-      
+
       // Check storage size limits
       const stats = await this.getStorageStats()
       if (stats.totalSize > this.maxStorageSize) {
         health.warnings.push(`Storage size limit exceeded: ${Math.round(stats.totalSize / 1024 / 1024)} MB`)
       }
-      
+
     } catch (error) {
       health.errors.push(`Health check failed: ${error.message}`)
       health.healthy = false
     }
-    
+
     return health
   }  /**
 
@@ -373,21 +373,23 @@ export class FileStorageService {
     }
   }
 
+
+
   /**
-   * Generate unique filename if file already exists
+   * Generate unique filename if file already exists (legacy method)
    */
   private async generateUniqueFilename(directory: string, filename: string): Promise<string> {
     const ext = extname(filename)
     const name = basename(filename, ext)
     let counter = 0
     let finalFilename = filename
-    
+
     // Check if file exists in the specific directory
     while (await this.fileExistsInDirectory(directory, finalFilename)) {
       counter++
       finalFilename = `${name}_${counter}${ext}`
     }
-    
+
     return finalFilename
   }
 
@@ -409,16 +411,16 @@ export class FileStorageService {
    */
   private async cleanupDirectory(directory: string, cutoffDate: Date): Promise<number> {
     let deletedCount = 0
-    
+
     try {
       const entries = await fs.readdir(directory, { withFileTypes: true })
-      
+
       for (const entry of entries) {
         const fullPath = join(directory, entry.name)
-        
+
         if (entry.isDirectory()) {
           deletedCount += await this.cleanupDirectory(fullPath, cutoffDate)
-          
+
           // Remove empty directories
           try {
             const remainingEntries = await fs.readdir(fullPath)
@@ -439,7 +441,7 @@ export class FileStorageService {
     } catch (error) {
       logger.warn('Failed to cleanup directory', { directory, error })
     }
-    
+
     return deletedCount
   }
 
@@ -449,13 +451,13 @@ export class FileStorageService {
   private async getDirectoryStats(directory: string): Promise<{ files: number; size: number }> {
     let files = 0
     let size = 0
-    
+
     try {
       const entries = await fs.readdir(directory, { withFileTypes: true })
-      
+
       for (const entry of entries) {
         const fullPath = join(directory, entry.name)
-        
+
         if (entry.isDirectory()) {
           const subStats = await this.getDirectoryStats(fullPath)
           files += subStats.files
@@ -469,7 +471,7 @@ export class FileStorageService {
     } catch (error) {
       logger.warn('Failed to get directory stats', { directory, error })
     }
-    
+
     return { files, size }
   }
 }

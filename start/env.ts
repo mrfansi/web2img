@@ -72,5 +72,16 @@ export default await Env.create(new URL('../', import.meta.url), {
   |----------------------------------------------------------
   */
   BROWSER_HEADLESS: Env.schema.boolean(),
-  BROWSER_TIMEOUT: Env.schema.number()
+  BROWSER_TIMEOUT: Env.schema.number(),
+
+  /*
+  |----------------------------------------------------------
+  | Variables for configuring the drive package
+  |----------------------------------------------------------
+  */
+  DRIVE_DISK: Env.schema.enum(['fs', 'r2'] as const),
+  R2_KEY: Env.schema.string(),
+  R2_SECRET: Env.schema.string(),
+  R2_BUCKET: Env.schema.string(),
+  R2_ENDPOINT: Env.schema.string()
 })
