@@ -23,7 +23,6 @@ export class UserService {
       orderDirection = 'desc'
     } = options
 
-    console.log('UserService.getAllUsers called with options:', options)
 
     const users = await User.query()
       .select('id', 'fullName', 'email', 'createdAt')
@@ -31,7 +30,6 @@ export class UserService {
       .limit(limit)
       .offset((page - 1) * limit)
 
-    console.log('UserService.getAllUsers found users:', users.length)
 
     return users.map(user => this.transformUserData(user))
   }

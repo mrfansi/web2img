@@ -29,7 +29,6 @@ export default class ListUsers extends BaseCommand {
             }
 
             this.logger.success(`Found ${users.length} user(s):`)
-            console.log('')
 
             // Create a table-like output
             const tableData = users.map(user => ({
@@ -53,7 +52,6 @@ export default class ListUsers extends BaseCommand {
             const headerRow = headers.map((header, i) =>
                 header.padEnd(columnWidths[i])
             ).join(' | ')
-            console.log(headerRow)
             console.log('-'.repeat(headerRow.length))
 
             // Print rows

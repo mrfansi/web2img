@@ -52,11 +52,9 @@ export default class UsersController extends BaseController {
    * GET /dashboard/api/users
    */
   public async index(ctx: HttpContext): Promise<GetUsersResponse> {
-    console.log('UsersController.index called')
     const page = ctx.request.input('page', 1)
     const limit = Math.min(ctx.request.input('limit', 50), 100) // Cap at 100
 
-    console.log('UsersController.index - page:', page, 'limit:', limit)
 
     return this.handleAsync(
       () => this.userService.getAllUsers({ page, limit }),
