@@ -60,7 +60,7 @@ export class AuthService {
   /**
    * Validate token (for future use)
    */
-  async validateToken(token: string): Promise<User | null> {
+  async validateToken(_token: string): Promise<User | null> {
     try {
       // This would implement token validation logic
       // For now, this is a placeholder
@@ -74,7 +74,7 @@ export class AuthService {
   /**
    * Revoke token (for future use)
    */
-  async revokeToken(token: string): Promise<void> {
+  async revokeToken(_token: string): Promise<void> {
     try {
       // This would implement token revocation logic
       // For now, this is a placeholder

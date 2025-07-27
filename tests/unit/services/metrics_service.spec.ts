@@ -1,5 +1,5 @@
 import { test } from '@japa/runner'
-import { MetricsService, MetricType } from '#services/metrics_service'
+import { MetricsService } from '#services/metrics_service'
 import { getCentralRedisManager } from '#services/central_redis_manager'
 
 test.group('Metrics Service', (group) => {

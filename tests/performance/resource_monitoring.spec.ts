@@ -1,6 +1,5 @@
 import { test } from '@japa/runner'
 import { ApiClient } from '@japa/api-client'
-import testUtils from '@adonisjs/core/services/test_utils'
 import ApiKey from '#models/api_key'
 import User from '#models/user'
 import { cleanupRedisConnections } from '#tests/utils/redis_test_utils'
@@ -27,7 +26,7 @@ test.group('Resource Monitoring - Performance Tests', (group) => {
   let monitoringInterval: NodeJS.Timeout | null = null
 
   group.setup(async () => {
-    apiClient = testUtils.apiClient()
+    apiClient = new ApiClient()
     
     // Create test user
     testUser = await User.create({

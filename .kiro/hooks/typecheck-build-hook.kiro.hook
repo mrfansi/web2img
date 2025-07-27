@@ -1,0 +1,23 @@
+{
+  "enabled": true,
+  "name": "TypeCheck & Build Verification",
+  "description": "Automatically runs TypeScript type checking and build process after code changes to catch type errors and build issues early",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "app/**/*.ts",
+      "config/**/*.ts",
+      "start/**/*.ts",
+      "commands/**/*.ts",
+      "tests/**/*.ts",
+      "database/**/*.ts",
+      "tsconfig.json",
+      "package.json"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "Run `npm run typecheck` to check for TypeScript type errors, then run `npm run build` to ensure the project builds successfully. If there are any type errors or build failures, report them clearly and suggest fixes. Only proceed if both commands complete without errors."
+  }
+}

@@ -1,6 +1,5 @@
 import { test } from '@japa/runner'
 import { ApiClient } from '@japa/api-client'
-import testUtils from '@adonisjs/core/services/test_utils'
 import ApiKey from '#models/api_key'
 import User from '#models/user'
 import { cleanupRedisConnections } from '#tests/utils/redis_test_utils'
@@ -21,7 +20,7 @@ test.group('Webhook Delivery - Integration Tests', (group) => {
   let webhookPort = 3001
 
   group.setup(async () => {
-    apiClient = testUtils.apiClient()
+    apiClient = new ApiClient()
     
     // Create test user
     testUser = await User.create({

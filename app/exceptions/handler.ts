@@ -124,7 +124,7 @@ export default class HttpExceptionHandler extends ExceptionHandler {
   /**
    * Handle unknown errors
    */
-  private async handleUnknownError(error: unknown, ctx: HttpContext, correlationId: string) {
+  private async handleUnknownError(_error: unknown, ctx: HttpContext, correlationId: string) {
     const errorResponse = {
       detail: {
         error: ErrorCode.SERVICE_OVERLOADED,

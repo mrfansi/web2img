@@ -362,7 +362,7 @@ export class MetricsService {
     const statsKey = `${key}:stats`
     
     const stats = await this.redis.hmget(statsKey, 'count', 'sum', 'sum_squares')
-    const [countStr, sumStr, sumSquaresStr] = stats
+    const [countStr, sumStr] = stats
     
     if (!countStr || !sumStr) {
       return null

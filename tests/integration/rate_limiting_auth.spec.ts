@@ -1,6 +1,5 @@
 import { test } from '@japa/runner'
 import { ApiClient } from '@japa/api-client'
-import testUtils from '@adonisjs/core/services/test_utils'
 import ApiKey from '#models/api_key'
 import User from '#models/user'
 import { cleanupRedisConnections } from '#tests/utils/redis_test_utils'
@@ -13,7 +12,7 @@ test.group('Rate Limiting and Authentication - Integration Tests', (group) => {
   let inactiveApiKey: ApiKey
 
   group.setup(async () => {
-    apiClient = testUtils.apiClient()
+    apiClient = new ApiClient()
     
     // Create test user
     testUser = await User.create({
@@ -153,7 +152,7 @@ test.group('Rate Limiting and Authentication - Integration Tests', (group) => {
     assert.equal(highLimitResponse.headers()['x-ratelimit-limit'], '1000')
   })
 
-  test('batch request rate limiting', async ({ assert }) => {
+  test('batch request rate limiting', async ({ }) => {
     // Create multiple batch jobs to test rate limiting
     const batchRequests = []
     
@@ -205,7 +204,7 @@ test.group('Rate Limiting and Authentication - Integration Tests', (group) => {
     })
   })
 
-  test('authentication with missing API key', async ({ assert }) => {
+  test('authentication with missing API key', async ({ }) => {
     // Test single screenshot without API key
     const singleResponse = await apiClient
       .post('/screenshot')
@@ -249,7 +248,7 @@ test.group('Rate Limiting and Authentication - Integration Tests', (group) => {
     })
   })
 
-  test('authentication with invalid API key', async ({ assert }) => {
+  test('authentication with invalid API key', async ({ }) => {
     const invalidKeys = [
       'invalid-key-123',
       'nonexistent-key',
@@ -275,7 +274,7 @@ test.group('Rate Limiting and Authentication - Integration Tests', (group) => {
     }
   })
 
-  test('authentication with inactive API key', async ({ assert }) => {
+  test('authentication with inactive API key', async ({ }) => {
     const response = await apiClient
       .post('/screenshot')
       .header('X-API-Key', inactiveApiKey.key)

@@ -1,10 +1,7 @@
 import { test } from '@japa/runner'
 import { ApiClient } from '@japa/api-client'
-import testUtils from '@adonisjs/core/services/test_utils'
 import ApiKey from '#models/api_key'
-import BatchJob from '#models/batch_job'
 import User from '#models/user'
-import queueService from '#services/queue_service'
 import { cleanupRedisConnections } from '#tests/utils/redis_test_utils'
 
 test.group('Queue Processing - Integration Tests', (group) => {
@@ -13,7 +10,7 @@ test.group('Queue Processing - Integration Tests', (group) => {
   let testApiKey: ApiKey
 
   group.setup(async () => {
-    apiClient = testUtils.apiClient()
+    apiClient = new ApiClient()
     
     // Create test user
     testUser = await User.create({

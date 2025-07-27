@@ -50,7 +50,7 @@ test.group('Health Check Service', (group) => {
 
     assert.isString(health.message)
     assert.isNumber(health.responseTime)
-    assert.isTrue(health.responseTime > 0)
+    assert.isTrue(health.responseTime! > 0)
     assert.oneOf(health.status, [HealthStatus.HEALTHY, HealthStatus.DEGRADED, HealthStatus.UNHEALTHY])
   })
 
@@ -65,7 +65,7 @@ test.group('Health Check Service', (group) => {
 
     assert.isString(health.message)
     assert.isNumber(health.responseTime)
-    assert.isTrue(health.responseTime >= 0)
+    assert.isTrue(health.responseTime! >= 0)
     assert.oneOf(health.status, [HealthStatus.HEALTHY, HealthStatus.DEGRADED, HealthStatus.UNHEALTHY])
   })
 
@@ -79,7 +79,7 @@ test.group('Health Check Service', (group) => {
 
     assert.isString(health.message)
     assert.isNumber(health.responseTime)
-    assert.isTrue(health.responseTime >= 0)
+    assert.isTrue(health.responseTime! >= 0)
     assert.oneOf(health.status, [HealthStatus.HEALTHY, HealthStatus.DEGRADED, HealthStatus.UNHEALTHY])
   })
 
@@ -94,7 +94,7 @@ test.group('Health Check Service', (group) => {
 
     assert.isString(health.message)
     assert.isNumber(health.responseTime)
-    assert.isTrue(health.responseTime >= 0)
+    assert.isTrue(health.responseTime! >= 0)
     assert.oneOf(health.status, [HealthStatus.HEALTHY, HealthStatus.DEGRADED, HealthStatus.UNHEALTHY])
   })
 
@@ -109,7 +109,7 @@ test.group('Health Check Service', (group) => {
 
     assert.isString(health.message)
     assert.isNumber(health.responseTime)
-    assert.isTrue(health.responseTime >= 0)
+    assert.isTrue(health.responseTime! >= 0)
     assert.oneOf(health.status, [HealthStatus.HEALTHY, HealthStatus.DEGRADED, HealthStatus.UNHEALTHY])
 
     // ImgProxy might not be configured in test environment
@@ -197,7 +197,7 @@ test.group('Health Check Service', (group) => {
       assert.oneOf(health.status, [HealthStatus.HEALTHY, HealthStatus.DEGRADED, HealthStatus.UNHEALTHY])
       assert.isString(health.message)
       assert.isNumber(health.responseTime)
-      assert.isTrue(health.responseTime >= 0)
+      assert.isTrue(health.responseTime! >= 0)
     })
   })
 
@@ -207,7 +207,7 @@ test.group('Health Check Service', (group) => {
     Object.values(health.components).forEach(component => {
       assert.property(component, 'responseTime')
       assert.isNumber(component.responseTime)
-      assert.isTrue(component.responseTime >= 0)
+      assert.isTrue(component.responseTime! >= 0)
     })
   })
 })

@@ -135,7 +135,7 @@ export class UserService {
       id: user.id,
       fullName: user.fullName,
       email: user.email,
-      createdAt: user.createdAt.toISO()
+      createdAt: user.createdAt.toISO() || user.createdAt.toJSDate()
     }
   }
 

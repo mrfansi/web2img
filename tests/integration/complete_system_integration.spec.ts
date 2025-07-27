@@ -324,7 +324,7 @@ test.group('Complete System Integration', (group) => {
     // Test cache stats
     const stats = await cacheService.getStats()
     assert.exists(stats, 'Cache stats should exist')
-    assert.isNumber(stats.keyCount, 'Key count should be a number')
+    assert.isNumber(stats.totalKeys, 'Total keys should be a number')
   })
 
   test('should handle file storage operations', async ({ assert }) => {
@@ -367,7 +367,7 @@ test.group('Complete System Integration', (group) => {
     assert.isAbove(generatedUrl.length, 0, 'Generated URL should not be empty')
     
     // Test configuration check
-    const isConfigured = imgProxyService.isConfigured()
+    const isConfigured = (imgProxyService as any).isConfigured
     assert.isBoolean(isConfigured, 'Configuration check should return boolean')
     
     if (isConfigured) {

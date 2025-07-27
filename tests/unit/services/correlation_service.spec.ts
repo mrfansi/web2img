@@ -1,5 +1,4 @@
 import { test } from '@japa/runner'
-import { HttpContextFactory } from '@adonisjs/core/factories/http'
 import { CorrelationService } from '#services/correlation_service'
 
 test.group('Correlation Service', () => {
@@ -13,13 +12,14 @@ test.group('Correlation Service', () => {
 
   test('getOrCreateCorrelationId should use existing correlation ID from header', ({ assert }) => {
     const existingId = 'existing-correlation-id'
-    const ctx = new HttpContextFactory()
-      .merge({
-        request: {
-          header: (name: string) => name === 'x-correlation-id' ? existingId : undefined
-        }
-      })
-      .create()
+    const ctx = {
+      request: {
+        header: (name: string) => name === 'x-correlation-id' ? existingId : undefined
+      },
+      response: {
+        header: () => {}
+      }
+    } as any
 
     const correlationId = CorrelationService.getOrCreateCorrelationId(ctx)
     
@@ -28,13 +28,14 @@ test.group('Correlation Service', () => {
 
   test('getOrCreateCorrelationId should use request ID if correlation ID not present', ({ assert }) => {
     const requestId = 'existing-request-id'
-    const ctx = new HttpContextFactory()
-      .merge({
-        request: {
-          header: (name: string) => name === 'x-request-id' ? requestId : undefined
-        }
-      })
-      .create()
+    const ctx = {
+      request: {
+        header: (name: string) => name === 'x-request-id' ? requestId : undefined
+      },
+      response: {
+        header: () => {}
+      }
+    } as any
 
     const correlationId = CorrelationService.getOrCreateCorrelationId(ctx)
     
@@ -42,13 +43,14 @@ test.group('Correlation Service', () => {
   })
 
   test('getOrCreateCorrelationId should generate new ID if none exists', ({ assert }) => {
-    const ctx = new HttpContextFactory()
-      .merge({
-        request: {
-          header: () => undefined
-        }
-      })
-      .create()
+    const ctx = {
+      request: {
+        header: () => undefined
+      },
+      response: {
+        header: () => {}
+      }
+    } as any
 
     const correlationId = CorrelationService.getOrCreateCorrelationId(ctx)
     
@@ -58,40 +60,43 @@ test.group('Correlation Service', () => {
   })
 
   test('getOrCreateCorrelationId should set response header', ({ assert }) => {
-    const ctx = new HttpContextFactory()
-      .merge({
-        request: {
-          header: () => undefined
-        }
-      })
-      .create()
+    let setHeader: string | undefined
+    const ctx = {
+      request: {
+        header: () => undefined
+      },
+      response: {
+        header: (_name: string, value: string) => { setHeader = value }
+      }
+    } as any
 
     const correlationId = CorrelationService.getOrCreateCorrelationId(ctx)
     
     // Verify the response header was set
-    const responseHeaders = ctx.response.getHeaders()
-    assert.equal(responseHeaders['x-correlation-id'], correlationId)
+    assert.equal(setHeader, correlationId)
   })
 
   test('setCorrelationId should set response header', ({ assert }) => {
-    const ctx = new HttpContextFactory().create()
+    let setHeader: string | undefined
+    const ctx = {
+      response: {
+        header: (_name: string, value: string) => { setHeader = value }
+      }
+    } as any
     const correlationId = 'test-correlation-id'
 
     CorrelationService.setCorrelationId(ctx, correlationId)
     
-    const responseHeaders = ctx.response.getHeaders()
-    assert.equal(responseHeaders['x-correlation-id'], correlationId)
+    assert.equal(setHeader, correlationId)
   })
 
   test('getCorrelationId should return correlation ID from header', ({ assert }) => {
     const existingId = 'existing-correlation-id'
-    const ctx = new HttpContextFactory()
-      .merge({
-        request: {
-          header: (name: string) => name === 'x-correlation-id' ? existingId : undefined
-        }
-      })
-      .create()
+    const ctx = {
+      request: {
+        header: (name: string) => name === 'x-correlation-id' ? existingId : undefined
+      }
+    } as any
 
     const correlationId = CorrelationService.getCorrelationId(ctx)
     
@@ -100,13 +105,11 @@ test.group('Correlation Service', () => {
 
   test('getCorrelationId should return request ID if correlation ID not present', ({ assert }) => {
     const requestId = 'existing-request-id'
-    const ctx = new HttpContextFactory()
-      .merge({
-        request: {
-          header: (name: string) => name === 'x-request-id' ? requestId : undefined
-        }
-      })
-      .create()
+    const ctx = {
+      request: {
+        header: (name: string) => name === 'x-request-id' ? requestId : undefined
+      }
+    } as any
 
     const correlationId = CorrelationService.getCorrelationId(ctx)
     
@@ -114,13 +117,11 @@ test.group('Correlation Service', () => {
   })
 
   test('getCorrelationId should return undefined if no ID present', ({ assert }) => {
-    const ctx = new HttpContextFactory()
-      .merge({
-        request: {
-          header: () => undefined
-        }
-      })
-      .create()
+    const ctx = {
+      request: {
+        header: () => undefined
+      }
+    } as any
 
     const correlationId = CorrelationService.getCorrelationId(ctx)
     
@@ -128,22 +129,23 @@ test.group('Correlation Service', () => {
   })
 
   test('createErrorContext should include request information', ({ assert }) => {
-    const ctx = new HttpContextFactory()
-      .merge({
-        request: {
-          header: (name: string) => {
-            switch (name) {
-              case 'x-correlation-id': return 'test-correlation-id'
-              case 'user-agent': return 'Test User Agent'
-              default: return undefined
-            }
-          },
-          method: () => 'POST',
-          url: () => '/api/screenshot',
-          ip: () => '127.0.0.1'
-        }
-      })
-      .create()
+    const ctx = {
+      request: {
+        header: (name: string) => {
+          switch (name) {
+            case 'x-correlation-id': return 'test-correlation-id'
+            case 'user-agent': return 'Test User Agent'
+            default: return undefined
+          }
+        },
+        method: () => 'POST',
+        url: () => '/api/screenshot',
+        ip: () => '127.0.0.1'
+      },
+      response: {
+        header: () => {}
+      }
+    } as any
 
     const errorContext = CorrelationService.createErrorContext(ctx)
     
@@ -157,16 +159,17 @@ test.group('Correlation Service', () => {
   })
 
   test('createErrorContext should include additional context', ({ assert }) => {
-    const ctx = new HttpContextFactory()
-      .merge({
-        request: {
-          header: () => undefined,
-          method: () => 'GET',
-          url: () => '/api/test',
-          ip: () => '192.168.1.1'
-        }
-      })
-      .create()
+    const ctx = {
+      request: {
+        header: () => undefined,
+        method: () => 'GET',
+        url: () => '/api/test',
+        ip: () => '192.168.1.1'
+      },
+      response: {
+        header: () => {}
+      }
+    } as any
 
     const additionalContext = {
       userId: 123,
@@ -176,24 +179,25 @@ test.group('Correlation Service', () => {
     const errorContext = CorrelationService.createErrorContext(ctx, additionalContext)
     
     assert.isString(errorContext.correlationId)
-    assert.equal(errorContext.userId, 123)
-    assert.equal(errorContext.batchId, 'batch-456')
+    assert.equal((errorContext as any).userId, 123)
+    assert.equal((errorContext as any).batchId, 'batch-456')
     assert.equal(errorContext.method, 'GET')
     assert.equal(errorContext.url, '/api/test')
     assert.equal(errorContext.ip, '192.168.1.1')
   })
 
   test('createErrorContext should generate correlation ID if not present', ({ assert }) => {
-    const ctx = new HttpContextFactory()
-      .merge({
-        request: {
-          header: () => undefined,
-          method: () => 'GET',
-          url: () => '/api/test',
-          ip: () => '127.0.0.1'
-        }
-      })
-      .create()
+    const ctx = {
+      request: {
+        header: () => undefined,
+        method: () => 'GET',
+        url: () => '/api/test',
+        ip: () => '127.0.0.1'
+      },
+      response: {
+        header: () => {}
+      }
+    } as any
 
     const errorContext = CorrelationService.createErrorContext(ctx)
     

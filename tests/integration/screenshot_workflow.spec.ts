@@ -1,8 +1,6 @@
 import { test } from '@japa/runner'
 import { ApiClient } from '@japa/api-client'
-import testUtils from '@adonisjs/core/services/test_utils'
 import ApiKey from '#models/api_key'
-import BatchJob from '#models/batch_job'
 import User from '#models/user'
 import { cleanupRedisConnections } from '#tests/utils/redis_test_utils'
 
@@ -12,7 +10,7 @@ test.group('Screenshot Workflow - Integration Tests', (group) => {
   let testApiKey: ApiKey
 
   group.setup(async () => {
-    apiClient = testUtils.apiClient()
+    apiClient = new ApiClient()
     
     // Create test user
     testUser = await User.create({
@@ -206,7 +204,7 @@ test.group('Screenshot Workflow - Integration Tests', (group) => {
     assert.isDefined(validResponse.headers()['x-ratelimit-remaining'])
   })
 
-  test('error handling workflow', async ({ assert }) => {
+  test('error handling workflow', async ({ }) => {
     // Test invalid URL
     const invalidUrlResponse = await apiClient
       .post('/screenshot')
@@ -264,7 +262,7 @@ test.group('Screenshot Workflow - Integration Tests', (group) => {
     })
   })
 
-  test('batch job not found workflow', async ({ assert }) => {
+  test('batch job not found workflow', async ({ }) => {
     const notFoundResponse = await apiClient
       .get('/batch/screenshots/999999')
       .header('X-API-Key', testApiKey.key)

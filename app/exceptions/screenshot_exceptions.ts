@@ -1,5 +1,5 @@
 import { Exception } from '@adonisjs/core/exceptions'
-import { ErrorCode, ErrorContext } from '#types/errors'
+import { ErrorCode } from '#types/errors'
 
 /**
  * Base screenshot exception class

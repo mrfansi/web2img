@@ -54,7 +54,7 @@ export default class MetricsMiddleware {
     route: string,
     statusCode: number,
     duration: number,
-    correlationId: string,
+    _correlationId: string,
     isError: boolean = false
   ): Promise<void> {
     const labels = {
