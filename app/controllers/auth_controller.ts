@@ -2,7 +2,6 @@ import { HttpContext } from '@adonisjs/core/http'
 import BaseController from '#controllers/base_controller'
 import { AuthService } from '#services/auth_service'
 import { loginValidator, LoginData } from '#validators/auth_validators'
-import { ErrorCodes } from '#types/api_responses'
 
 /**
  * Authentication controller for login/logout operations
@@ -85,7 +84,7 @@ export default class AuthController extends BaseController {
 
     try {
       // Authenticate user
-      const { user, token } = await this.authService.authenticateUser(credentials!)
+      const { token } = await this.authService.authenticateUser(credentials!)
 
       // Set authentication cookie
       response.cookie(
@@ -123,7 +122,7 @@ export default class AuthController extends BaseController {
   public async logout({ response }: HttpContext) {
     // Clear authentication cookie
     response.clearCookie('auth_token')
-    
+
     // Redirect to login page with success message
     return response.redirect(
       this.authService.getLoginSuccessUrl('You have been logged out successfully')
