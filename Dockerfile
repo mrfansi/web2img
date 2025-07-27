@@ -1,32 +1,6 @@
 # Multi-stage Dockerfile for Website Screenshot API
 
-# Stage 1: Build stage
-FROM node:22-alpine AS builder
-
-# Install system dependencies for building
-RUN apk add --no-cache \
-    python3 \
-    make \
-    g++ \
-    git
-
-# Set working directory
-WORKDIR /app
-
-# Copy package files
-COPY package*.json ./
-
-# Install dependencies
-RUN npm ci --only=production
-
-# Copy source code
-COPY . .
-
-# Build the application
-RUN npm run build
-
-# Stage 2: Production stage
-FROM node:22-alpine AS production
+FROM node:22.16.0-alpine3.22 AS base
 
 # Install system dependencies for Playwright
 RUN apk add --no-cache \
@@ -37,19 +11,44 @@ RUN apk add --no-cache \
     harfbuzz \
     ca-certificates \
     ttf-freefont \
+    python3 \
+    make \
+    g++ \
+    git \
     && rm -rf /var/cache/apk/*
+
+# All deps stage
+FROM base AS deps
+WORKDIR /app
+ADD package.json package-lock.json ./
+RUN npm ci
+
+# Production only deps stage
+FROM base AS production-deps
+WORKDIR /app
+ADD package.json package-lock.json ./
+RUN npm ci --omit=dev
+
+# Build stage
+FROM base AS build
+WORKDIR /app
+COPY --from=deps /app/node_modules /app/node_modules
+ADD . .
+RUN node ace build
+
+# Production stage
+FROM base AS production
+ENV NODE_ENV=production
 
 # Create app user
 RUN addgroup -g 1001 -S nodejs && \
     adduser -S web2img -u 1001
 
-# Set working directory
 WORKDIR /app
 
-# Copy built application from builder stage
-COPY --from=builder --chown=web2img:nodejs /app/build ./build
-COPY --from=builder --chown=web2img:nodejs /app/node_modules ./node_modules
-COPY --from=builder --chown=web2img:nodejs /app/package*.json ./
+# Copy production dependencies and built application
+COPY --from=production-deps --chown=web2img:nodejs /app/node_modules /app/node_modules
+COPY --from=build --chown=web2img:nodejs /app/build /app
 
 # Create storage directories
 RUN mkdir -p storage/screenshots/cache storage/screenshots/screenshots storage/screenshots/temp && \
@@ -70,4 +69,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD node -e "require('http').get('http://localhost:3333/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"
 
 # Start the application
-CMD ["node", "build/bin/server.js"]
+CMD ["node", "./bin/server.js"]

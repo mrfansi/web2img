@@ -528,10 +528,10 @@ export default class DashboardController {
     }
 
     /**
-     * Log a new error (for testing purposes)
+     * Create a test error (for testing purposes)
      * POST /dashboard/api/errors
      */
-    public async logError({ request, response }: HttpContext) {
+    public async createTestError({ request, response }: HttpContext) {
         try {
             const { level, message, context } = request.only(['level', 'message', 'context'])
 
