@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title || 'Web2Img Dashboard' }}</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .status-healthy {
+            @apply bg-green-100 text-green-800;
+        }
+
+        .status-degraded {
+            @apply bg-yellow-100 text-yellow-800;
+        }
+
+        .status-unhealthy {
+            @apply bg-red-100 text-red-800;
+        }
+
+        .metric-card {
+            @apply bg-white rounded-lg shadow p-6;
+        }
+
+        .chart-container {
+            @apply bg-white rounded-lg shadow p-6;
+        }
+    </style>
+    @if($slots.head)
+    {{{ await $slots.head() }}}
+    @end
+</head>
+
+<body class="bg-gray-100">
+    <div class="min-h-screen">
+        <!-- Header -->
+        <header class="bg-white shadow">
+            <div class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+                <h1 class="text-3xl font-bold text-gray-900">{{ header || 'Web2Img Dashboard' }}</h1>
+            </div>
+        </header>
+
+        <!-- Main content -->
+        <main class="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+            {{{ await $slots.main() }}}
+        </main>
+    </div>
+
+    @if($slots.scripts)
+    {{{ await $slots.scripts() }}}
+    @end
+</body>
+
+</html>

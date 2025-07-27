@@ -62,8 +62,10 @@ router.group(() => {
   router.post('/dashboard/api/errors', '#controllers/dashboard_controller.createTestError')
 
   // User management endpoints
-  router.get('/dashboard/api/users', '#controllers/auth_controller.getUsers')
-  router.post('/dashboard/api/users', '#controllers/auth_controller.createUser')
+  router.get('/dashboard/api/users', '#controllers/users_controller.index')
+  router.post('/dashboard/api/users', '#controllers/users_controller.store')
+  router.get('/dashboard/api/users/:id', '#controllers/users_controller.show')
+  router.delete('/dashboard/api/users/:id', '#controllers/users_controller.destroy')
 }).middleware([
   middleware.dashboardAuth(),
   middleware.requestLogging(),

@@ -2,6 +2,7 @@ import type { HttpContext } from '@adonisjs/core/http'
 import type { NextFn } from '@adonisjs/core/types/http'
 import { Secret } from '@adonisjs/core/helpers'
 import User from '#models/user'
+import logger from '@adonisjs/core/services/logger'
 
 /**
  * Dashboard authentication middleware
@@ -11,7 +12,7 @@ export default class DashboardAuthMiddleware {
     async handle(ctx: HttpContext, next: NextFn) {
         const { request, response } = ctx
 
-        console.log('Dashboard auth middleware - checking auth for:', request.url())
+        logger.info('Dashboard auth middleware - checking auth for:', request.url())
 
         // Get token from cookie
         const token = request.cookie('auth_token')
