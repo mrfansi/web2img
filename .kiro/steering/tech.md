@@ -1,26 +1,35 @@
 # Technology Stack
 
 ## Framework & Runtime
-- **AdonisJS v6** - Full-stack Node.js framework
-- **Node.js** with TypeScript
-- **MySQL** database with Lucid ORM
+- **AdonisJS v6**: Modern Node.js framework with TypeScript support
+- **Node.js**: JavaScript runtime with ES modules
+- **TypeScript**: Primary language with strict typing
 
-## Key Dependencies
-- `@adonisjs/auth` - Authentication system
-- `@adonisjs/lucid` - Database ORM
-- `@adonisjs/cors` - CORS middleware
-- `@vinejs/vine` - Validation library
-- `luxon` - Date/time handling
-- `mysql2` - MySQL driver
+## Core Dependencies
+- **@adonisjs/core**: Framework core
+- **@adonisjs/lucid**: ORM for database operations
+- **@adonisjs/redis**: Redis integration
+- **@adonisjs/auth**: Authentication system
+- **@adonisjs/cors**: CORS handling
+- **Edge.js**: Template engine for views
+
+## Key Libraries
+- **Playwright**: Browser automation for screenshot capture
+- **BullMQ**: Queue processing and job management
+- **MySQL2**: Database driver
+- **IORedis**: Redis client (via AdonisJS Redis)
+- **Luxon**: Date/time handling
+- **VineJS**: Request validation
+- **Swagger**: API documentation (swagger-jsdoc, swagger-ui-express)
 
 ## Development Tools
-- **TypeScript** - Type safety
-- **ESLint** - Code linting with AdonisJS config
-- **Prettier** - Code formatting
-- **Japa** - Testing framework
-- **Hot-Hook** - Hot module reloading
+- **ESLint**: Code linting with AdonisJS config
+- **Prettier**: Code formatting
+- **Japa**: Testing framework with API client plugin
+- **Hot-Hook**: Hot module reloading
+- **SWC**: Fast TypeScript compilation
 
-## Common Commands
+## Build System & Commands
 
 ### Development
 ```bash
@@ -38,19 +47,33 @@ npm run typecheck    # TypeScript type checking
 
 ### Testing
 ```bash
-npm test             # Run all tests
+npm test             # Run all tests with Japa
 node ace test        # Alternative test command
 ```
 
 ### Database
 ```bash
-node ace migration:run     # Run pending migrations
-node ace migration:rollback # Rollback last migration
-node ace make:migration    # Create new migration
+node ace migration:run     # Run database migrations
+node ace migration:rollback # Rollback migrations
 ```
 
-## Build System
-- Uses AdonisJS Assembler for building
-- TypeScript compilation with SWC
-- ES modules with import maps for path aliases
-- Hot reloading in development mode
+## Path Aliases
+The project uses import aliases defined in package.json:
+- `#controllers/*` → `./app/controllers/*.js`
+- `#services/*` → `./app/services/*.js`
+- `#models/*` → `./app/models/*.js`
+- `#middleware/*` → `./app/middleware/*.js`
+- `#validators/*` → `./app/validators/*.js`
+- `#config/*` → `./config/*.js`
+- `#types/*` → `./app/types/*.js`
+
+## Configuration
+- **adonisrc.ts**: Main application configuration
+- **tsconfig.json**: TypeScript configuration extending AdonisJS defaults
+- **eslint.config.js**: ESLint configuration using AdonisJS preset
+- **.env**: Environment variables (copy from .env.example)
+
+## Docker Support
+- **Dockerfile**: Container configuration
+- **docker-compose.yml**: Development environment
+- **docker-compose.prod.yml**: Production environment

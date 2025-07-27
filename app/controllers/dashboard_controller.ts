@@ -6,6 +6,8 @@ import User from '#models/user'
 import ApiKeyUsage from '#models/api_key_usage'
 import ErrorLog, { ErrorLevel } from '#models/error_log'
 import vine from '@vinejs/vine'
+import { changePasswordValidator } from '#validators/auth_validators'
+import hash from '@adonisjs/core/services/hash'
 
 /**
  * Dashboard controller for web interface and API key management
@@ -614,5 +616,209 @@ export default class DashboardController {
                 }
             }
         }
+    }
+
+    /**
+     * @swagger
+     * /dashboard/api/user:
+     *   get:
+     *     summary: Get current user information
+     *     description: Returns the current authenticated user's information
+     *     tags:
+     *       - Dashboard
+     *       - User
+     *     responses:
+     *       200:
+     *         description: Current user information
+     *         content:
+     *           application/json:
+     *             schema:
+     *               type: object
+     *               properties:
+     *                 data:
+     *                   type: object
+     *                   properties:
+     *                     id:
+     *                       type: integer
+     *                     fullName:
+     *                       type: string
+     *                     email:
+     *                       type: string
+     *                     createdAt:
+     *                       type: string
+     *                       format: date-time
+     *       401:
+     *         description: Unauthorized
+     */
+    /**
+     * Get current user information
+     * GET /dashboard/api/user
+     */
+    public async getCurrentUser({ user, response }: HttpContext) {
+        try {
+            if (!user) {
+                response.status(401)
+                return {
+                    detail: {
+                        error: 'unauthorized',
+                        message: 'User not authenticated'
+                    }
+                }
+            }
+
+            return {
+                data: {
+                    id: user.id,
+                    fullName: user.fullName,
+                    email: user.email,
+                    createdAt: user.createdAt
+                }
+            }
+        } catch (error) {
+            response.status(500)
+            return {
+                detail: {
+                    error: 'user_fetch_failed',
+                    message: 'Failed to fetch user information'
+                }
+            }
+        }
+    }
+
+    /**
+     * @swagger
+     * /dashboard/api/change-password:
+     *   post:
+     *     summary: Change user password
+     *     description: Change the current user's password
+     *     tags:
+     *       - Dashboard
+     *       - User
+     *     requestBody:
+     *       required: true
+     *       content:
+     *         application/json:
+     *           schema:
+     *             type: object
+     *             required:
+     *               - currentPassword
+     *               - newPassword
+     *               - confirmPassword
+     *             properties:
+     *               currentPassword:
+     *                 type: string
+     *                 description: Current password
+     *               newPassword:
+     *                 type: string
+     *                 minLength: 6
+     *                 maxLength: 100
+     *                 description: New password
+     *               confirmPassword:
+     *                 type: string
+     *                 description: Confirm new password
+     *     responses:
+     *       200:
+     *         description: Password changed successfully
+     *         content:
+     *           application/json:
+     *             schema:
+     *               type: object
+     *               properties:
+     *                 data:
+     *                   type: object
+     *                   properties:
+     *                     message:
+     *                       type: string
+     *       400:
+     *         description: Invalid current password
+     *       422:
+     *         description: Validation failed
+     *       401:
+     *         description: Unauthorized
+     */
+    /**
+     * Change user password
+     * POST /dashboard/api/change-password
+     */
+    public async changePassword({ request, response, user }: HttpContext) {
+        try {
+            if (!user) {
+                response.status(401)
+                return {
+                    detail: {
+                        error: 'unauthorized',
+                        message: 'User not authenticated'
+                    }
+                }
+            }
+
+            const data = await request.validateUsing(changePasswordValidator)
+
+            // Verify current password
+            const isCurrentPasswordValid = await hash.verify(user.password, data.currentPassword)
+            if (!isCurrentPasswordValid) {
+                response.status(400)
+                return {
+                    detail: {
+                        error: 'invalid_current_password',
+                        message: 'Current password is incorrect'
+                    }
+                }
+            }
+
+            // Update password
+            user.password = data.newPassword
+            await user.save()
+
+            return {
+                data: {
+                    message: 'Password changed successfully'
+                }
+            }
+        } catch (error) {
+            if (error.messages) {
+                response.status(422)
+                return {
+                    detail: {
+                        error: 'validation_failed',
+                        message: 'Validation failed',
+                        errors: error.messages
+                    }
+                }
+            }
+
+            response.status(500)
+            return {
+                detail: {
+                    error: 'password_change_failed',
+                    message: 'Failed to change password'
+                }
+            }
+        }
+    }
+
+    /**
+     * @swagger
+     * /dashboard/logout:
+     *   post:
+     *     summary: Logout from dashboard
+     *     description: Clear authentication and redirect to login
+     *     tags:
+     *       - Dashboard
+     *       - Authentication
+     *     responses:
+     *       302:
+     *         description: Redirect to login page
+     */
+    /**
+     * Handle dashboard logout
+     * POST /dashboard/logout
+     */
+    public async logout({ response }: HttpContext) {
+        // Clear authentication cookie
+        response.clearCookie('auth_token')
+
+        // Redirect to login page
+        return response.redirect('/auth/login')
     }
 }

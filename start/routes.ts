@@ -66,6 +66,11 @@ router.group(() => {
   router.post('/dashboard/api/users', '#controllers/users_controller.store')
   router.get('/dashboard/api/users/:id', '#controllers/users_controller.show')
   router.delete('/dashboard/api/users/:id', '#controllers/users_controller.destroy')
+
+  // Current user endpoints
+  router.get('/dashboard/api/user', '#controllers/dashboard_controller.getCurrentUser')
+  router.post('/dashboard/api/change-password', '#controllers/dashboard_controller.changePassword')
+  router.post('/dashboard/logout', '#controllers/dashboard_controller.logout')
 }).middleware([
   middleware.dashboardAuth(),
   middleware.requestLogging(),

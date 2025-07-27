@@ -1,18 +1,36 @@
-# Product Overview
+# Web2Img - Website Screenshot Service
 
-**web2img** is a web application built with AdonisJS that appears to be designed for web-to-image conversion functionality.
+Web2Img is a high-performance website screenshot service that provides REST APIs for capturing website screenshots and converting them to various image formats (PNG, JPEG, WebP).
 
-## Key Features
-- User authentication system with email/password login
-- Token-based API authentication using access tokens
-- RESTful API architecture
-- Database-backed user management
+## Core Features
 
-## Current State
-The application is in early development with basic user authentication infrastructure in place. The core web-to-image functionality appears to be planned but not yet implemented.
+- **RESTful API**: Clean endpoints for single and batch screenshot generation
+- **Queue Processing**: Background job processing with BullMQ for scalability
+- **Caching**: Redis-based caching for improved performance
+- **Rate Limiting**: Built-in rate limiting and API key authentication
+- **Dashboard Interface**: Web-based dashboard for monitoring and API key management
+- **Multiple Formats**: Support for PNG, JPEG, WebP with customizable dimensions
+- **Error Handling**: Comprehensive error handling and logging
+- **OpenAPI Documentation**: Interactive API documentation with Swagger UI
 
 ## Architecture
-- Backend API built with AdonisJS framework
-- MySQL database for data persistence
-- Token-based authentication for API access
-- Modular middleware-based request processing
+
+Modern, scalable architecture with:
+- Background job processing for screenshot generation
+- Redis for caching and queue management
+- MySQL for persistent data storage
+- Playwright for browser automation
+- Comprehensive authentication and authorization
+- Real-time system monitoring and health checks
+
+## Key Endpoints
+
+- `POST /screenshots` - Generate single screenshot
+- `POST /screenshots/batch` - Generate multiple screenshots
+- `GET /screenshots/:id` - Get screenshot status/result
+- `/dashboard` - Web interface for system monitoring and API key management
+- `/docs` - Interactive API documentation
+
+## Authentication
+
+All API endpoints require authentication via API key in the `X-API-Key` header.

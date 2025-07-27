@@ -38,7 +38,39 @@
         <!-- Header -->
         <header class="bg-white shadow">
             <div class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
-                <h1 class="text-3xl font-bold text-gray-900">{{ header || 'Web2Img Dashboard' }}</h1>
+                <div class="flex justify-between items-center">
+                    <h1 class="text-3xl font-bold text-gray-900">{{ header || 'Web2Img Dashboard' }}</h1>
+
+                    <!-- User menu -->
+                    <div class="relative">
+                        <div class="flex items-center space-x-4">
+                            <!-- User info -->
+                            <div class="flex items-center space-x-2">
+                                <div class="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
+                                    <span class="text-white text-sm font-medium" id="user-initials">U</span>
+                                </div>
+                                <div class="hidden md:block">
+                                    <div class="text-sm font-medium text-gray-900" id="user-name">Loading...</div>
+                                    <div class="text-xs text-gray-500" id="user-email">Loading...</div>
+                                </div>
+                            </div>
+
+                            <!-- Action buttons -->
+                            <div class="flex items-center space-x-2">
+                                <button onclick="showChangePasswordModal()"
+                                    class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-md text-sm font-medium">
+                                    Change Password
+                                </button>
+                                <form action="/dashboard/logout" method="POST" class="inline">
+                                    <button type="submit"
+                                        class="bg-red-600 hover:bg-red-700 text-white px-3 py-2 rounded-md text-sm font-medium">
+                                        Logout
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </header>
 

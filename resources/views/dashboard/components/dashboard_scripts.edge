@@ -12,12 +12,14 @@
         loadErrorLogs();
         loadApiKeys();
         loadUsers();
+        loadCurrentUser();
 
         // Set up event listeners
         document.getElementById('usage-timeframe').addEventListener('change', loadUsageOverview);
         document.getElementById('error-level').addEventListener('change', loadErrorLogs);
         document.getElementById('create-api-key-form').addEventListener('submit', createApiKey);
         document.getElementById('create-user-form').addEventListener('submit', createUser);
+        document.getElementById('change-password-form').addEventListener('submit', changePassword);
 
         // Auto-refresh every 30 seconds
         setInterval(() => {
@@ -460,5 +462,108 @@
         // This function would show detailed usage for a specific API key
         // Implementation depends on whether you want to add this modal
         console.log('Show usage details for API key:', apiKeyId);
+    }
+
+    // Load current user information
+    async function loadCurrentUser() {
+        try {
+            const response = await fetch('/dashboard/api/user');
+            if (!response.ok) throw new Error('Failed to fetch user data');
+
+            const result = await response.json();
+            const user = result.data;
+
+            // Update user info in header
+            document.getElementById('user-name').textContent = user.fullName || 'Unknown User';
+            document.getElementById('user-email').textContent = user.email;
+
+            // Update user initials
+            const initials = user.fullName
+                ? user.fullName.split(' ').map(n => n[0]).join('').toUpperCase()
+                : user.email[0].toUpperCase();
+            document.getElementById('user-initials').textContent = initials;
+        } catch (error) {
+            console.error('Error loading user data:', error);
+            document.getElementById('user-name').textContent = 'Error loading user';
+            document.getElementById('user-email').textContent = '';
+        }
+    }
+
+    // Show change password modal
+    function showChangePasswordModal() {
+        document.getElementById('change-password-modal').classList.remove('hidden');
+        document.getElementById('change-password-form').reset();
+        document.getElementById('password-change-success').classList.add('hidden');
+        document.getElementById('password-change-error').classList.add('hidden');
+    }
+
+    // Hide change password modal
+    function hideChangePasswordModal() {
+        document.getElementById('change-password-modal').classList.add('hidden');
+        document.getElementById('change-password-form').reset();
+        document.getElementById('password-change-success').classList.add('hidden');
+        document.getElementById('password-change-error').classList.add('hidden');
+    }
+
+    // Handle password change form submission
+    async function changePassword(event) {
+        event.preventDefault();
+
+        const formData = new FormData(event.target);
+        const newPassword = formData.get('newPassword');
+        const confirmPassword = formData.get('confirmPassword');
+
+        // Client-side validation
+        if (newPassword !== confirmPassword) {
+            showPasswordError('New passwords do not match');
+            return;
+        }
+
+        if (newPassword.length < 6) {
+            showPasswordError('Password must be at least 6 characters long');
+            return;
+        }
+
+        const passwordData = {
+            currentPassword: formData.get('currentPassword'),
+            newPassword: newPassword,
+            confirmPassword: confirmPassword
+        };
+
+        try {
+            const response = await fetch('/dashboard/api/change-password', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(passwordData)
+            });
+
+            const result = await response.json();
+
+            if (!response.ok) {
+                throw new Error(result.detail?.message || 'Failed to change password');
+            }
+
+            // Show success message
+            document.getElementById('password-change-success').classList.remove('hidden');
+            document.getElementById('password-change-error').classList.add('hidden');
+            document.getElementById('change-password-form').reset();
+
+            // Auto-close modal after 2 seconds
+            setTimeout(() => {
+                hideChangePasswordModal();
+            }, 2000);
+
+        } catch (error) {
+            showPasswordError(error.message);
+        }
+    }
+
+    // Show password error message
+    function showPasswordError(message) {
+        document.getElementById('password-error-text').textContent = message;
+        document.getElementById('password-change-error').classList.remove('hidden');
+        document.getElementById('password-change-success').classList.add('hidden');
     }
 </script>
