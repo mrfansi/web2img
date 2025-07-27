@@ -55,7 +55,7 @@ RUN mkdir -p storage/screenshots/cache storage/screenshots/screenshots storage/s
     chown -R web2img:nodejs storage
 
 # Set Playwright environment variables
-ENV PLAYWRIGHT_BROWSERS_PATH=/usr/bin/chromium-browser
+ENV PLAYWRIGHT_BROWSERS_PATH=/usr/bin/chromium
 ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 
 # Switch to non-root user
