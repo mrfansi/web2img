@@ -107,21 +107,21 @@
   - Calculate current cache size from Redis key count
   - _Requirements: 10.1, 10.2, 10.3, 10.4, 10.5_
 
-- [ ] 6. Extend validation schemas to match Postman collection request formats
-- [ ] 6.1 Add validation for scheduling endpoint request body
+- [x] 6. Extend validation schemas to match Postman collection request formats
+- [x] 6.1 Add validation for scheduling endpoint request body
   - Create scheduleJobValidator for {scheduled_time} request body
   - Validate scheduled_time is valid ISO 8601 format and in future
   - Add custom validation to ensure job exists and is in valid state
   - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5, 5.6_
 
-- [ ] 6.2 Add validation for recurrence endpoint request body
+- [x] 6.2 Add validation for recurrence endpoint request body
   - Create recurrenceValidator for {pattern, interval, count, cron} request body
   - Validate pattern enum: "hourly", "daily", "weekly", "monthly", "custom"
   - Add cron expression validation when pattern is "custom"
   - Validate interval and count are positive integers when provided
   - _Requirements: 6.1, 6.2, 6.3, 6.4, 6.5, 6.6, 6.7_
 
-- [ ] 6.3 Add validation for cache URL invalidation query parameter
+- [x] 6.3 Add validation for cache URL invalidation query parameter
   - Create cacheUrlValidator for ?url=<url> query parameter
   - Validate URL format and ensure it's a valid HTTP/HTTPS URL
   - Return 422 validation error format matching Postman collection
