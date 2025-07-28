@@ -119,7 +119,7 @@ test.group('Batch Screenshot Validator', () => {
         config: {
           parallel: 3,
           timeout: 30000,
-          webhook: 'https://webhook.example.com',
+          webhook_url: 'https://webhook.example.com',
           webhook_auth: 'Bearer token123',
           cache: true,
           priority: 'high'
@@ -132,7 +132,7 @@ test.group('Batch Screenshot Validator', () => {
       assert.equal(result.items[0].id, 'item-1')
       assert.equal(result.items[0].url, 'https://example.com')
       assert.equal(result.config?.parallel, 3)
-      assert.equal(result.config?.webhook, 'https://webhook.example.com')
+      assert.equal(result.config?.webhook_url, 'https://webhook.example.com')
     })
 
     test('should validate minimal batch request', async ({ assert }) => {
@@ -266,7 +266,7 @@ test.group('Custom Validation Functions', () => {
     test('validateWebhookAuth should pass when both webhook and webhook_auth are provided', ({ assert }) => {
       const data = {
         config: {
-          webhook: 'https://example.com/webhook',
+          webhook_url: 'https://example.com/webhook',
           webhook_auth: 'Bearer token'
         }
       }
@@ -285,7 +285,7 @@ test.group('Custom Validation Functions', () => {
     test('validateWebhookAuth should throw when webhook is provided without webhook_auth', ({ assert }) => {
       const data = {
         config: {
-          webhook: 'https://example.com/webhook'
+          webhook_url: 'https://example.com/webhook'
         }
       }
 
@@ -453,7 +453,7 @@ test.group('Comprehensive Validation Functions', () => {
           }
         ],
         config: {
-          webhook: 'https://webhook.example.com',
+          webhook_url: 'https://webhook.example.com',
           webhook_auth: 'Bearer token'
         }
       }
@@ -461,7 +461,7 @@ test.group('Comprehensive Validation Functions', () => {
       const result = await validateBatchRequest(data)
 
       assert.equal(result.items.length, 1)
-      assert.equal(result.config?.webhook, 'https://webhook.example.com')
+      assert.equal(result.config?.webhook_url, 'https://webhook.example.com')
     })
 
     test('validateBatchRequest should throw for missing webhook_auth', async ({ assert }) => {
@@ -473,7 +473,7 @@ test.group('Comprehensive Validation Functions', () => {
           }
         ],
         config: {
-          webhook: 'https://webhook.example.com'
+          webhook_url: 'https://webhook.example.com'
         }
       }
 

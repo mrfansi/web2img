@@ -219,7 +219,7 @@ test.group('BatchJob Model', () => {
     const config: BatchConfig = {
       parallel: 5,
       timeout: 60000,
-      webhook: 'https://example.com/webhook',
+      webhook_url: 'https://example.com/webhook',
       cache: true
     }
     

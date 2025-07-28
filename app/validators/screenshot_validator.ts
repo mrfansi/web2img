@@ -10,6 +10,7 @@ export const singleScreenshotValidator = vine.compile(
     width: vine.number().min(1).max(5000).optional(),
     height: vine.number().min(1).max(5000).optional(),
     timeout: vine.number().min(5000).max(60000).optional(), // 5 seconds to 1 minute
+    fullPage: vine.boolean().optional(),
     cache: vine.boolean().optional()
   })
 )
@@ -31,7 +32,7 @@ export const batchItemValidator = vine.object({
 export const batchConfigValidator = vine.object({
   parallel: vine.number().min(1).max(50).optional(),
   timeout: vine.number().min(5000).max(60000).optional(), // 5 seconds to 1 minute
-  webhook: vine.string().url().optional(),
+  webhook_url: vine.string().url().optional(),
   webhook_auth: vine.string().optional(),
   fail_fast: vine.boolean().optional(),
   cache: vine.boolean().optional(),
@@ -68,11 +69,11 @@ export const batchStatusValidator = vine.compile(
  */
 
 /**
- * Validate that webhook_auth is provided when webhook is provided
+ * Validate that webhook_auth is provided when webhook_url is provided
  */
 export const validateWebhookAuth = (data: any) => {
-  if (data.config?.webhook && !data.config?.webhook_auth) {
-    throw new Error('webhook_auth is required when webhook is provided')
+  if (data.config?.webhook_url && !data.config?.webhook_auth) {
+    throw new Error('webhook_auth is required when webhook_url is provided')
   }
 }
 

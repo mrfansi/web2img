@@ -106,6 +106,7 @@ export default class ScreenshotController {
         width: validatedData.width || 1280,
         height: validatedData.height || 720,
         timeout: validatedData.timeout || 30000,
+        fullPage: validatedData.fullPage || false,
         useCache: validatedData.cache !== false // Default to true unless explicitly false
       }
 
@@ -123,18 +124,29 @@ export default class ScreenshotController {
 
       // Check cache if enabled
       let cachedUrl: string | null = null
+      let expiresAt: string | null = null
+      
       if (screenshotOptions.useCache) {
         cachedUrl = await cacheService.get(cacheKey)
         if (cachedUrl) {
+          const expirationTime = await cacheService.getExpirationTime(cacheKey)
+          expiresAt = expirationTime ? expirationTime.toISOString() : null
+          
+          const processingTime = Date.now() - startTime
+
           logger.info('Returning cached screenshot', {
             url: validatedData.url,
             cacheKey: cacheKey.substring(0, 16) + '...',
-            processingTime: Date.now() - startTime
+            processingTime
           })
 
           return response.json({
-            url: cachedUrl,
-            cached: true
+            success: true,
+            screenshot_url: cachedUrl,
+            cache_hit: true,
+            processing_time_ms: processingTime,
+            file_size_bytes: 0, // File size not available for cached results
+            expires_at: expiresAt
           })
         }
       }
@@ -160,9 +172,13 @@ export default class ScreenshotController {
             format: screenshotOptions.format as 'png' | 'jpeg' | 'webp',
             width: screenshotOptions.width,
             height: screenshotOptions.height,
-            timeout: screenshotOptions.timeout
+            timeout: screenshotOptions.timeout,
+            fullPage: screenshotOptions.fullPage
           }
         })
+
+        // Calculate file size from buffer
+        const fileSizeBytes = screenshotResult.buffer.length
 
         // Save screenshot to storage
         const filename = `${Date.now()}.${screenshotResult.format}`
@@ -182,9 +198,14 @@ export default class ScreenshotController {
           height: screenshotOptions.height
         })
 
-        // Cache the result if caching is enabled
+        // Cache the result if caching is enabled and calculate expiration
+        let expiresAt: string | null = null
         if (screenshotOptions.useCache) {
           await cacheService.set(cacheKey, finalUrl)
+          // Calculate expiration time based on cache TTL
+          const ttlSeconds = cacheService.getDefaultTtl()
+          const expirationTime = new Date(Date.now() + (ttlSeconds * 1000))
+          expiresAt = expirationTime.toISOString()
         }
 
         const processingTime = Date.now() - startTime
@@ -193,12 +214,17 @@ export default class ScreenshotController {
           url: validatedData.url,
           finalUrl: finalUrl.substring(0, 100) + '...',
           processingTime,
+          fileSizeBytes,
           cached: false
         })
 
         return response.json({
-          url: finalUrl,
-          cached: false
+          success: true,
+          screenshot_url: finalUrl,
+          cache_hit: false,
+          processing_time_ms: processingTime,
+          file_size_bytes: fileSizeBytes,
+          expires_at: expiresAt
         })
 
       } finally {
@@ -355,7 +381,7 @@ export default class ScreenshotController {
       const batchConfig = {
         parallel: validatedData.config?.parallel || 3,
         timeout: validatedData.config?.timeout || 30000,
-        webhook: validatedData.config?.webhook,
+        webhook_url: validatedData.config?.webhook_url,
         webhook_auth: validatedData.config?.webhook_auth,
         fail_fast: validatedData.config?.fail_fast || false,
         cache: validatedData.config?.cache !== false, // Default to true
@@ -447,6 +473,7 @@ export default class ScreenshotController {
         total: batchJob.totalItems,
         completed: batchJob.completedItems,
         failed: batchJob.failedItems,
+        priority: batchConfig.priority,
         created_at: batchJob.createdAt.toISO(),
         updated_at: batchJob.updatedAt?.toISO(),
         scheduled_time: batchJob.scheduledAt?.toISO(),
@@ -630,6 +657,7 @@ export default class ScreenshotController {
         scheduled_time: batchJob.scheduledAt?.toISO(),
         completed_at: batchJob.completedAt?.toISO(),
         estimated_completion: batchJob.estimatedCompletion?.toISO(),
+        next_scheduled_time: batchJob.nextScheduledTime?.toISO(),
         config: batchJob.config,
         results: batchJob.results,
         successful_results: batchJob.successfulResults,

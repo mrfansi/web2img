@@ -74,6 +74,36 @@ export class CacheService {
   }
 
   /**
+   * Get cache expiration time for a key
+   */
+  public async getExpirationTime(key: string): Promise<Date | null> {
+    try {
+      const fullKey = this.keyPrefix + key
+
+      return await redisService.executeCommand(
+        async () => {
+          const ttl = await redisService.getClient().ttl(fullKey)
+          if (ttl > 0) {
+            return new Date(Date.now() + (ttl * 1000))
+          }
+          return null
+        },
+        'cache get expiration'
+      )
+    } catch (error) {
+      logger.error('Cache expiration check failed', { key, error })
+      return null
+    }
+  }
+
+  /**
+   * Get default cache TTL in seconds
+   */
+  public getDefaultTtl(): number {
+    return this.defaultTtl
+  }
+
+  /**
    * Set cached screenshot URL with TTL
    */
   public async set(key: string, value: string, ttl?: number): Promise<void> {

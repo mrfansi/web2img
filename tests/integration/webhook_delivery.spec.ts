@@ -125,7 +125,7 @@ test.group('Webhook Delivery - Integration Tests', (group) => {
           { id: 'webhook1', url: 'https://example.com' }
         ],
         config: {
-          webhook: webhookUrl,
+          webhook_url: webhookUrl,
           parallel: 1
         }
       })
@@ -183,7 +183,7 @@ test.group('Webhook Delivery - Integration Tests', (group) => {
           { id: 'webhook-auth1', url: 'https://example.com' }
         ],
         config: {
-          webhook: webhookUrl,
+          webhook_url: webhookUrl,
           webhook_auth: authToken,
           parallel: 1
         }
@@ -235,7 +235,7 @@ test.group('Webhook Delivery - Integration Tests', (group) => {
           { id: 'webhook-retry1', url: 'https://example.com' }
         ],
         config: {
-          webhook: webhookUrl,
+          webhook_url: webhookUrl,
           parallel: 1
         }
       })
@@ -294,7 +294,7 @@ test.group('Webhook Delivery - Integration Tests', (group) => {
           { id: 'webhook-fail1', url: 'https://example.com' }
         ],
         config: {
-          webhook: webhookUrl,
+          webhook_url: webhookUrl,
           parallel: 1
         }
       })
@@ -350,7 +350,7 @@ test.group('Webhook Delivery - Integration Tests', (group) => {
           { id: 'payload2', url: 'https://httpbin.org/html', format: 'jpeg' }
         ],
         config: {
-          webhook: webhookUrl,
+          webhook_url: webhookUrl,
           parallel: 2,
           cache: true
         }

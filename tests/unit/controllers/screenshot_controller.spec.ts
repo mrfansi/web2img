@@ -17,8 +17,11 @@ test.group('ScreenshotController - Single Screenshot', (group) => {
   test('should return cached screenshot when available', async ({ assert }) => {
     // Mock cache service to return cached URL
     const mockCachedUrl = 'https://imgproxy.example.com/cached-screenshot.png'
+    const mockExpirationTime = new Date(Date.now() + 3600000) // 1 hour from now
+    
     cacheService.get = async () => mockCachedUrl
     cacheService.generateCacheKey = () => 'test-cache-key'
+    cacheService.getExpirationTime = async () => mockExpirationTime
 
     let responseStatus = 200
     let responseBody: any = null
@@ -48,8 +51,12 @@ test.group('ScreenshotController - Single Screenshot', (group) => {
     await controller.single(ctx as any)
 
     assert.equal(responseStatus, 200)
-    assert.equal(responseBody.url, mockCachedUrl)
-    assert.isTrue(responseBody.cached)
+    assert.isTrue(responseBody.success)
+    assert.equal(responseBody.screenshot_url, mockCachedUrl)
+    assert.isTrue(responseBody.cache_hit)
+    assert.isNumber(responseBody.processing_time_ms)
+    assert.equal(responseBody.file_size_bytes, 0) // File size not available for cached results
+    assert.equal(responseBody.expires_at, mockExpirationTime.toISOString())
   })
 
   test('should process new screenshot when not cached', async ({ assert }) => {
@@ -60,9 +67,10 @@ test.group('ScreenshotController - Single Screenshot', (group) => {
     cacheService.setProcessingLock = async () => {}
     cacheService.removeProcessingLock = async () => {}
     cacheService.set = async () => {}
+    cacheService.getDefaultTtl = () => 3600
 
     const mockScreenshotResult = {
-      buffer: Buffer.from('fake-image-data'),
+      buffer: Buffer.from('fake-image-data-12345'), // 17 bytes
       format: 'png',
       width: 1280,
       height: 720,
@@ -111,8 +119,12 @@ test.group('ScreenshotController - Single Screenshot', (group) => {
     await controller.single(ctx as any)
 
     assert.equal(responseStatus, 200)
-    assert.equal(responseBody.url, mockImgProxyUrl)
-    assert.isFalse(responseBody.cached)
+    assert.isTrue(responseBody.success)
+    assert.equal(responseBody.screenshot_url, mockImgProxyUrl)
+    assert.isFalse(responseBody.cache_hit)
+    assert.isNumber(responseBody.processing_time_ms)
+    assert.equal(responseBody.file_size_bytes, 17) // Buffer length
+    assert.isString(responseBody.expires_at)
   })
 
   test('should return 429 when URL is being processed', async ({ assert }) => {
@@ -411,6 +423,7 @@ test.group('ScreenshotController - Single Screenshot', (group) => {
     imgProxyService.generateUrlWithFallback = () => 'https://imgproxy.example.com/test.png'
 
     let responseStatus = 200
+    let responseBody: any = null
 
     const ctx = {
       request: {
@@ -425,7 +438,8 @@ test.group('ScreenshotController - Single Screenshot', (group) => {
           responseStatus = code
           return ctx.response
         },
-        json: (_data: any) => {
+        json: (data: any) => {
+          responseBody = data
           return ctx.response
         }
       }
@@ -436,6 +450,9 @@ test.group('ScreenshotController - Single Screenshot', (group) => {
     assert.equal(responseStatus, 200)
     assert.isFalse(cacheGetCalled)
     assert.isFalse(cacheSetCalled)
+    assert.isTrue(responseBody.success)
+    assert.isFalse(responseBody.cache_hit)
+    assert.isNull(responseBody.expires_at) // No expiration when cache is disabled
   })
 })
 
@@ -639,6 +656,7 @@ test.group('ScreenshotController - Batch Screenshots', (group) => {
       scheduledAt: null,
       completedAt: null,
       estimatedCompletion: { toISO: () => '2025-01-26T10:10:00.000Z' },
+      nextScheduledTime: null,
       config: { parallel: 3, timeout: 30000 },
       results: [
         { itemId: 'item1', status: 'success', url: 'https://imgproxy.example.com/item1.png' },
@@ -681,9 +699,67 @@ test.group('ScreenshotController - Batch Screenshots', (group) => {
     assert.equal(responseBody.completed, 1)
     assert.equal(responseBody.failed, 0)
     assert.equal(responseBody.progress_percentage, 33)
+    assert.isUndefined(responseBody.next_scheduled_time)
     assert.lengthOf(responseBody.results, 3)
     assert.lengthOf(responseBody.successful_results, 1)
     assert.lengthOf(responseBody.failed_results, 0)
+  })
+
+  test('should return next_scheduled_time for recurring jobs', async ({ assert }) => {
+    // Mock BatchJob.find with recurring job
+    const mockBatchJob = {
+      id: 124,
+      status: 'scheduled',
+      totalItems: 2,
+      completedItems: 0,
+      failedItems: 0,
+      progressPercentage: 0,
+      createdAt: { toISO: () => '2025-01-26T10:00:00.000Z' },
+      updatedAt: { toISO: () => '2025-01-26T10:00:00.000Z' },
+      scheduledAt: { toISO: () => '2025-01-26T12:00:00.000Z' },
+      completedAt: null,
+      estimatedCompletion: null,
+      nextScheduledTime: { toISO: () => '2025-01-27T12:00:00.000Z' },
+      config: { 
+        parallel: 3, 
+        timeout: 30000,
+        recurrence: 'daily',
+        recurrence_interval: 1
+      },
+      results: [],
+      successfulResults: [],
+      failedResults: []
+    }
+
+    BatchJob.find = async () => mockBatchJob as any
+
+    let responseStatus = 200
+    let responseBody: any = null
+
+    const ctx = {
+      params: {
+        job_id: '124'
+      },
+      response: {
+        status: (code: number) => {
+          responseStatus = code
+          return ctx.response
+        },
+        json: (data: any) => {
+          responseBody = data
+          return ctx.response
+        }
+      }
+    }
+
+    await controller.getBatchStatus(ctx as any)
+
+    assert.equal(responseStatus, 200)
+    assert.equal(responseBody.job_id, '124')
+    assert.equal(responseBody.status, 'scheduled')
+    assert.equal(responseBody.scheduled_time, '2025-01-26T12:00:00.000Z')
+    assert.equal(responseBody.next_scheduled_time, '2025-01-27T12:00:00.000Z')
+    assert.equal(responseBody.config.recurrence, 'daily')
   })
 
   test('should return 404 for non-existent batch job', async ({ assert }) => {

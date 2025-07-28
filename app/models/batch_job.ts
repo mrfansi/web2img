@@ -13,7 +13,7 @@ export enum BatchJobStatus {
 export interface BatchConfig {
   parallel?: number
   timeout?: number
-  webhook?: string
+  webhook_url?: string
   webhook_auth?: string
   fail_fast?: boolean
   cache?: boolean
@@ -221,5 +221,33 @@ export default class BatchJob extends BaseModel {
     const estimatedRemainingTime = averageTimePerItem * remainingItems
     
     return DateTime.now().plus({ milliseconds: estimatedRemainingTime })
+  }
+
+  /**
+   * Get the next scheduled time for recurring jobs
+   */
+  get nextScheduledTime(): DateTime | null {
+    if (!this.config.recurrence || !this.scheduledAt) return null
+    
+    const baseTime = this.scheduledAt
+    const recurrence = this.config.recurrence
+    const interval = this.config.recurrence_interval || 1
+    
+    switch (recurrence) {
+      case 'hourly':
+        return baseTime.plus({ hours: interval })
+      case 'daily':
+        return baseTime.plus({ days: interval })
+      case 'weekly':
+        return baseTime.plus({ weeks: interval })
+      case 'monthly':
+        return baseTime.plus({ months: interval })
+      case 'custom':
+        // For custom cron expressions, we would need a cron parser
+        // For now, return null as this requires additional implementation
+        return null
+      default:
+        return null
+    }
   }
 }
