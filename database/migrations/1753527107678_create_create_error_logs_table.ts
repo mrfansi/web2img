@@ -15,7 +15,13 @@ export default class extends BaseSchema {
       table.string('user_agent').nullable()
       table.string('ip_address', 45).nullable()
       table.string('correlation_id').nullable()
-      table.integer('api_key_id').unsigned().nullable().references('id').inTable('api_keys').onDelete('SET NULL')
+      table
+        .integer('api_key_id')
+        .unsigned()
+        .nullable()
+        .references('id')
+        .inTable('api_keys')
+        .onDelete('SET NULL')
       table.timestamp('created_at', { useTz: true })
 
       // Indexes for performance

@@ -48,7 +48,9 @@ test.group('BatchQueueWorker', (group) => {
     worker = new BatchQueueWorker()
   })
 
-  test('should handle individual item failures without failing entire batch', async ({ assert }) => {
+  test('should handle individual item failures without failing entire batch', async ({
+    assert,
+  }) => {
     // This test verifies the worker configuration for handling failures
     const workerInstance = worker.getWorker()
 
@@ -89,7 +91,9 @@ test.group('BatchQueueWorker', (group) => {
     assert.isTrue(true) // Configuration test passed
   })
 
-  test('should handle batch configuration validation through job processing', async ({ assert }) => {
+  test('should handle batch configuration validation through job processing', async ({
+    assert,
+  }) => {
     // This test verifies the worker can handle various configuration options
     const workerInstance = worker.getWorker()
 

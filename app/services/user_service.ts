@@ -10,19 +10,15 @@ export class UserService {
   /**
    * Get all users with pagination support
    */
-  async getAllUsers(options: {
-    page?: number
-    limit?: number
-    orderBy?: string
-    orderDirection?: 'asc' | 'desc'
-  } = {}): Promise<UserData[]> {
-    const {
-      page = 1,
-      limit = 50,
-      orderBy = 'createdAt',
-      orderDirection = 'desc'
-    } = options
-
+  async getAllUsers(
+    options: {
+      page?: number
+      limit?: number
+      orderBy?: string
+      orderDirection?: 'asc' | 'desc'
+    } = {}
+  ): Promise<UserData[]> {
+    const { page = 1, limit = 50, orderBy = 'createdAt', orderDirection = 'desc' } = options
 
     const users = await User.query()
       .select('id', 'fullName', 'email', 'createdAt')
@@ -30,8 +26,7 @@ export class UserService {
       .limit(limit)
       .offset((page - 1) * limit)
 
-
-    return users.map(user => this.transformUserData(user))
+    return users.map((user) => this.transformUserData(user))
   }
 
   /**
@@ -62,7 +57,7 @@ export class UserService {
     const user = await User.create({
       fullName: userData.fullName,
       email: userData.email.toLowerCase(),
-      password: userData.password
+      password: userData.password,
     })
 
     logger.info(`User created successfully: ${user.email}`)
@@ -85,7 +80,7 @@ export class UserService {
 
     user.merge({
       ...(userData.fullName && { fullName: userData.fullName }),
-      ...(userData.email && { email: userData.email.toLowerCase() })
+      ...(userData.email && { email: userData.email.toLowerCase() }),
     })
 
     await user.save()
@@ -133,7 +128,7 @@ export class UserService {
       id: user.id,
       fullName: user.fullName,
       email: user.email,
-      createdAt: user.createdAt.toISO() || user.createdAt.toJSDate()
+      createdAt: user.createdAt.toISO() || user.createdAt.toJSDate(),
     }
   }
 
@@ -148,6 +143,6 @@ export class UserService {
       .orderBy('createdAt', 'desc')
       .limit(limit)
 
-    return users.map(user => this.transformUserData(user))
+    return users.map((user) => this.transformUserData(user))
   }
 }

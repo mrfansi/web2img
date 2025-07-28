@@ -16,7 +16,7 @@ import type {
   JobStatus,
   QueueMetrics,
   CacheStats,
-  RecurrenceConfig
+  RecurrenceConfig,
 } from './screenshot.js'
 
 /**

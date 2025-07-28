@@ -14,24 +14,24 @@ graph TB
     Router --> Auth[Auth Middleware]
     Auth --> RateLimit[Rate Limit Middleware]
     RateLimit --> Controller[Screenshot Controller]
-    
+
     Controller --> SingleService[Single Screenshot Service]
     Controller --> BatchService[Batch Screenshot Service]
-    
+
     SingleService --> Cache[Redis Cache]
     SingleService --> Queue[BullMQ Queue]
     BatchService --> Queue
-    
+
     Queue --> Worker[Screenshot Worker]
     Worker --> Playwright[Playwright Browser]
     Worker --> Storage[File Storage]
     Worker --> ImgProxy[ImgProxy URL Generator]
-    
+
     BatchService --> Scheduler[Job Scheduler]
     Scheduler --> Queue
-    
+
     Worker --> Webhook[Webhook Service]
-    
+
     Cache --> Redis[(Redis)]
     Queue --> Redis
     Storage --> FileSystem[Local/Cloud Storage]
@@ -53,11 +53,12 @@ graph TB
 ### 1. API Layer
 
 #### Screenshot Controller
+
 ```typescript
 interface ScreenshotController {
   // Single screenshot endpoint
   single(request: HttpContext['request'], response: HttpContext['response']): Promise<void>
-  
+
   // Batch screenshot endpoints
   createBatch(request: HttpContext['request'], response: HttpContext['response']): Promise<void>
   getBatchStatus(request: HttpContext['request'], response: HttpContext['response']): Promise<void>
@@ -65,6 +66,7 @@ interface ScreenshotController {
 ```
 
 #### Request/Response Models
+
 ```typescript
 interface SingleScreenshotRequest {
   url: string
@@ -124,18 +126,19 @@ interface BatchResponse {
 ### 2. Service Layer
 
 #### Screenshot Service
+
 ```typescript
 interface ScreenshotService {
   // Single screenshot processing
   captureScreenshot(params: ScreenshotParams): Promise<ScreenshotResult>
-  
+
   // Batch processing
   createBatchJob(request: BatchScreenshotRequest): Promise<BatchJob>
   getBatchJobStatus(jobId: string): Promise<BatchJobStatus>
-  
+
   // URL transformation
   transformUrl(originalUrl: string): string
-  
+
   // Cache management
   getCachedScreenshot(cacheKey: string): Promise<string | null>
   setCachedScreenshot(cacheKey: string, imageUrl: string, ttl: number): Promise<void>
@@ -158,16 +161,17 @@ interface ScreenshotResult {
 ```
 
 #### Queue Service
+
 ```typescript
 interface QueueService {
   // Job management
   addScreenshotJob(params: ScreenshotJobData): Promise<Job>
   addBatchJob(batchData: BatchJobData): Promise<Job>
-  
+
   // Scheduling
   scheduleJob(jobData: any, scheduledTime: Date): Promise<Job>
   createRecurringJob(jobData: any, recurrence: RecurrenceConfig): Promise<Job>
-  
+
   // Status and monitoring
   getJobStatus(jobId: string): Promise<JobStatus>
   getQueueMetrics(): Promise<QueueMetrics>
@@ -194,18 +198,19 @@ interface BatchJobData {
 ### 3. Worker Layer
 
 #### Screenshot Worker
+
 ```typescript
 interface ScreenshotWorker {
   // Main processing function
   process(job: Job<ScreenshotJobData>): Promise<ScreenshotResult>
-  
+
   // Browser management
   initializeBrowser(): Promise<Browser>
   createPage(browser: Browser, options: PageOptions): Promise<Page>
-  
+
   // Screenshot capture
   captureScreenshot(page: Page, options: ScreenshotOptions): Promise<Buffer>
-  
+
   // Storage and URL generation
   saveScreenshot(buffer: Buffer, filename: string): Promise<string>
   generateImgProxyUrl(imagePath: string, options: ImageOptions): string
@@ -226,29 +231,31 @@ interface ScreenshotOptions {
 ### 4. Storage and Cache Layer
 
 #### Storage Service
+
 ```typescript
 interface StorageService {
   // File operations
   saveFile(buffer: Buffer, path: string): Promise<string>
   getFileUrl(path: string): string
   deleteFile(path: string): Promise<void>
-  
+
   // Cleanup
   cleanupOldFiles(olderThan: Date): Promise<number>
 }
 ```
 
 #### Cache Service
+
 ```typescript
 interface CacheService {
   // Basic cache operations
   get(key: string): Promise<string | null>
   set(key: string, value: string, ttl: number): Promise<void>
   del(key: string): Promise<void>
-  
+
   // Cache key generation
   generateCacheKey(url: string, options: ScreenshotOptions): string
-  
+
   // Cache management
   clearExpired(): Promise<number>
   getStats(): Promise<CacheStats>
@@ -258,11 +265,12 @@ interface CacheService {
 ### 5. Integration Layer
 
 #### ImgProxy Service
+
 ```typescript
 interface ImgProxyService {
   // URL generation
   generateUrl(imagePath: string, options: ImgProxyOptions): string
-  
+
   // Configuration
   isConfigured(): boolean
   validateConfig(): boolean
@@ -278,14 +286,15 @@ interface ImgProxyOptions {
 ```
 
 #### Webhook Service
+
 ```typescript
 interface WebhookService {
   // Webhook delivery
   sendWebhook(url: string, payload: any, auth?: string): Promise<void>
-  
+
   // Retry logic
   retryWebhook(webhookData: WebhookData, attempt: number): Promise<void>
-  
+
   // Validation
   validateWebhookUrl(url: string): boolean
 }
@@ -303,6 +312,7 @@ interface WebhookData {
 ### Database Models
 
 #### API Key Model
+
 ```typescript
 interface ApiKey {
   id: string
@@ -317,6 +327,7 @@ interface ApiKey {
 ```
 
 #### Batch Job Model
+
 ```typescript
 interface BatchJob {
   id: string
@@ -344,6 +355,7 @@ interface BatchResult {
 ### Redis Data Structures
 
 #### Cache Keys
+
 ```
 screenshot:cache:{hash} -> imgproxy_url
 screenshot:lock:{url} -> processing_timestamp
@@ -351,6 +363,7 @@ rate_limit:{api_key}:{window} -> request_count
 ```
 
 #### Queue Data
+
 ```
 bullmq:screenshot:waiting -> [job_ids]
 bullmq:screenshot:active -> {job_id: worker_id}
@@ -373,7 +386,7 @@ enum ErrorCode {
   WEBHOOK_FAILED = 'webhook_failed',
   BATCH_TOO_LARGE = 'batch_too_large',
   INVALID_FORMAT = 'invalid_format',
-  INVALID_DIMENSIONS = 'invalid_dimensions'
+  INVALID_DIMENSIONS = 'invalid_dimensions',
 }
 
 interface ErrorResponse {
@@ -396,6 +409,7 @@ interface ErrorResponse {
 ## Testing Strategy
 
 ### Unit Testing
+
 - Service layer methods
 - URL transformation logic
 - Cache key generation
@@ -403,6 +417,7 @@ interface ErrorResponse {
 - Webhook payload formatting
 
 ### Integration Testing
+
 - API endpoints with authentication
 - Queue job processing
 - Database operations
@@ -410,6 +425,7 @@ interface ErrorResponse {
 - File storage operations
 
 ### End-to-End Testing
+
 - Complete screenshot workflow
 - Batch job processing
 - Webhook delivery
@@ -417,12 +433,14 @@ interface ErrorResponse {
 - Rate limiting behavior
 
 ### Performance Testing
+
 - Load testing with concurrent requests
 - Memory usage during batch processing
 - Queue throughput measurement
 - Cache hit rate optimization
 
 ### Test Data Management
+
 - Mock Playwright browser for unit tests
 - Test image fixtures
 - Sample webhook endpoints
@@ -431,24 +449,28 @@ interface ErrorResponse {
 ## Security Considerations
 
 ### Authentication and Authorization
+
 - API key validation middleware
 - Rate limiting per API key
 - Request size limits
 - URL validation and sanitization
 
 ### Input Validation
+
 - URL format validation
 - Dimension range validation
 - File size limits
 - Webhook URL validation
 
 ### Resource Protection
+
 - Memory limits for browser instances
 - Disk space monitoring
 - CPU usage limits
 - Network timeout controls
 
 ### Data Privacy
+
 - No persistent storage of screenshot content
 - Secure webhook delivery
 - API key encryption
@@ -457,24 +479,28 @@ interface ErrorResponse {
 ## Performance Optimization
 
 ### Caching Strategy
+
 - Redis-based result caching
 - Cache key optimization
 - TTL management
 - Cache warming for popular URLs
 
 ### Queue Optimization
+
 - Batch processing for efficiency
 - Priority queues for urgent requests
 - Dead letter queue handling
 - Worker scaling based on load
 
 ### Browser Management
+
 - Browser instance pooling
 - Page reuse optimization
 - Memory cleanup
 - Headless mode optimization
 
 ### Storage Optimization
+
 - Temporary file cleanup
 - Compression for storage
 - CDN integration via ImgProxy
@@ -483,6 +509,7 @@ interface ErrorResponse {
 ## Monitoring and Observability
 
 ### Metrics Collection
+
 - Request rate and response times
 - Queue depth and processing times
 - Cache hit rates
@@ -490,12 +517,14 @@ interface ErrorResponse {
 - Resource utilization
 
 ### Logging Strategy
+
 - Structured logging with correlation IDs
 - Request/response logging
 - Error logging with stack traces
 - Performance metrics logging
 
 ### Health Checks
+
 - API endpoint health
 - Redis connectivity
 - Queue worker status
@@ -503,6 +532,7 @@ interface ErrorResponse {
 - Storage availability
 
 ### Alerting
+
 - High error rates
 - Queue backup
 - Memory/CPU thresholds

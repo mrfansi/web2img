@@ -5,7 +5,7 @@ test.group('ApiKey Model', () => {
   test('should generate a unique API key', async ({ assert }) => {
     const key1 = ApiKey.generateKey()
     const key2 = ApiKey.generateKey()
-    
+
     assert.isString(key1)
     assert.isString(key2)
     assert.notEqual(key1, key2)
@@ -14,7 +14,7 @@ test.group('ApiKey Model', () => {
 
   test('should generate keys with proper format', async ({ assert }) => {
     const key = ApiKey.generateKey()
-    
+
     // Should be hex string (only contains 0-9 and a-f)
     assert.match(key, /^[0-9a-f]{64}$/)
   })

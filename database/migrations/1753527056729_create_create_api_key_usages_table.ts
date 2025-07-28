@@ -6,7 +6,12 @@ export default class extends BaseSchema {
   async up() {
     this.schema.createTable(this.tableName, (table) => {
       table.increments('id')
-      table.integer('api_key_id').unsigned().references('id').inTable('api_keys').onDelete('CASCADE')
+      table
+        .integer('api_key_id')
+        .unsigned()
+        .references('id')
+        .inTable('api_keys')
+        .onDelete('CASCADE')
       table.string('endpoint').notNullable()
       table.string('method', 10).notNullable()
       table.integer('status_code').notNullable()

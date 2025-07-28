@@ -89,11 +89,11 @@ export class ScreenshotQueueWorker {
           format: format as 'png' | 'jpeg' | 'webp',
           width,
           height,
-          timeout: job.data.timeout
+          timeout: job.data.timeout,
         },
         cacheKey,
         batchId,
-        itemId
+        itemId,
       })
 
       await job.updateProgress(80)
@@ -101,33 +101,29 @@ export class ScreenshotQueueWorker {
       // Store the screenshot and generate URL
       const fileStorageService = (await import('#services/file_storage_service')).default
       const imgProxyService = (await import('#services/imgproxy_service')).default
-      
+
       const filename = `${Date.now()}.${screenshotResult.format}`
       const storagePath = await fileStorageService.saveFile(
         screenshotResult.buffer,
         filename,
         'screenshots'
       )
-      
+
       // Generate direct storage URL
       const directUrl = fileStorageService.getFileUrl(storagePath)
-      
+
       // Generate ImgProxy URL with fallback to direct URL
       const imageUrl = imgProxyService.generateUrlWithFallback(directUrl, {
         format: screenshotResult.format as 'png' | 'jpeg' | 'webp',
         width: screenshotResult.width,
-        height: screenshotResult.height
+        height: screenshotResult.height,
       })
 
       await job.updateProgress(90)
 
       // Cache the result if cacheKey is provided
       if (cacheKey) {
-        await cacheService.set(
-          cacheKey,
-          imageUrl,
-          env.get('SCREENSHOT_CACHE_TTL', 3600)
-        )
+        await cacheService.set(cacheKey, imageUrl, env.get('SCREENSHOT_CACHE_TTL', 3600))
       }
 
       await job.updateProgress(100)
@@ -254,15 +250,15 @@ export class ScreenshotQueueWorker {
 }
 
 // Factory function to create a ScreenshotQueueWorker instance
-let singletonInstance: ScreenshotQueueWorker | null = null;
+let singletonInstance: ScreenshotQueueWorker | null = null
 
 export function getScreenshotQueueWorker(): ScreenshotQueueWorker {
   if (!singletonInstance) {
-    singletonInstance = new ScreenshotQueueWorker();
+    singletonInstance = new ScreenshotQueueWorker()
   }
-  return singletonInstance;
+  return singletonInstance
 }
 
 export function resetScreenshotQueueWorker(): void {
-  singletonInstance = null;
+  singletonInstance = null
 }

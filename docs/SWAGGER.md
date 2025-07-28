@@ -15,13 +15,17 @@ The Web2Img API now includes comprehensive OpenAPI 3.0 documentation with an int
 ## Accessing the Documentation
 
 ### Swagger UI Interface
+
 The interactive documentation is available at:
+
 ```
 http://localhost:3333/docs
 ```
 
 ### OpenAPI JSON Specification
+
 The raw OpenAPI specification can be accessed at:
+
 ```
 http://localhost:3333/docs/openapi.json
 ```
@@ -29,12 +33,14 @@ http://localhost:3333/docs/openapi.json
 ## Features
 
 ### 🎯 Comprehensive API Coverage
+
 - **Screenshots API**: Single screenshot capture with customizable options
 - **Batch Processing**: Multi-URL batch screenshot jobs with webhooks
 - **Health Monitoring**: System health checks and metrics
 - **Authentication**: API key authentication documentation
 
 ### 📚 Rich Documentation
+
 - Detailed parameter descriptions
 - Request/response examples
 - Error code documentation
@@ -42,12 +48,14 @@ http://localhost:3333/docs/openapi.json
 - Authentication requirements
 
 ### 🔧 Interactive Testing
+
 - Try out API endpoints directly from the browser
 - Authentication support (API key input)
 - Real-time request/response viewing
 - Parameter validation
 
 ### 📊 Schema Definitions
+
 - Complete data models for all request/response types
 - Validation rules and constraints
 - Example values for all parameters
@@ -56,6 +64,7 @@ http://localhost:3333/docs/openapi.json
 ## API Endpoints Documented
 
 ### Screenshots
+
 - `POST /screenshot` - Capture single website screenshot
   - Support for PNG, JPEG, WebP formats
   - Custom viewport dimensions
@@ -63,6 +72,7 @@ http://localhost:3333/docs/openapi.json
   - Caching and performance options
 
 ### Batch Processing
+
 - `POST /batch/screenshots` - Create batch screenshot job
   - Process up to 100 URLs
   - Configurable concurrency
@@ -75,6 +85,7 @@ http://localhost:3333/docs/openapi.json
   - Error reporting for failed captures
 
 ### Health & Monitoring
+
 - `GET /health` - Basic system health
 - `GET /health/detailed` - Component-level health details
 - `GET /metrics/*` - Various metrics endpoints
@@ -82,18 +93,22 @@ http://localhost:3333/docs/openapi.json
 ## Implementation Details
 
 ### Technology Stack
+
 - **OpenAPI 3.0** specification
 - **Swagger UI 5.9.0** for interactive interface
 - **AdonisJS** inline route handlers for simplicity
 - **JSON Schema** for data validation
 
 ### Security Documentation
+
 - API key authentication (`X-API-Key` header)
 - Rate limiting information
 - Error response formats
 
 ### Response Examples
+
 Each endpoint includes comprehensive examples:
+
 - Success responses with sample data
 - Error responses with proper error codes
 - Rate limiting headers
@@ -102,6 +117,7 @@ Each endpoint includes comprehensive examples:
 ## Development
 
 ### Adding New Endpoints
+
 To document new API endpoints:
 
 1. Add the endpoint definition to the OpenAPI paths object in `/start/routes.ts`
@@ -110,13 +126,16 @@ To document new API endpoints:
 4. Update security requirements if needed
 
 ### Schema Updates
+
 Update the OpenAPI schema when:
+
 - Adding new request parameters
 - Changing response formats
 - Adding new error codes
 - Updating validation rules
 
 ### Best Practices
+
 - Use descriptive summaries and descriptions
 - Include realistic examples
 - Document all error conditions
@@ -135,13 +154,17 @@ The Swagger UI provides built-in testing capabilities:
 ## Configuration
 
 ### Environment Variables
+
 The documentation adapts to your environment:
+
 - Server URLs (development vs production)
 - API base paths
 - Contact information
 
 ### Customization
+
 The Swagger UI can be customized by modifying:
+
 - CSS styles in the HTML template
 - Swagger UI options and plugins
 - Theme and branding elements
@@ -158,18 +181,21 @@ For production deployment:
 ## Benefits
 
 ### For Developers
+
 - **Faster Integration**: Complete API reference in one place
 - **Interactive Testing**: Test endpoints without writing code
 - **Error Debugging**: Clear error messages and status codes
 - **Type Safety**: Schema definitions for request validation
 
 ### For API Consumers
+
 - **Self-Service**: Comprehensive documentation without support tickets
 - **Code Generation**: OpenAPI spec supports client library generation
 - **Validation**: Clear parameter requirements and constraints
 - **Examples**: Real-world usage patterns and sample requests
 
 ### For Maintenance
+
 - **Living Documentation**: Stays in sync with actual API implementation
 - **Version Control**: Documentation changes tracked with code changes
 - **Consistency**: Standardized documentation format
@@ -191,16 +217,19 @@ Potential improvements for the documentation:
 ### Common Issues
 
 **Documentation not loading:**
+
 - Check that the server is running on the correct port
 - Verify the `/docs` route is accessible
 - Check browser console for JavaScript errors
 
 **API key authentication not working:**
+
 - Ensure you're using a valid API key
 - Check the `X-API-Key` header format
 - Verify the API key has the correct permissions
 
 **Examples not matching actual responses:**
+
 - Documentation may need updating after API changes
 - Check the actual API implementation for discrepancies
 - Report inconsistencies for documentation updates
@@ -208,6 +237,7 @@ Potential improvements for the documentation:
 ## Support
 
 For questions or issues with the API documentation:
+
 - Review the interactive examples in Swagger UI
 - Check the health endpoints for system status
 - Refer to the error code documentation for troubleshooting

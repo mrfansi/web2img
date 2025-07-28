@@ -16,7 +16,7 @@ import {
   CacheErrorException,
   QueueErrorException,
   BrowserErrorException,
-  ImgProxyErrorException
+  ImgProxyErrorException,
 } from '#exceptions/screenshot_exceptions'
 
 test.group('Screenshot Exceptions', () => {
@@ -254,7 +254,7 @@ test.group('Screenshot Exceptions', () => {
     const additionalContext = {
       userId: 123,
       batchId: 'batch-456',
-      timestamp: new Date()
+      timestamp: new Date(),
     }
     const exception = new InvalidUrlException(url, additionalContext)
 

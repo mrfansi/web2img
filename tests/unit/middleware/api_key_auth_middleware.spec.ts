@@ -23,8 +23,8 @@ test.group('API Key Auth Middleware', () => {
     assert.deepEqual(responseBody, {
       detail: {
         error: 'missing_api_key',
-        message: 'X-API-Key header is required'
-      }
+        message: 'X-API-Key header is required',
+      },
     })
   })
 
@@ -55,8 +55,8 @@ test.group('API Key Auth Middleware', () => {
     assert.deepEqual(responseBody, {
       detail: {
         error: 'invalid_api_key',
-        message: 'Invalid or inactive API key'
-      }
+        message: 'Invalid or inactive API key',
+      },
     })
   })
 

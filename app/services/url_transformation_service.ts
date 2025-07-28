@@ -88,7 +88,7 @@ export class UrlTransformationService {
 
       // Remove potentially dangerous query parameters
       const dangerousParams = ['javascript', 'script', 'eval', 'onload', 'onerror']
-      dangerousParams.forEach(param => {
+      dangerousParams.forEach((param) => {
         parsedUrl.searchParams.delete(param)
       })
 
@@ -121,7 +121,7 @@ export class UrlTransformationService {
       /eval\(/i,
     ]
 
-    return suspiciousPatterns.some(pattern => pattern.test(url))
+    return suspiciousPatterns.some((pattern) => pattern.test(url))
   }
 
   /**
@@ -151,7 +151,7 @@ export class UrlTransformationService {
         if (hostname.includes(domain)) {
           const beforeTransform = transformedUrl
           transformedUrl = transformFn(transformedUrl)
-          
+
           if (beforeTransform !== transformedUrl) {
             wasTransformed = true
             transformationType = domain
@@ -224,7 +224,10 @@ export class UrlTransformationService {
   /**
    * Get the cache key for a URL (uses original URL for consistency)
    */
-  getCacheKey(originalUrl: string, options: { width: number; height: number; format: string }): string {
+  getCacheKey(
+    originalUrl: string,
+    options: { width: number; height: number; format: string }
+  ): string {
     // Use original URL for cache key to ensure consistency
     const baseKey = Buffer.from(originalUrl).toString('base64').replace(/[+/=]/g, '')
     return `screenshot:${baseKey}:${options.width}x${options.height}:${options.format}`
@@ -259,7 +262,10 @@ export class UrlTransformationService {
   /**
    * Process URL with full transformation pipeline
    */
-  async processUrl(url: string, followRedirects: boolean = true): Promise<{
+  async processUrl(
+    url: string,
+    followRedirects: boolean = true
+  ): Promise<{
     original: string
     transformed: string
     final: string

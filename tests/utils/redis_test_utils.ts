@@ -3,7 +3,7 @@ import { getCentralRedisManager } from '#services/central_redis_manager'
 /**
  * Adds Redis connection leak detection to a test group
  * This should be called in each test group teardown that uses Redis connections
- * 
+ *
  * Usage:
  * ```typescript
  * test.group('My Tests', (group) => {
@@ -19,7 +19,10 @@ export async function addRedisLeakDetection(assert?: any): Promise<void> {
 
   if (openConnectionsCount > 0) {
     const connectionInfo = redisManager.getOpenConnectionsInfo()
-    console.warn(`Redis connection leak detected! ${openConnectionsCount} connections still open:`, connectionInfo)
+    console.warn(
+      `Redis connection leak detected! ${openConnectionsCount} connections still open:`,
+      connectionInfo
+    )
 
     // Force cleanup of leaked connections to prevent affecting other tests
     await redisManager.shutdown()
@@ -32,7 +35,9 @@ export async function addRedisLeakDetection(assert?: any): Promise<void> {
         `Redis connection leak detected: ${openConnectionsCount} connections were not properly closed. This indicates a resource leak that could cause issues in production.`
       )
     } else {
-      throw new Error(`Redis connection leak detected: ${openConnectionsCount} connections were not properly closed.`)
+      throw new Error(
+        `Redis connection leak detected: ${openConnectionsCount} connections were not properly closed.`
+      )
     }
   }
 }

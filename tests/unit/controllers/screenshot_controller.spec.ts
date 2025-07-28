@@ -18,7 +18,7 @@ test.group('ScreenshotController - Single Screenshot', (group) => {
     // Mock cache service to return cached URL
     const mockCachedUrl = 'https://imgproxy.example.com/cached-screenshot.png'
     const mockExpirationTime = new Date(Date.now() + 3600000) // 1 hour from now
-    
+
     cacheService.get = async () => mockCachedUrl
     cacheService.generateCacheKey = () => 'test-cache-key'
     cacheService.getExpirationTime = async () => mockExpirationTime
@@ -33,8 +33,8 @@ test.group('ScreenshotController - Single Screenshot', (group) => {
           format: 'png',
           width: 1280,
           height: 720,
-          cache: true
-        })
+          cache: true,
+        }),
       },
       response: {
         status: (code: number) => {
@@ -44,8 +44,8 @@ test.group('ScreenshotController - Single Screenshot', (group) => {
         json: (data: any) => {
           responseBody = data
           return ctx.response
-        }
-      }
+        },
+      },
     }
 
     await controller.single(ctx as any)
@@ -76,7 +76,7 @@ test.group('ScreenshotController - Single Screenshot', (group) => {
       height: 720,
       processingTime: 1000,
       finalUrl: 'https://example.com',
-      wasTransformed: false
+      wasTransformed: false,
     }
 
     screenshotWorkerService.processScreenshotJob = async () => mockScreenshotResult
@@ -100,9 +100,9 @@ test.group('ScreenshotController - Single Screenshot', (group) => {
           format: 'png',
           width: 1280,
           height: 720,
-          cache: true
+          cache: true,
         }),
-        input: (key: string) => key === 'url' ? 'https://example.com' : undefined
+        input: (key: string) => (key === 'url' ? 'https://example.com' : undefined),
       },
       response: {
         status: (code: number) => {
@@ -112,8 +112,8 @@ test.group('ScreenshotController - Single Screenshot', (group) => {
         json: (data: any) => {
           responseBody = data
           return ctx.response
-        }
-      }
+        },
+      },
     }
 
     await controller.single(ctx as any)
@@ -142,8 +142,8 @@ test.group('ScreenshotController - Single Screenshot', (group) => {
           format: 'png',
           width: 1280,
           height: 720,
-          cache: true
-        })
+          cache: true,
+        }),
       },
       response: {
         status: (code: number) => {
@@ -153,8 +153,8 @@ test.group('ScreenshotController - Single Screenshot', (group) => {
         json: (data: any) => {
           responseBody = data
           return ctx.response
-        }
-      }
+        },
+      },
     }
 
     await controller.single(ctx as any)
@@ -171,9 +171,9 @@ test.group('ScreenshotController - Single Screenshot', (group) => {
       request: {
         all: () => ({
           url: 'invalid-url',
-          format: 'invalid-format'
+          format: 'invalid-format',
         }),
-        input: (key: string) => key === 'url' ? 'invalid-url' : undefined
+        input: (key: string) => (key === 'url' ? 'invalid-url' : undefined),
       },
       response: {
         status: (code: number) => {
@@ -183,8 +183,8 @@ test.group('ScreenshotController - Single Screenshot', (group) => {
         json: (data: any) => {
           responseBody = data
           return ctx.response
-        }
-      }
+        },
+      },
     }
 
     await controller.single(ctx as any)
@@ -214,9 +214,9 @@ test.group('ScreenshotController - Single Screenshot', (group) => {
           format: 'png',
           width: 1280,
           height: 720,
-          cache: true
+          cache: true,
         }),
-        input: (key: string) => key === 'url' ? 'https://slow-website.com' : undefined
+        input: (key: string) => (key === 'url' ? 'https://slow-website.com' : undefined),
       },
       response: {
         status: (code: number) => {
@@ -226,8 +226,8 @@ test.group('ScreenshotController - Single Screenshot', (group) => {
         json: (data: any) => {
           responseBody = data
           return ctx.response
-        }
-      }
+        },
+      },
     }
 
     await controller.single(ctx as any)
@@ -257,9 +257,9 @@ test.group('ScreenshotController - Single Screenshot', (group) => {
           format: 'png',
           width: 1280,
           height: 720,
-          cache: true
+          cache: true,
         }),
-        input: (key: string) => key === 'url' ? 'https://example.com/not-found' : undefined
+        input: (key: string) => (key === 'url' ? 'https://example.com/not-found' : undefined),
       },
       response: {
         status: (code: number) => {
@@ -269,8 +269,8 @@ test.group('ScreenshotController - Single Screenshot', (group) => {
         json: (data: any) => {
           responseBody = data
           return ctx.response
-        }
-      }
+        },
+      },
     }
 
     await controller.single(ctx as any)
@@ -293,7 +293,7 @@ test.group('ScreenshotController - Single Screenshot', (group) => {
       height: 720,
       processingTime: 1000,
       finalUrl: 'https://example.com',
-      wasTransformed: false
+      wasTransformed: false,
     }
 
     screenshotWorkerService.processScreenshotJob = async () => mockScreenshotResult
@@ -314,9 +314,9 @@ test.group('ScreenshotController - Single Screenshot', (group) => {
           format: 'png',
           width: 1280,
           height: 720,
-          cache: true
+          cache: true,
         }),
-        input: (key: string) => key === 'url' ? 'https://example.com' : undefined
+        input: (key: string) => (key === 'url' ? 'https://example.com' : undefined),
       },
       response: {
         status: (code: number) => {
@@ -326,8 +326,8 @@ test.group('ScreenshotController - Single Screenshot', (group) => {
         json: (data: any) => {
           responseBody = data
           return ctx.response
-        }
-      }
+        },
+      },
     }
 
     await controller.single(ctx as any)
@@ -354,7 +354,7 @@ test.group('ScreenshotController - Single Screenshot', (group) => {
         height: 720,
         processingTime: 1000,
         finalUrl: 'https://example.com',
-        wasTransformed: false
+        wasTransformed: false,
       }
     }
 
@@ -367,10 +367,10 @@ test.group('ScreenshotController - Single Screenshot', (group) => {
     const ctx = {
       request: {
         all: () => ({
-          url: 'https://example.com'
+          url: 'https://example.com',
           // No format, width, height, timeout, or cache specified
         }),
-        input: (key: string) => key === 'url' ? 'https://example.com' : undefined
+        input: (key: string) => (key === 'url' ? 'https://example.com' : undefined),
       },
       response: {
         status: (code: number) => {
@@ -379,8 +379,8 @@ test.group('ScreenshotController - Single Screenshot', (group) => {
         },
         json: (_data: any) => {
           return ctx.response
-        }
-      }
+        },
+      },
     }
 
     await controller.single(ctx as any)
@@ -415,7 +415,7 @@ test.group('ScreenshotController - Single Screenshot', (group) => {
       height: 720,
       processingTime: 1000,
       finalUrl: 'https://example.com',
-      wasTransformed: false
+      wasTransformed: false,
     })
 
     fileStorageService.saveFile = async () => 'screenshots/2025/01/26/test.png'
@@ -429,9 +429,9 @@ test.group('ScreenshotController - Single Screenshot', (group) => {
       request: {
         all: () => ({
           url: 'https://example.com',
-          cache: false
+          cache: false,
         }),
-        input: (key: string) => key === 'url' ? 'https://example.com' : undefined
+        input: (key: string) => (key === 'url' ? 'https://example.com' : undefined),
       },
       response: {
         status: (code: number) => {
@@ -441,8 +441,8 @@ test.group('ScreenshotController - Single Screenshot', (group) => {
         json: (data: any) => {
           responseBody = data
           return ctx.response
-        }
-      }
+        },
+      },
     }
 
     await controller.single(ctx as any)
@@ -477,13 +477,13 @@ test.group('ScreenshotController - Batch Screenshots', (group) => {
       scheduledAt: null,
       completedAt: null,
       estimatedCompletion: null,
-      save: async () => {}
+      save: async () => {},
     }
 
     BatchJob.createBatchJob = async () => mockBatchJob as any
 
     // Mock queue service
-    queueService.addBatchJob = async () => ({ id: 'queue-job-123' } as any)
+    queueService.addBatchJob = async () => ({ id: 'queue-job-123' }) as any
 
     let responseStatus = 200
     let responseBody: any = null
@@ -493,14 +493,14 @@ test.group('ScreenshotController - Batch Screenshots', (group) => {
         all: () => ({
           items: [
             { id: 'item1', url: 'https://example.com' },
-            { id: 'item2', url: 'https://google.com' }
+            { id: 'item2', url: 'https://google.com' },
           ],
           config: {
             parallel: 5,
             timeout: 60000,
-            cache: true
-          }
-        })
+            cache: true,
+          },
+        }),
       },
       response: {
         status: (code: number) => {
@@ -510,8 +510,8 @@ test.group('ScreenshotController - Batch Screenshots', (group) => {
         json: (data: any) => {
           responseBody = data
           return ctx.response
-        }
-      }
+        },
+      },
     }
 
     await controller.createBatch(ctx as any)
@@ -538,13 +538,13 @@ test.group('ScreenshotController - Batch Screenshots', (group) => {
       scheduledAt: { toISO: () => '2025-01-26T12:00:00.000Z' },
       completedAt: null,
       estimatedCompletion: null,
-      save: async () => {}
+      save: async () => {},
     }
 
     BatchJob.createBatchJob = async () => mockBatchJob as any
 
     // Mock queue service
-    queueService.scheduleJob = async () => ({ id: 'scheduled-job-124' } as any)
+    queueService.scheduleJob = async () => ({ id: 'scheduled-job-124' }) as any
 
     let responseStatus = 200
     let responseBody: any = null
@@ -552,13 +552,11 @@ test.group('ScreenshotController - Batch Screenshots', (group) => {
     const ctx = {
       request: {
         all: () => ({
-          items: [
-            { id: 'item1', url: 'https://example.com' }
-          ],
+          items: [{ id: 'item1', url: 'https://example.com' }],
           config: {
-            scheduled_time: '2025-01-26T12:00:00.000Z'
-          }
-        })
+            scheduled_time: '2025-01-26T12:00:00.000Z',
+          },
+        }),
       },
       response: {
         status: (code: number) => {
@@ -568,8 +566,8 @@ test.group('ScreenshotController - Batch Screenshots', (group) => {
         json: (data: any) => {
           responseBody = data
           return ctx.response
-        }
-      }
+        },
+      },
     }
 
     await controller.createBatch(ctx as any)
@@ -587,13 +585,11 @@ test.group('ScreenshotController - Batch Screenshots', (group) => {
     const ctx = {
       request: {
         all: () => ({
-          items: [
-            { id: 'item1', url: 'https://example.com' }
-          ],
+          items: [{ id: 'item1', url: 'https://example.com' }],
           config: {
-            scheduled_time: 'invalid-date'
-          }
-        })
+            scheduled_time: 'invalid-date',
+          },
+        }),
       },
       response: {
         status: (code: number) => {
@@ -603,8 +599,8 @@ test.group('ScreenshotController - Batch Screenshots', (group) => {
         json: (data: any) => {
           responseBody = data
           return ctx.response
-        }
-      }
+        },
+      },
     }
 
     await controller.createBatch(ctx as any)
@@ -621,8 +617,8 @@ test.group('ScreenshotController - Batch Screenshots', (group) => {
       request: {
         all: () => ({
           items: [], // Empty items array should fail validation
-          config: {}
-        })
+          config: {},
+        }),
       },
       response: {
         status: (code: number) => {
@@ -632,8 +628,8 @@ test.group('ScreenshotController - Batch Screenshots', (group) => {
         json: (data: any) => {
           responseBody = data
           return ctx.response
-        }
-      }
+        },
+      },
     }
 
     await controller.createBatch(ctx as any)
@@ -661,12 +657,12 @@ test.group('ScreenshotController - Batch Screenshots', (group) => {
       results: [
         { itemId: 'item1', status: 'success', url: 'https://imgproxy.example.com/item1.png' },
         { itemId: 'item2', status: 'processing' },
-        { itemId: 'item3', status: 'pending' }
+        { itemId: 'item3', status: 'pending' },
       ],
       successfulResults: [
-        { itemId: 'item1', status: 'success', url: 'https://imgproxy.example.com/item1.png' }
+        { itemId: 'item1', status: 'success', url: 'https://imgproxy.example.com/item1.png' },
       ],
-      failedResults: []
+      failedResults: [],
     }
 
     BatchJob.find = async () => mockBatchJob as any
@@ -676,7 +672,7 @@ test.group('ScreenshotController - Batch Screenshots', (group) => {
 
     const ctx = {
       params: {
-        job_id: '123'
+        job_id: '123',
       },
       response: {
         status: (code: number) => {
@@ -686,8 +682,8 @@ test.group('ScreenshotController - Batch Screenshots', (group) => {
         json: (data: any) => {
           responseBody = data
           return ctx.response
-        }
-      }
+        },
+      },
     }
 
     await controller.getBatchStatus(ctx as any)
@@ -720,15 +716,15 @@ test.group('ScreenshotController - Batch Screenshots', (group) => {
       completedAt: null,
       estimatedCompletion: null,
       nextScheduledTime: { toISO: () => '2025-01-27T12:00:00.000Z' },
-      config: { 
-        parallel: 3, 
+      config: {
+        parallel: 3,
         timeout: 30000,
         recurrence: 'daily',
-        recurrence_interval: 1
+        recurrence_interval: 1,
       },
       results: [],
       successfulResults: [],
-      failedResults: []
+      failedResults: [],
     }
 
     BatchJob.find = async () => mockBatchJob as any
@@ -738,7 +734,7 @@ test.group('ScreenshotController - Batch Screenshots', (group) => {
 
     const ctx = {
       params: {
-        job_id: '124'
+        job_id: '124',
       },
       response: {
         status: (code: number) => {
@@ -748,8 +744,8 @@ test.group('ScreenshotController - Batch Screenshots', (group) => {
         json: (data: any) => {
           responseBody = data
           return ctx.response
-        }
-      }
+        },
+      },
     }
 
     await controller.getBatchStatus(ctx as any)
@@ -771,7 +767,7 @@ test.group('ScreenshotController - Batch Screenshots', (group) => {
 
     const ctx = {
       params: {
-        job_id: '999'
+        job_id: '999',
       },
       response: {
         status: (code: number) => {
@@ -781,8 +777,8 @@ test.group('ScreenshotController - Batch Screenshots', (group) => {
         json: (data: any) => {
           responseBody = data
           return ctx.response
-        }
-      }
+        },
+      },
     }
 
     await controller.getBatchStatus(ctx as any)
@@ -805,8 +801,8 @@ test.group('ScreenshotController - Batch Screenshots', (group) => {
         json: (data: any) => {
           responseBody = data
           return ctx.response
-        }
-      }
+        },
+      },
     }
 
     await controller.getBatchStatus(ctx as any)
@@ -826,7 +822,7 @@ test.group('ScreenshotController - Batch Screenshots', (group) => {
 
     const ctx = {
       params: {
-        job_id: '123'
+        job_id: '123',
       },
       response: {
         status: (code: number) => {
@@ -836,8 +832,8 @@ test.group('ScreenshotController - Batch Screenshots', (group) => {
         json: (data: any) => {
           responseBody = data
           return ctx.response
-        }
-      }
+        },
+      },
     }
 
     await controller.getBatchStatus(ctx as any)

@@ -52,20 +52,20 @@
   - Include results array with {id, status, url, error, cached} objects
   - _Requirements: 8.1, 8.2, 8.3, 8.4, 8.5, 8.6_
 
-- [ ] 3. Implement cache management endpoints matching Postman collection
-- [ ] 3.1 Create cache statistics endpoint
+- [x] 3. Implement cache management endpoints matching Postman collection
+- [x] 3.1 Create cache statistics endpoint
   - Implement GET /cache/stats endpoint returning {enabled, size, max_size, ttl, hits, misses, hit_rate, cleanup_interval}
   - Extend cache service to track hit/miss statistics
   - Calculate hit_rate as ratio of hits to total requests
   - _Requirements: 10.1, 10.2, 10.3, 10.4, 10.5_
 
-- [ ] 3.2 Implement cache clearing endpoint
+- [x] 3.2 Implement cache clearing endpoint
   - Create DELETE /cache endpoint (no request/response body)
   - Return 204 No Content status on successful cache clear
   - Use existing cache service flush functionality
   - _Requirements: 9.1, 9.2, 9.3, 9.4, 9.5_
 
-- [ ] 3.3 Implement URL-specific cache invalidation endpoint
+- [x] 3.3 Implement URL-specific cache invalidation endpoint
   - Create DELETE /cache/url endpoint with ?url=<url> query parameter
   - Return {invalidated: number} response format matching Postman collection
   - Validate URL parameter and return 422 for validation errors

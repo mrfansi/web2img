@@ -1,6 +1,7 @@
 # Project Structure
 
 ## Root Directory
+
 ```
 ├── app/                    # Application source code
 ├── bin/                    # Executable scripts
@@ -17,6 +18,7 @@
 ```
 
 ## App Directory Structure
+
 ```
 app/
 ├── controllers/            # HTTP request handlers
@@ -33,44 +35,52 @@ app/
 ## Key Directories
 
 ### Controllers (`app/controllers/`)
+
 - HTTP request handlers following AdonisJS conventions
 - Each controller handles related endpoints
 - Use dependency injection for services
 - Examples: `screenshot_controller.ts`, `dashboard_controller.ts`
 
 ### Services (`app/services/`)
+
 - Business logic and external service integrations
 - Singleton pattern for shared services
 - Key services: `browser_service.ts`, `cache_service.ts`, `central_redis_manager.ts`
 - Worker services for background processing
 
 ### Models (`app/models/`)
+
 - Lucid ORM models representing database entities
 - Follow AdonisJS model conventions
 - Examples: `user.ts`, `api_key.ts`, `batch_job.ts`
 
 ### Middleware (`app/middleware/`)
+
 - HTTP middleware for cross-cutting concerns
 - Authentication, rate limiting, logging, metrics
 - Applied via `start/kernel.ts`
 
 ### Types (`app/types/`)
+
 - TypeScript type definitions
 - API response types, service interfaces
 - Shared across the application
 
 ## Configuration (`config/`)
+
 - Environment-specific configuration
 - Database, Redis, authentication, CORS settings
 - Imported using AdonisJS config service
 
 ## Database (`database/`)
+
 ```
 database/
 └── migrations/             # Database schema migrations
 ```
 
 ## Tests (`tests/`)
+
 ```
 tests/
 ├── bootstrap.ts            # Test configuration and setup
@@ -86,6 +96,7 @@ tests/
 ```
 
 ## Resources (`resources/`)
+
 ```
 resources/
 └── views/                  # Edge.js templates
@@ -95,6 +106,7 @@ resources/
 ```
 
 ## Storage (`storage/`)
+
 ```
 storage/
 └── screenshots/            # Screenshot file storage
@@ -104,6 +116,7 @@ storage/
 ```
 
 ## Start (`start/`)
+
 - `routes.ts`: Route definitions
 - `kernel.ts`: Middleware registration
 - `env.ts`: Environment validation
@@ -111,21 +124,25 @@ storage/
 ## Naming Conventions
 
 ### Files
+
 - **snake_case** for all TypeScript files
 - **PascalCase** for class names
 - **camelCase** for methods and variables
 
 ### Imports
+
 - Use path aliases (`#controllers/*`, `#services/*`, etc.)
 - Import from `.js` extensions (AdonisJS requirement)
 - Services imported as singletons where applicable
 
 ### Database
+
 - **snake_case** for table and column names
 - **PascalCase** for model class names
 - Migration files include timestamp prefix
 
 ### Tests
+
 - Test files end with `.spec.ts`
 - Organized by component type (unit/integration/performance)
 - Use descriptive test group and case names

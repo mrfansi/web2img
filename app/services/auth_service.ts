@@ -13,9 +13,9 @@ export class AuthService {
     try {
       const user = await User.verifyCredentials(credentials.email, credentials.password)
       const token = await User.accessTokens.create(user)
-      
+
       logger.info(`User authenticated successfully: ${user.email}`)
-      
+
       return { user, token }
     } catch (error) {
       logger.warn(`Authentication failed for email: ${credentials.email}`)
@@ -31,7 +31,7 @@ export class AuthService {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax' as const,
-      maxAge: 24 * 60 * 60 * 1000 // 24 hours
+      maxAge: 24 * 60 * 60 * 1000, // 24 hours
     }
   }
 

@@ -87,5 +87,5 @@ export default await Env.create(new URL('../', import.meta.url), {
   |----------------------------------------------------------
   */
   BROWSER_HEADLESS: Env.schema.boolean(),
-  BROWSER_TIMEOUT: Env.schema.number()
+  BROWSER_TIMEOUT: Env.schema.number(),
 })

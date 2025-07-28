@@ -1,11 +1,11 @@
 import { HttpContext } from '@adonisjs/core/http'
 import logger from '@adonisjs/core/services/logger'
-import { 
-  ApiResponse, 
-  ApiSuccessResponse, 
-  ApiErrorResponse, 
-  ErrorCodes, 
-  ErrorMessages 
+import {
+  ApiResponse,
+  ApiSuccessResponse,
+  ApiErrorResponse,
+  ErrorCodes,
+  ErrorMessages,
 } from '#types/api_responses'
 
 /**
@@ -19,7 +19,7 @@ export default abstract class BaseController {
     return {
       success: true,
       data,
-      ...(message && { message })
+      ...(message && { message }),
     }
   }
 
@@ -36,10 +36,10 @@ export default abstract class BaseController {
         detail: {
           error: errorCode,
           message: customMessage || ErrorMessages[errorCode],
-          code: errorCode
-        }
+          code: errorCode,
+        },
       },
-      statusCode
+      statusCode,
     }
   }
 
@@ -56,7 +56,7 @@ export default abstract class BaseController {
       return this.success(result)
     } catch (error) {
       logger.error(`${context} failed:`, error)
-      
+
       // Handle specific error types
       if (error.code === 'E_ROW_NOT_FOUND') {
         const { response: errorResponse, statusCode } = this.error(
@@ -102,13 +102,13 @@ export default abstract class BaseController {
       return { data: data as T, error: null }
     } catch (error) {
       logger.warn('Validation failed:', error.messages || error.message)
-      
+
       const { response: errorResponse, statusCode } = this.error(
         ErrorCodes.VALIDATION_ERROR,
         error.messages ? Object.values(error.messages).flat().join(', ') : error.message,
         422
       )
-      
+
       response.status(statusCode)
       return { data: null, error: errorResponse }
     }
@@ -123,13 +123,13 @@ export default abstract class BaseController {
     response: HttpContext['response']
   ): ApiErrorResponse {
     logger.error(`${context}:`, error)
-    
+
     const { response: errorResponse, statusCode } = this.error(
       ErrorCodes.INTERNAL_ERROR,
       undefined,
       500
     )
-    
+
     response.status(statusCode)
     return errorResponse
   }

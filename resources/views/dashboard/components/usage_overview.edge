@@ -1,51 +1,89 @@
 <!-- API Usage Overview -->
 <div class="bg-white overflow-hidden shadow rounded-lg mb-6">
-    <div class="px-4 py-5 sm:p-6">
-        <div class="flex justify-between items-center mb-4">
-            <h3 class="text-lg leading-6 font-medium text-gray-900">API Usage Overview</h3>
-            <select id="usage-timeframe" class="border border-gray-300 rounded-md px-3 py-1 text-sm">
-                <option value="hour">Last Hour</option>
-                <option value="day" selected>Last 24 Hours</option>
-                <option value="week">Last Week</option>
-            </select>
-        </div>
-        
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-            <div class="text-center">
-                <div class="text-2xl font-bold text-gray-900" id="usage-total-requests">-</div>
-                <p class="text-sm text-gray-500">Total Requests</p>
-            </div>
-            <div class="text-center">
-                <div class="text-2xl font-bold text-gray-900" id="usage-total-errors">-</div>
-                <p class="text-sm text-gray-500">Total Errors</p>
-            </div>
-            <div class="text-center">
-                <div class="text-2xl font-bold text-gray-900" id="usage-error-rate">-</div>
-                <p class="text-sm text-gray-500">Error Rate (%)</p>
-            </div>
-            <div class="text-center">
-                <div class="text-2xl font-bold text-gray-900" id="usage-avg-response">-</div>
-                <p class="text-sm text-gray-500">Avg Response (ms)</p>
-            </div>
-        </div>
-
-        <div class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-gray-200">
-                <thead class="bg-gray-50">
-                    <tr>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">API Key</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Requests</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Errors</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Error Rate</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Avg Response</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                    </tr>
-                </thead>
-                <tbody id="usage-table" class="bg-white divide-y divide-gray-200">
-                    <!-- Usage data will be loaded here -->
-                </tbody>
-            </table>
-        </div>
+  <div class="px-4 py-5 sm:p-6">
+    <div class="flex justify-between items-center mb-4">
+      <h3 class="text-lg leading-6 font-medium text-gray-900">
+        API Usage Overview
+      </h3>
+      <select id="usage-timeframe" class="border border-gray-300 rounded-md px-3 py-1 text-sm">
+        <option value="hour">
+          Last Hour
+        </option>
+        <option value="day" selected>
+          Last 24 Hours
+        </option>
+        <option value="week">
+          Last Week
+        </option>
+      </select>
     </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+      <div class="text-center">
+        <div class="text-2xl font-bold text-gray-900" id="usage-total-requests">
+          -
+        </div>
+        <p class="text-sm text-gray-500">
+          Total Requests
+        </p>
+      </div>
+      <div class="text-center">
+        <div class="text-2xl font-bold text-gray-900" id="usage-total-errors">
+          -
+        </div>
+        <p class="text-sm text-gray-500">
+          Total Errors
+        </p>
+      </div>
+      <div class="text-center">
+        <div class="text-2xl font-bold text-gray-900" id="usage-error-rate">
+          -
+        </div>
+        <p class="text-sm text-gray-500">
+          Error Rate (%)
+        </p>
+      </div>
+      <div class="text-center">
+        <div class="text-2xl font-bold text-gray-900" id="usage-avg-response">
+          -
+        </div>
+        <p class="text-sm text-gray-500">
+          Avg Response (ms)
+        </p>
+      </div>
+    </div>
+
+    <div class="overflow-x-auto">
+      <table class="min-w-full divide-y divide-gray-200">
+        <thead class="bg-gray-50">
+          <tr>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              API Key
+            </th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              User
+            </th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              Requests
+            </th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              Errors
+            </th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              Error Rate
+            </th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              Avg Response
+            </th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              Actions
+            </th>
+          </tr>
+        </thead>
+        <tbody id="usage-table" class="bg-white divide-y divide-gray-200">
+          <!-- Usage data will be loaded here -->
+        </tbody>
+      </table>
+    </div>
+  </div>
 </div>

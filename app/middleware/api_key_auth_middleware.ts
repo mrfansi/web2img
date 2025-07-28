@@ -9,28 +9,28 @@ import ApiKey from '#models/api_key'
 export default class ApiKeyAuthMiddleware {
   async handle(ctx: HttpContext, next: NextFn) {
     const { request, response } = ctx
-    
+
     // Extract API key from X-API-Key header
     const apiKeyHeader = request.header('X-API-Key')
-    
+
     if (!apiKeyHeader) {
       return response.status(401).json({
         detail: {
           error: 'missing_api_key',
-          message: 'X-API-Key header is required'
-        }
+          message: 'X-API-Key header is required',
+        },
       })
     }
 
     // Validate API key against database
     const apiKey = await ApiKey.findByKey(apiKeyHeader)
-    
+
     if (!apiKey) {
       return response.status(401).json({
         detail: {
           error: 'invalid_api_key',
-          message: 'Invalid or inactive API key'
-        }
+          message: 'Invalid or inactive API key',
+        },
       })
     }
 

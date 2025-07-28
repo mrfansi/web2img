@@ -8,12 +8,7 @@ export abstract class ScreenshotException extends Exception {
   public code: ErrorCode
   public context?: Record<string, any>
 
-  constructor(
-    message: string,
-    code: ErrorCode,
-    statusCode: number,
-    context?: Record<string, any>
-  ) {
+  constructor(message: string, code: ErrorCode, statusCode: number, context?: Record<string, any>) {
     super(message, { status: statusCode, code: code })
     this.code = code
     this.context = context
@@ -28,8 +23,8 @@ export abstract class ScreenshotException extends Exception {
         error: this.code,
         message: this.message,
         retry_after: retryAfter,
-        context: this.context
-      }
+        context: this.context,
+      },
     }
   }
 }
@@ -39,12 +34,7 @@ export abstract class ScreenshotException extends Exception {
  */
 export class InvalidUrlException extends ScreenshotException {
   constructor(url: string, context?: Record<string, any>) {
-    super(
-      `Invalid or malformed URL: ${url}`,
-      ErrorCode.INVALID_URL,
-      400,
-      { url, ...context }
-    )
+    super(`Invalid or malformed URL: ${url}`, ErrorCode.INVALID_URL, 400, { url, ...context })
   }
 }
 
@@ -67,12 +57,11 @@ export class ScreenshotFailedException extends ScreenshotException {
  */
 export class TimeoutException extends ScreenshotException {
   constructor(url: string, timeout: number, context?: Record<string, any>) {
-    super(
-      `Request timed out after ${timeout}s for URL: ${url}`,
-      ErrorCode.TIMEOUT,
-      408,
-      { url, timeout, ...context }
-    )
+    super(`Request timed out after ${timeout}s for URL: ${url}`, ErrorCode.TIMEOUT, 408, {
+      url,
+      timeout,
+      ...context,
+    })
   }
 }
 
@@ -81,12 +70,7 @@ export class TimeoutException extends ScreenshotException {
  */
 export class RateLimitedException extends ScreenshotException {
   constructor(apiKey: string, retryAfter: number, context?: Record<string, any>) {
-    super(
-      'Rate limit exceeded',
-      ErrorCode.RATE_LIMITED,
-      429,
-      { apiKey, retryAfter, ...context }
-    )
+    super('Rate limit exceeded', ErrorCode.RATE_LIMITED, 429, { apiKey, retryAfter, ...context })
   }
 
   public getErrorResponse() {
@@ -187,12 +171,10 @@ export class InvalidDimensionsException extends ScreenshotException {
  */
 export class UnauthorizedException extends ScreenshotException {
   constructor(reason?: string, context?: Record<string, any>) {
-    super(
-      `Unauthorized${reason ? `: ${reason}` : ''}`,
-      ErrorCode.UNAUTHORIZED,
-      401,
-      { reason, ...context }
-    )
+    super(`Unauthorized${reason ? `: ${reason}` : ''}`, ErrorCode.UNAUTHORIZED, 401, {
+      reason,
+      ...context,
+    })
   }
 }
 
@@ -201,12 +183,10 @@ export class UnauthorizedException extends ScreenshotException {
  */
 export class InvalidApiKeyException extends ScreenshotException {
   constructor(apiKey?: string, context?: Record<string, any>) {
-    super(
-      'Invalid or expired API key',
-      ErrorCode.INVALID_API_KEY,
-      401,
-      { apiKey: apiKey ? `${apiKey.substring(0, 8)}...` : undefined, ...context }
-    )
+    super('Invalid or expired API key', ErrorCode.INVALID_API_KEY, 401, {
+      apiKey: apiKey ? `${apiKey.substring(0, 8)}...` : undefined,
+      ...context,
+    })
   }
 }
 

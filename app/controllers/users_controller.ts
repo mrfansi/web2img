@@ -6,7 +6,7 @@ import {
   GetUsersResponse,
   CreateUserResponse,
   DeleteUserResponse,
-  ErrorCodes
+  ErrorCodes,
 } from '#types/api_responses'
 
 /**
@@ -54,7 +54,6 @@ export default class UsersController extends BaseController {
   public async index(ctx: HttpContext): Promise<GetUsersResponse> {
     const page = ctx.request.input('page', 1)
     const limit = Math.min(ctx.request.input('limit', 50), 100) // Cap at 100
-
 
     return this.handleAsync(
       () => this.userService.getAllUsers({ page, limit }),
@@ -232,7 +231,7 @@ export default class UsersController extends BaseController {
       return {
         success: true,
         data: null,
-        message: 'User deleted successfully'
+        message: 'User deleted successfully',
       }
     }
 

@@ -11,7 +11,7 @@ export const singleScreenshotValidator = vine.compile(
     height: vine.number().min(1).max(5000).optional(),
     timeout: vine.number().min(5000).max(60000).optional(), // 5 seconds to 1 minute
     fullPage: vine.boolean().optional(),
-    cache: vine.boolean().optional()
+    cache: vine.boolean().optional(),
   })
 )
 
@@ -23,7 +23,7 @@ export const batchItemValidator = vine.object({
   url: vine.string().url().trim(),
   format: vine.enum(['png', 'jpeg', 'webp']).optional(),
   width: vine.number().min(1).max(5000).optional(),
-  height: vine.number().min(1).max(5000).optional()
+  height: vine.number().min(1).max(5000).optional(),
 })
 
 /**
@@ -42,7 +42,7 @@ export const batchConfigValidator = vine.object({
   recurrence_interval: vine.number().min(1).optional(),
   recurrence_count: vine.number().min(1).optional(),
   recurrence_cron: vine.string().optional(),
-  rate_limit: vine.number().min(1).optional()
+  rate_limit: vine.number().min(1).optional(),
 })
 
 /**
@@ -51,7 +51,7 @@ export const batchConfigValidator = vine.object({
 export const batchScreenshotValidator = vine.compile(
   vine.object({
     items: vine.array(batchItemValidator).minLength(1).maxLength(200),
-    config: batchConfigValidator.optional()
+    config: batchConfigValidator.optional(),
   })
 )
 
@@ -60,7 +60,16 @@ export const batchScreenshotValidator = vine.compile(
  */
 export const batchStatusValidator = vine.compile(
   vine.object({
-    job_id: vine.string().trim().minLength(1)
+    job_id: vine.string().trim().minLength(1),
+  })
+)
+
+/**
+ * Validation schema for cache URL invalidation request
+ */
+export const cacheUrlValidator = vine.compile(
+  vine.object({
+    url: vine.string().url().trim(),
   })
 )
 
@@ -107,7 +116,7 @@ export const validateScheduledTime = (data: any) => {
   if (data.config?.scheduled_time) {
     const scheduledTime = new Date(data.config.scheduled_time)
     const now = new Date()
-    
+
     if (scheduledTime <= now) {
       throw new Error('scheduled_time must be in the future')
     }
@@ -137,13 +146,13 @@ export const validateBatchDimensions = (data: any) => {
 export const validateBatchRequest = async (data: any) => {
   // First run the schema validation
   const validated = await batchScreenshotValidator.validate(data)
-  
+
   // Then run custom validations
   validateWebhookAuth(validated)
   validateRecurrence(validated)
   validateScheduledTime(validated)
   validateBatchDimensions(validated)
-  
+
   return validated
 }
 
@@ -152,7 +161,7 @@ export const validateBatchRequest = async (data: any) => {
  */
 export const validateSingleScreenshotRequest = async (data: any) => {
   const validated = await singleScreenshotValidator.validate(data)
-  
+
   // Additional validation for single requests
   if (validated.width && validated.height) {
     const pixels = validated.width * validated.height
@@ -161,6 +170,6 @@ export const validateSingleScreenshotRequest = async (data: any) => {
       throw new Error('dimensions too large (max 50 megapixels)')
     }
   }
-  
+
   return validated
 }

@@ -11,11 +11,11 @@ export default class RequestLoggingMiddleware {
   async handle(ctx: HttpContext, next: NextFn) {
     const { request, response } = ctx
     const startTime = Date.now()
-    
+
     // Generate correlation ID for request tracking
     const correlationId = randomUUID()
     ctx.correlationId = correlationId
-    
+
     // Log incoming request
     logger.info('Incoming API request', {
       correlationId,
@@ -23,16 +23,16 @@ export default class RequestLoggingMiddleware {
       url: request.url(),
       userAgent: request.header('user-agent'),
       ip: request.ip(),
-      apiKey: ctx.apiKey?.name || 'unknown'
+      apiKey: ctx.apiKey?.name || 'unknown',
     })
-    
+
     try {
       // Process request
       await next()
-      
+
       const processingTime = Date.now() - startTime
       const statusCode = response.getStatus()
-      
+
       // Log successful response
       logger.info('API request completed', {
         correlationId,
@@ -40,12 +40,11 @@ export default class RequestLoggingMiddleware {
         url: request.url(),
         statusCode,
         processingTime,
-        apiKey: ctx.apiKey?.name || 'unknown'
+        apiKey: ctx.apiKey?.name || 'unknown',
       })
-      
     } catch (error) {
       const processingTime = Date.now() - startTime
-      
+
       // Log error response
       logger.error('API request failed', {
         correlationId,
@@ -53,9 +52,9 @@ export default class RequestLoggingMiddleware {
         url: request.url(),
         error: error.message,
         processingTime,
-        apiKey: ctx.apiKey?.name || 'unknown'
+        apiKey: ctx.apiKey?.name || 'unknown',
       })
-      
+
       throw error
     }
   }

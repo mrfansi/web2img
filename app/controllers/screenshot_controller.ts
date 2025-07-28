@@ -1,6 +1,9 @@
 import type { HttpContext } from '@adonisjs/core/http'
 import logger from '@adonisjs/core/services/logger'
-import { validateSingleScreenshotRequest, validateBatchRequest } from '#validators/screenshot_validator'
+import {
+  validateSingleScreenshotRequest,
+  validateBatchRequest,
+} from '#validators/screenshot_validator'
 import cacheService from '#services/cache_service'
 import { screenshotWorkerService } from '#services/screenshot_worker_service'
 import fileStorageService from '#services/file_storage_service'
@@ -107,37 +110,37 @@ export default class ScreenshotController {
         height: validatedData.height || 720,
         timeout: validatedData.timeout || 30000,
         fullPage: validatedData.fullPage || false,
-        useCache: validatedData.cache !== false // Default to true unless explicitly false
+        useCache: validatedData.cache !== false, // Default to true unless explicitly false
       }
 
       logger.info('Processing single screenshot request', {
         url: validatedData.url,
-        options: screenshotOptions
+        options: screenshotOptions,
       })
 
       // Generate cache key
       const cacheKey = cacheService.generateCacheKey(validatedData.url, {
         format: screenshotOptions.format as 'png' | 'jpeg' | 'webp',
         width: screenshotOptions.width,
-        height: screenshotOptions.height
+        height: screenshotOptions.height,
       })
 
       // Check cache if enabled
       let cachedUrl: string | null = null
       let expiresAt: string | null = null
-      
+
       if (screenshotOptions.useCache) {
         cachedUrl = await cacheService.get(cacheKey)
         if (cachedUrl) {
           const expirationTime = await cacheService.getExpirationTime(cacheKey)
           expiresAt = expirationTime ? expirationTime.toISOString() : null
-          
+
           const processingTime = Date.now() - startTime
 
           logger.info('Returning cached screenshot', {
             url: validatedData.url,
             cacheKey: cacheKey.substring(0, 16) + '...',
-            processingTime
+            processingTime,
           })
 
           return response.json({
@@ -146,7 +149,7 @@ export default class ScreenshotController {
             cache_hit: true,
             processing_time_ms: processingTime,
             file_size_bytes: 0, // File size not available for cached results
-            expires_at: expiresAt
+            expires_at: expiresAt,
           })
         }
       }
@@ -156,8 +159,8 @@ export default class ScreenshotController {
         return response.status(429).json({
           detail: {
             error: 'processing_in_progress',
-            message: 'This URL is currently being processed. Please try again in a moment.'
-          }
+            message: 'This URL is currently being processed. Please try again in a moment.',
+          },
         })
       }
 
@@ -173,8 +176,8 @@ export default class ScreenshotController {
             width: screenshotOptions.width,
             height: screenshotOptions.height,
             timeout: screenshotOptions.timeout,
-            fullPage: screenshotOptions.fullPage
-          }
+            fullPage: screenshotOptions.fullPage,
+          },
         })
 
         // Calculate file size from buffer
@@ -195,7 +198,7 @@ export default class ScreenshotController {
         const finalUrl = imgProxyService.generateUrlWithFallback(directUrl, {
           format: screenshotOptions.format as 'png' | 'jpeg' | 'webp',
           width: screenshotOptions.width,
-          height: screenshotOptions.height
+          height: screenshotOptions.height,
         })
 
         // Cache the result if caching is enabled and calculate expiration
@@ -204,7 +207,7 @@ export default class ScreenshotController {
           await cacheService.set(cacheKey, finalUrl)
           // Calculate expiration time based on cache TTL
           const ttlSeconds = cacheService.getDefaultTtl()
-          const expirationTime = new Date(Date.now() + (ttlSeconds * 1000))
+          const expirationTime = new Date(Date.now() + ttlSeconds * 1000)
           expiresAt = expirationTime.toISOString()
         }
 
@@ -215,7 +218,7 @@ export default class ScreenshotController {
           finalUrl: finalUrl.substring(0, 100) + '...',
           processingTime,
           fileSizeBytes,
-          cached: false
+          cached: false,
         })
 
         return response.json({
@@ -224,21 +227,19 @@ export default class ScreenshotController {
           cache_hit: false,
           processing_time_ms: processingTime,
           file_size_bytes: fileSizeBytes,
-          expires_at: expiresAt
+          expires_at: expiresAt,
         })
-
       } finally {
         // Always remove processing lock
         await cacheService.removeProcessingLock(validatedData.url)
       }
-
     } catch (error) {
       const processingTime = Date.now() - startTime
 
       logger.error('Screenshot processing failed', {
         url: request.input('url'),
         error: error.message,
-        processingTime
+        processingTime,
       })
 
       // Handle validation errors
@@ -247,8 +248,8 @@ export default class ScreenshotController {
           detail: {
             error: 'validation_failed',
             message: 'Request validation failed',
-            errors: error.messages
-          }
+            errors: error.messages,
+          },
         })
       }
 
@@ -257,8 +258,9 @@ export default class ScreenshotController {
         return response.status(408).json({
           detail: {
             error: 'timeout',
-            message: 'Screenshot capture timed out. The website may be slow to load or unresponsive.'
-          }
+            message:
+              'Screenshot capture timed out. The website may be slow to load or unresponsive.',
+          },
         })
       }
 
@@ -267,8 +269,8 @@ export default class ScreenshotController {
         return response.status(400).json({
           detail: {
             error: 'invalid_url',
-            message: `Unable to access the provided URL: ${error.message}`
-          }
+            message: `Unable to access the provided URL: ${error.message}`,
+          },
         })
       }
 
@@ -277,8 +279,8 @@ export default class ScreenshotController {
         return response.status(500).json({
           detail: {
             error: 'storage_error',
-            message: 'Failed to save screenshot to storage'
-          }
+            message: 'Failed to save screenshot to storage',
+          },
         })
       }
 
@@ -286,8 +288,8 @@ export default class ScreenshotController {
       return response.status(500).json({
         detail: {
           error: 'screenshot_failed',
-          message: 'Failed to capture screenshot. Please try again later.'
-        }
+          message: 'Failed to capture screenshot. Please try again later.',
+        },
       })
     }
   }
@@ -374,7 +376,7 @@ export default class ScreenshotController {
 
       logger.info('Processing batch screenshot request', {
         itemCount: validatedData.items.length,
-        config: validatedData.config
+        config: validatedData.config,
       })
 
       // Set defaults for batch configuration
@@ -391,7 +393,7 @@ export default class ScreenshotController {
         recurrence_interval: validatedData.config?.recurrence_interval,
         recurrence_count: validatedData.config?.recurrence_count,
         recurrence_cron: validatedData.config?.recurrence_cron,
-        rate_limit: validatedData.config?.rate_limit
+        rate_limit: validatedData.config?.rate_limit,
       }
 
       // Determine if this is a scheduled job
@@ -402,8 +404,8 @@ export default class ScreenshotController {
           return response.status(400).json({
             detail: {
               error: 'invalid_scheduled_time',
-              message: 'scheduled_time must be a valid ISO 8601 date string'
-            }
+              message: 'scheduled_time must be a valid ISO 8601 date string',
+            },
           })
         }
       }
@@ -416,13 +418,13 @@ export default class ScreenshotController {
       )
 
       // Initialize results array with pending status for all items
-      const initialResults = validatedData.items.map(item => ({
+      const initialResults = validatedData.items.map((item) => ({
         itemId: item.id,
         status: 'pending' as const,
         url: undefined,
         error: undefined,
         cached: undefined,
-        processingTime: undefined
+        processingTime: undefined,
       }))
 
       batchJob.results = initialResults
@@ -431,15 +433,15 @@ export default class ScreenshotController {
       // Prepare batch job data for queue
       const batchJobData = {
         id: batchJob.id.toString(),
-        items: validatedData.items.map(item => ({
+        items: validatedData.items.map((item) => ({
           id: item.id,
           url: item.url,
           format: item.format || 'png',
           width: item.width || 1280,
-          height: item.height || 720
+          height: item.height || 720,
         })),
         config: batchConfig,
-        apiKeyId: 'placeholder' // This should come from auth middleware
+        apiKeyId: 'placeholder', // This should come from auth middleware
       }
 
       // Add job to queue (scheduled or immediate)
@@ -447,14 +449,15 @@ export default class ScreenshotController {
         await queueService.scheduleJob('batch', batchJobData, scheduledAt.toJSDate())
         logger.info('Batch job scheduled', {
           batchId: batchJob.id,
-          scheduledTime: scheduledAt.toISO()
+          scheduledTime: scheduledAt.toISO(),
         })
       } else {
-        const priority = batchConfig.priority === 'high' ? 10 : batchConfig.priority === 'low' ? -10 : 0
+        const priority =
+          batchConfig.priority === 'high' ? 10 : batchConfig.priority === 'low' ? -10 : 0
         await queueService.addBatchJob(batchJobData, { priority })
         logger.info('Batch job queued', {
           batchId: batchJob.id,
-          priority: batchConfig.priority
+          priority: batchConfig.priority,
         })
       }
 
@@ -463,7 +466,7 @@ export default class ScreenshotController {
       logger.info('Batch job created successfully', {
         batchId: batchJob.id,
         itemCount: validatedData.items.length,
-        processingTime
+        processingTime,
       })
 
       // Return batch job status
@@ -478,15 +481,14 @@ export default class ScreenshotController {
         updated_at: batchJob.updatedAt?.toISO(),
         scheduled_time: batchJob.scheduledAt?.toISO(),
         next_scheduled_time: undefined, // TODO: Implement for recurring jobs
-        estimated_completion: batchJob.estimatedCompletion?.toISO()
+        estimated_completion: batchJob.estimatedCompletion?.toISO(),
       })
-
     } catch (error) {
       const processingTime = Date.now() - startTime
 
       logger.error('Batch job creation failed', {
         error: error.message,
-        processingTime
+        processingTime,
       })
 
       // Handle validation errors
@@ -495,21 +497,23 @@ export default class ScreenshotController {
           detail: {
             error: 'validation_failed',
             message: 'Request validation failed',
-            errors: error.messages
-          }
+            errors: error.messages,
+          },
         })
       }
 
       // Handle specific validation errors from custom validators
-      if (error.message.includes('webhook_auth') ||
+      if (
+        error.message.includes('webhook_auth') ||
         error.message.includes('recurrence') ||
         error.message.includes('scheduled_time') ||
-        error.message.includes('dimensions')) {
+        error.message.includes('dimensions')
+      ) {
         return response.status(400).json({
           detail: {
             error: 'validation_failed',
-            message: error.message
-          }
+            message: error.message,
+          },
         })
       }
 
@@ -517,8 +521,8 @@ export default class ScreenshotController {
       return response.status(500).json({
         detail: {
           error: 'batch_creation_failed',
-          message: 'Failed to create batch job. Please try again later.'
-        }
+          message: 'Failed to create batch job. Please try again later.',
+        },
       })
     }
   }
@@ -621,11 +625,11 @@ export default class ScreenshotController {
         .orderBy('created_at', 'desc')
 
       logger.debug('Retrieved active batch jobs', {
-        count: activeJobs.length
+        count: activeJobs.length,
       })
 
       // Format jobs for response
-      const formattedJobs = activeJobs.map(job => ({
+      const formattedJobs = activeJobs.map((job) => ({
         job_id: job.id.toString(),
         status: job.status,
         total: job.totalItems,
@@ -635,23 +639,22 @@ export default class ScreenshotController {
         updated_at: job.updatedAt?.toISO(),
         estimated_completion: job.estimatedCompletion?.toISO(),
         scheduled_time: job.scheduledAt?.toISO(),
-        next_scheduled_time: job.nextScheduledTime?.toISO()
+        next_scheduled_time: job.nextScheduledTime?.toISO(),
       }))
 
       return response.json({
-        jobs: formattedJobs
+        jobs: formattedJobs,
       })
-
     } catch (error) {
       logger.error('Failed to get active batch jobs', {
-        error: error.message
+        error: error.message,
       })
 
       return response.status(500).json({
         detail: {
           error: 'active_jobs_retrieval_failed',
-          message: 'Failed to retrieve active batch jobs'
-        }
+          message: 'Failed to retrieve active batch jobs',
+        },
       })
     }
   }
@@ -669,8 +672,8 @@ export default class ScreenshotController {
         return response.status(400).json({
           detail: {
             error: 'missing_job_id',
-            message: 'job_id parameter is required'
-          }
+            message: 'job_id parameter is required',
+          },
         })
       }
 
@@ -678,8 +681,8 @@ export default class ScreenshotController {
         return response.status(422).json({
           detail: {
             error: 'validation_failed',
-            message: 'scheduled_time is required'
-          }
+            message: 'scheduled_time is required',
+          },
         })
       }
 
@@ -690,8 +693,8 @@ export default class ScreenshotController {
         return response.status(404).json({
           detail: {
             error: 'job_not_found',
-            message: 'Batch job not found'
-          }
+            message: 'Batch job not found',
+          },
         })
       }
 
@@ -701,8 +704,8 @@ export default class ScreenshotController {
         return response.status(422).json({
           detail: {
             error: 'invalid_scheduled_time',
-            message: 'scheduled_time must be a valid ISO 8601 date string'
-          }
+            message: 'scheduled_time must be a valid ISO 8601 date string',
+          },
         })
       }
 
@@ -710,8 +713,8 @@ export default class ScreenshotController {
         return response.status(400).json({
           detail: {
             error: 'invalid_scheduled_time',
-            message: 'scheduled_time must be in the future'
-          }
+            message: 'scheduled_time must be in the future',
+          },
         })
       }
 
@@ -720,8 +723,8 @@ export default class ScreenshotController {
         return response.status(400).json({
           detail: {
             error: 'job_already_processing',
-            message: 'Cannot schedule a job that is already processing'
-          }
+            message: 'Cannot schedule a job that is already processing',
+          },
         })
       }
 
@@ -729,8 +732,8 @@ export default class ScreenshotController {
         return response.status(400).json({
           detail: {
             error: 'job_already_completed',
-            message: 'Cannot schedule a job that is already completed'
-          }
+            message: 'Cannot schedule a job that is already completed',
+          },
         })
       }
 
@@ -744,7 +747,7 @@ export default class ScreenshotController {
 
       logger.info('Batch job scheduled successfully', {
         jobId: batchJob.id,
-        scheduledTime: scheduledDateTime.toISO()
+        scheduledTime: scheduledDateTime.toISO(),
       })
 
       // Return updated job status
@@ -764,20 +767,19 @@ export default class ScreenshotController {
         config: batchJob.config,
         results: batchJob.results,
         successful_results: batchJob.successfulResults,
-        failed_results: batchJob.failedResults
+        failed_results: batchJob.failedResults,
       })
-
     } catch (error) {
       logger.error('Failed to schedule batch job', {
         jobId: params.job_id,
-        error: error.message
+        error: error.message,
       })
 
       return response.status(500).json({
         detail: {
           error: 'scheduling_failed',
-          message: 'Failed to schedule batch job'
-        }
+          message: 'Failed to schedule batch job',
+        },
       })
     }
   }
@@ -789,14 +791,19 @@ export default class ScreenshotController {
   async setBatchJobRecurrence({ params, request, response }: HttpContext) {
     try {
       const jobId = params.job_id
-      const { pattern, interval, count, cron } = request.only(['pattern', 'interval', 'count', 'cron'])
+      const { pattern, interval, count, cron } = request.only([
+        'pattern',
+        'interval',
+        'count',
+        'cron',
+      ])
 
       if (!jobId) {
         return response.status(400).json({
           detail: {
             error: 'missing_job_id',
-            message: 'job_id parameter is required'
-          }
+            message: 'job_id parameter is required',
+          },
         })
       }
 
@@ -804,8 +811,8 @@ export default class ScreenshotController {
         return response.status(422).json({
           detail: {
             error: 'validation_failed',
-            message: 'pattern is required'
-          }
+            message: 'pattern is required',
+          },
         })
       }
 
@@ -815,8 +822,8 @@ export default class ScreenshotController {
         return response.status(422).json({
           detail: {
             error: 'invalid_pattern',
-            message: `pattern must be one of: ${validPatterns.join(', ')}`
-          }
+            message: `pattern must be one of: ${validPatterns.join(', ')}`,
+          },
         })
       }
 
@@ -826,8 +833,8 @@ export default class ScreenshotController {
           return response.status(422).json({
             detail: {
               error: 'missing_cron',
-              message: 'cron expression is required when pattern is "custom"'
-            }
+              message: 'cron expression is required when pattern is "custom"',
+            },
           })
         }
 
@@ -837,8 +844,8 @@ export default class ScreenshotController {
           return response.status(422).json({
             detail: {
               error: 'invalid_cron',
-              message: 'cron expression must have 5 or 6 fields'
-            }
+              message: 'cron expression must have 5 or 6 fields',
+            },
           })
         }
       }
@@ -848,8 +855,8 @@ export default class ScreenshotController {
         return response.status(422).json({
           detail: {
             error: 'invalid_interval',
-            message: 'interval must be a positive number'
-          }
+            message: 'interval must be a positive number',
+          },
         })
       }
 
@@ -857,8 +864,8 @@ export default class ScreenshotController {
         return response.status(422).json({
           detail: {
             error: 'invalid_count',
-            message: 'count must be a positive number'
-          }
+            message: 'count must be a positive number',
+          },
         })
       }
 
@@ -869,8 +876,8 @@ export default class ScreenshotController {
         return response.status(404).json({
           detail: {
             error: 'job_not_found',
-            message: 'Batch job not found'
-          }
+            message: 'Batch job not found',
+          },
         })
       }
 
@@ -880,7 +887,7 @@ export default class ScreenshotController {
         recurrence: pattern,
         recurrence_interval: interval,
         recurrence_count: count,
-        recurrence_cron: cron
+        recurrence_cron: cron,
       }
 
       batchJob.config = updatedConfig
@@ -891,7 +898,7 @@ export default class ScreenshotController {
         pattern,
         interval,
         count,
-        cron: cron ? cron.substring(0, 20) + '...' : undefined
+        cron: cron ? cron.substring(0, 20) + '...' : undefined,
       })
 
       // Return updated job status
@@ -911,20 +918,19 @@ export default class ScreenshotController {
         config: batchJob.config,
         results: batchJob.results,
         successful_results: batchJob.successfulResults,
-        failed_results: batchJob.failedResults
+        failed_results: batchJob.failedResults,
       })
-
     } catch (error) {
       logger.error('Failed to set batch job recurrence', {
         jobId: params.job_id,
-        error: error.message
+        error: error.message,
       })
 
       return response.status(500).json({
         detail: {
           error: 'recurrence_configuration_failed',
-          message: 'Failed to configure batch job recurrence'
-        }
+          message: 'Failed to configure batch job recurrence',
+        },
       })
     }
   }
@@ -941,8 +947,8 @@ export default class ScreenshotController {
         return response.status(400).json({
           detail: {
             error: 'missing_job_id',
-            message: 'job_id parameter is required'
-          }
+            message: 'job_id parameter is required',
+          },
         })
       }
 
@@ -953,8 +959,8 @@ export default class ScreenshotController {
         return response.status(404).json({
           detail: {
             error: 'job_not_found',
-            message: 'Batch job not found'
-          }
+            message: 'Batch job not found',
+          },
         })
       }
 
@@ -963,8 +969,8 @@ export default class ScreenshotController {
         return response.status(400).json({
           detail: {
             error: 'job_already_completed',
-            message: 'Cannot cancel a job that is already completed'
-          }
+            message: 'Cannot cancel a job that is already completed',
+          },
         })
       }
 
@@ -972,8 +978,8 @@ export default class ScreenshotController {
         return response.status(400).json({
           detail: {
             error: 'job_already_failed',
-            message: 'Cannot cancel a job that has already failed'
-          }
+            message: 'Cannot cancel a job that has already failed',
+          },
         })
       }
 
@@ -981,8 +987,8 @@ export default class ScreenshotController {
         return response.status(400).json({
           detail: {
             error: 'job_already_cancelled',
-            message: 'Job is already cancelled'
-          }
+            message: 'Job is already cancelled',
+          },
         })
       }
 
@@ -993,8 +999,8 @@ export default class ScreenshotController {
       // await queueService.removeJob(batchJob.id.toString())
 
       // Update any pending results to cancelled
-      const updatedResults = batchJob.results.map(result => 
-        result.status === 'pending' || result.status === 'processing' 
+      const updatedResults = batchJob.results.map((result) =>
+        result.status === 'pending' || result.status === 'processing'
           ? { ...result, status: 'error' as const, error: 'Job cancelled' }
           : result
       )
@@ -1003,7 +1009,7 @@ export default class ScreenshotController {
 
       logger.info('Batch job cancelled successfully', {
         jobId: batchJob.id,
-        previousStatus: batchJob.status
+        previousStatus: batchJob.status,
       })
 
       // Return updated job status
@@ -1023,20 +1029,19 @@ export default class ScreenshotController {
         config: batchJob.config,
         results: batchJob.results,
         successful_results: batchJob.successfulResults,
-        failed_results: batchJob.failedResults
+        failed_results: batchJob.failedResults,
       })
-
     } catch (error) {
       logger.error('Failed to cancel batch job', {
         jobId: params.job_id,
-        error: error.message
+        error: error.message,
       })
 
       return response.status(500).json({
         detail: {
           error: 'cancellation_failed',
-          message: 'Failed to cancel batch job'
-        }
+          message: 'Failed to cancel batch job',
+        },
       })
     }
   }
@@ -1053,8 +1058,8 @@ export default class ScreenshotController {
         return response.status(400).json({
           detail: {
             error: 'missing_job_id',
-            message: 'job_id parameter is required'
-          }
+            message: 'job_id parameter is required',
+          },
         })
       }
 
@@ -1065,8 +1070,8 @@ export default class ScreenshotController {
         return response.status(404).json({
           detail: {
             error: 'job_not_found',
-            message: 'Batch job not found'
-          }
+            message: 'Batch job not found',
+          },
         })
       }
 
@@ -1079,19 +1084,19 @@ export default class ScreenshotController {
       }
 
       // Format results for response
-      const formattedResults = batchJob.results.map(result => ({
+      const formattedResults = batchJob.results.map((result) => ({
         id: result.itemId,
         status: result.status,
         url: result.url,
         error: result.error,
-        cached: result.cached
+        cached: result.cached,
       }))
 
       logger.debug('Retrieved batch job results', {
         jobId: batchJob.id,
         totalResults: formattedResults.length,
         succeeded: batchJob.successfulResults.length,
-        failed: batchJob.failedResults.length
+        failed: batchJob.failedResults.length,
       })
 
       return response.json({
@@ -1101,20 +1106,19 @@ export default class ScreenshotController {
         succeeded: batchJob.successfulResults.length,
         failed: batchJob.failedResults.length,
         processing_time: Math.round(processingTime),
-        results: formattedResults
+        results: formattedResults,
       })
-
     } catch (error) {
       logger.error('Failed to get batch job results', {
         jobId: params.job_id,
-        error: error.message
+        error: error.message,
       })
 
       return response.status(500).json({
         detail: {
           error: 'results_retrieval_failed',
-          message: 'Failed to retrieve batch job results'
-        }
+          message: 'Failed to retrieve batch job results',
+        },
       })
     }
   }
@@ -1131,8 +1135,8 @@ export default class ScreenshotController {
         return response.status(400).json({
           detail: {
             error: 'missing_job_id',
-            message: 'job_id parameter is required'
-          }
+            message: 'job_id parameter is required',
+          },
         })
       }
 
@@ -1143,15 +1147,15 @@ export default class ScreenshotController {
         return response.status(404).json({
           detail: {
             error: 'job_not_found',
-            message: 'Batch job not found'
-          }
+            message: 'Batch job not found',
+          },
         })
       }
 
       logger.debug('Retrieved batch job status', {
         jobId: batchJob.id,
         status: batchJob.status,
-        progress: batchJob.progressPercentage
+        progress: batchJob.progressPercentage,
       })
 
       // Return comprehensive batch job status
@@ -1171,20 +1175,129 @@ export default class ScreenshotController {
         config: batchJob.config,
         results: batchJob.results,
         successful_results: batchJob.successfulResults,
-        failed_results: batchJob.failedResults
+        failed_results: batchJob.failedResults,
       })
-
     } catch (error) {
       logger.error('Failed to get batch job status', {
         jobId: params.job_id,
-        error: error.message
+        error: error.message,
       })
 
       return response.status(500).json({
         detail: {
           error: 'status_retrieval_failed',
-          message: 'Failed to retrieve batch job status'
-        }
+          message: 'Failed to retrieve batch job status',
+        },
+      })
+    }
+  }
+
+  /**
+   * Get cache statistics
+   * GET /cache/stats
+   */
+  async getCacheStats({ response }: HttpContext) {
+    try {
+      const stats = await cacheService.getEnhancedStats()
+
+      logger.debug('Retrieved cache statistics', {
+        enabled: stats.enabled,
+        size: stats.size,
+        hits: stats.hits,
+        misses: stats.misses,
+        hit_rate: stats.hit_rate,
+      })
+
+      return response.json(stats)
+    } catch (error) {
+      logger.error('Failed to get cache statistics', {
+        error: error.message,
+      })
+
+      return response.status(500).json({
+        detail: {
+          error: 'cache_stats_failed',
+          message: 'Failed to retrieve cache statistics',
+        },
+      })
+    }
+  }
+
+  /**
+   * Clear entire cache
+   * DELETE /cache
+   */
+  async clearCache({ response }: HttpContext) {
+    try {
+      await cacheService.flush()
+
+      logger.info('Cache cleared successfully')
+
+      return response.status(204).send('')
+    } catch (error) {
+      logger.error('Failed to clear cache', {
+        error: error.message,
+      })
+
+      return response.status(500).json({
+        detail: {
+          error: 'cache_clear_failed',
+          message: 'Failed to clear cache',
+        },
+      })
+    }
+  }
+
+  /**
+   * Invalidate cache entries for a specific URL
+   * DELETE /cache/url
+   */
+  async invalidateCacheUrl({ request, response }: HttpContext) {
+    try {
+      const url = request.input('url')
+
+      if (!url) {
+        return response.status(422).json({
+          detail: {
+            error: 'validation_failed',
+            message: 'url parameter is required',
+          },
+        })
+      }
+
+      // Validate URL format
+      try {
+        new URL(url)
+      } catch (urlError) {
+        return response.status(422).json({
+          detail: {
+            error: 'validation_failed',
+            message: 'url parameter must be a valid URL',
+          },
+        })
+      }
+
+      const invalidatedCount = await cacheService.invalidateByUrl(url)
+
+      logger.info('Cache invalidated for URL', {
+        url,
+        invalidatedCount,
+      })
+
+      return response.json({
+        invalidated: invalidatedCount,
+      })
+    } catch (error) {
+      logger.error('Failed to invalidate cache for URL', {
+        url: request.input('url'),
+        error: error.message,
+      })
+
+      return response.status(500).json({
+        detail: {
+          error: 'cache_invalidation_failed',
+          message: 'Failed to invalidate cache entries for URL',
+        },
       })
     }
   }

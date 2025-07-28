@@ -9,14 +9,8 @@ import vine from '@vinejs/vine'
  */
 export const loginValidator = vine.compile(
   vine.object({
-    email: vine
-      .string()
-      .email()
-      .normalizeEmail(),
-    password: vine
-      .string()
-      .minLength(1)
-      .maxLength(255)
+    email: vine.string().email().normalizeEmail(),
+    password: vine.string().minLength(1).maxLength(255),
   })
 )
 
@@ -25,20 +19,9 @@ export const loginValidator = vine.compile(
  */
 export const createUserValidator = vine.compile(
   vine.object({
-    fullName: vine
-      .string()
-      .trim()
-      .minLength(1)
-      .maxLength(100),
-    email: vine
-      .string()
-      .email()
-      .normalizeEmail()
-      .maxLength(254),
-    password: vine
-      .string()
-      .minLength(6)
-      .maxLength(100)
+    fullName: vine.string().trim().minLength(1).maxLength(100),
+    email: vine.string().email().normalizeEmail().maxLength(254),
+    password: vine.string().minLength(6).maxLength(100),
   })
 )
 
@@ -47,18 +30,8 @@ export const createUserValidator = vine.compile(
  */
 export const updateUserValidator = vine.compile(
   vine.object({
-    fullName: vine
-      .string()
-      .trim()
-      .minLength(1)
-      .maxLength(100)
-      .optional(),
-    email: vine
-      .string()
-      .email()
-      .normalizeEmail()
-      .maxLength(254)
-      .optional()
+    fullName: vine.string().trim().minLength(1).maxLength(100).optional(),
+    email: vine.string().email().normalizeEmail().maxLength(254).optional(),
   })
 )
 
@@ -67,16 +40,9 @@ export const updateUserValidator = vine.compile(
  */
 export const changePasswordValidator = vine.compile(
   vine.object({
-    currentPassword: vine
-      .string()
-      .minLength(1),
-    newPassword: vine
-      .string()
-      .minLength(6)
-      .maxLength(100),
-    confirmPassword: vine
-      .string()
-      .sameAs('newPassword')
+    currentPassword: vine.string().minLength(1),
+    newPassword: vine.string().minLength(6).maxLength(100),
+    confirmPassword: vine.string().sameAs('newPassword'),
   })
 )
 

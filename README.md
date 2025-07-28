@@ -6,11 +6,13 @@ A high-performance website screenshot service built with AdonisJS, providing RES
 
 **🎯 Complete Interactive API Documentation:**
 Visit the Swagger UI for comprehensive API documentation with interactive testing:
+
 ```
 http://localhost:3333/docs
 ```
 
 Features:
+
 - Complete API reference for all endpoints
 - Interactive request testing
 - Authentication setup
@@ -54,6 +56,7 @@ Visit `http://localhost:57304/dashboard` when your server is running to access:
 ### API Key Management
 
 Through the dashboard, you can:
+
 1. Create new API keys with custom rate limits (1-10,000 requests/hour)
 2. View all existing API keys (with masked values for security)
 3. Activate/deactivate API keys as needed
@@ -65,6 +68,7 @@ For more details, see the [Dashboard Documentation](docs/DASHBOARD.md).
 ## Architecture
 
 This application uses a modern, scalable architecture with:
+
 - **AdonisJS v6**: Modern Node.js framework
 - **Redis**: For caching and queue management
 - **MySQL**: Primary database
@@ -137,6 +141,7 @@ const worker = new Worker('screenshots', processor, { connection: bullmqClient }
 #### When to Share (getClient())
 
 Use the shared client for:
+
 - ✅ Simple get/set operations
 - ✅ Short-lived operations
 - ✅ Cache operations
@@ -151,6 +156,7 @@ await client.setex('session:123', 3600, 'user-data')
 #### When to Duplicate
 
 Create duplicate connections for:
+
 - ✅ Blocking operations (`BLPOP`, `BRPOP`, etc.)
 - ✅ Long-running operations
 - ✅ Pub/Sub subscribers
@@ -183,23 +189,23 @@ import { getCentralRedisManager } from '#services/central_redis_manager'
 // During application shutdown
 process.on('SIGTERM', async () => {
   console.log('Shutting down gracefully...')
-  
+
   // Shutdown Redis connections first
   const redisManager = getCentralRedisManager()
   await redisManager.shutdown()
-  
+
   // Then shutdown other services
   // ...
-  
+
   process.exit(0)
 })
 
 process.on('SIGINT', async () => {
   console.log('Received SIGINT, shutting down...')
-  
+
   const redisManager = getCentralRedisManager()
   await redisManager.shutdown()
-  
+
   process.exit(0)
 })
 ```
@@ -216,15 +222,15 @@ export const runnerHooks = {
       // Shutdown Redis manager after all tests
       const redisManager = getCentralRedisManager()
       await redisManager.shutdown()
-    }
-  ]
+    },
+  ],
 }
 
 // Automatic leak detection after each test
 suite.each.teardown(async ({ assert }) => {
   const redisManager = getCentralRedisManager()
   const openConnectionsCount = redisManager.getOpenConnectionsCount()
-  
+
   // This will fail the test if connections are leaked
   assert.equal(0, openConnectionsCount, 'Redis connection leak detected!')
 })
@@ -251,11 +257,11 @@ test.group('Redis Operations', (group) => {
   test('should handle blocking operations', async ({ assert }) => {
     const redisManager = getCentralRedisManager()
     duplicateClient = redisManager.duplicate()
-    
+
     // Use duplicate client for test
     await duplicateClient.lpush('test-queue', 'item')
     const result = await duplicateClient.brpop('test-queue', 1)
-    
+
     assert.equal(result[1], 'item')
     // Connection will be cleaned up in group teardown
   })
@@ -272,15 +278,15 @@ import { getCentralRedisManager } from '#services/central_redis_manager'
 
 class ScreenshotWorker {
   private redisClient: IORedis
-  
+
   async start() {
     const redisManager = getCentralRedisManager()
     this.redisClient = redisManager.duplicateForBullMQ()
-    
+
     // Set up worker with dedicated connection
     // ...
   }
-  
+
   async stop() {
     // Always clean up the connection
     if (this.redisClient) {
@@ -292,7 +298,7 @@ class ScreenshotWorker {
 // Graceful shutdown handling
 process.on('SIGTERM', async () => {
   await worker.stop()
-  
+
   // Final cleanup of all Redis connections
   const redisManager = getCentralRedisManager()
   await redisManager.shutdown()
@@ -356,28 +362,33 @@ await client.get('key')
 ## Installation & Setup
 
 1. **Clone the repository**
+
    ```bash
    git clone <repository-url>
    cd web2img
    ```
 
 2. **Install dependencies**
+
    ```bash
    npm install
    ```
 
 3. **Set up environment variables**
+
    ```bash
    cp .env.example .env
    # Edit .env with your configuration
    ```
 
 4. **Start Redis server**
+
    ```bash
    redis-server
    ```
 
 5. **Run migrations**
+
    ```bash
    node ace migration:run
    ```

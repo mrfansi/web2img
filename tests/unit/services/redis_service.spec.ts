@@ -39,7 +39,7 @@ test.group('RedisService', (group) => {
       'uptime',
       'connectedClients',
       'usedMemory',
-      'totalSystemMemory'
+      'totalSystemMemory',
     ])
 
     assert.equal(info.status, 'connected')
@@ -57,13 +57,10 @@ test.group('RedisService', (group) => {
 
   test('should execute Redis commands with error handling', async ({ assert }) => {
     const redisClient = getCentralRedisManager().getClient()
-    const result = await redisService.executeCommand(
-      async () => {
-        await redisClient.set('test:key', 'test-value')
-        return await redisClient.get('test:key')
-      },
-      'test operation'
-    )
+    const result = await redisService.executeCommand(async () => {
+      await redisClient.set('test:key', 'test-value')
+      return await redisClient.get('test:key')
+    }, 'test operation')
 
     assert.equal(result, 'test-value')
 
@@ -73,12 +70,10 @@ test.group('RedisService', (group) => {
 
   test('should handle Redis operation errors', async ({ assert }) => {
     await assert.rejects(
-      () => redisService.executeCommand(
-        async () => {
+      () =>
+        redisService.executeCommand(async () => {
           throw new Error('Redis operation failed')
-        },
-        'failing operation'
-      ),
+        }, 'failing operation'),
       'Redis operation failed: failing operation'
     )
   })

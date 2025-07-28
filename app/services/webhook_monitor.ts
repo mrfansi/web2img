@@ -43,7 +43,7 @@ export class WebhookMonitor {
       successRateThreshold: 0.8, // 80%
       failureCountThreshold: 10,
       timeWindowMinutes: 60, // 1 hour
-      checkIntervalMinutes: 15 // Check every 15 minutes
+      checkIntervalMinutes: 15, // Check every 15 minutes
     }
   }
 
@@ -71,9 +71,9 @@ export class WebhookMonitor {
     }
 
     this.isMonitoring = true
-    
+
     logger.info('Starting webhook monitoring', {
-      config: this.config
+      config: this.config,
     })
 
     // Run initial check
@@ -118,8 +118,8 @@ export class WebhookMonitor {
     let status: 'healthy' | 'degraded' | 'unhealthy' = 'healthy'
 
     // Determine overall health status
-    const criticalAlerts = alerts.filter(a => a.level === 'critical')
-    const errorAlerts = alerts.filter(a => a.level === 'error')
+    const criticalAlerts = alerts.filter((a) => a.level === 'critical')
+    const errorAlerts = alerts.filter((a) => a.level === 'error')
 
     if (criticalAlerts.length > 0) {
       status = 'unhealthy'
@@ -130,7 +130,7 @@ export class WebhookMonitor {
     return {
       status,
       stats,
-      alerts
+      alerts,
     }
   }
 
@@ -150,13 +150,13 @@ export class WebhookMonitor {
     const stats = await webhookDeliveryTracker.getDeliveryStats()
 
     // Analyze common issues
-    const commonIssues = stats.commonErrors.map(error => ({
+    const commonIssues = stats.commonErrors.map((error) => ({
       issue: error.error,
       count: error.count,
       examples: recentFailures
-        .filter(f => f.lastError === error.error)
+        .filter((f) => f.lastError === error.error)
         .slice(0, 3)
-        .map(f => f.url)
+        .map((f) => f.url),
     }))
 
     // Generate recommendations
@@ -165,7 +165,7 @@ export class WebhookMonitor {
     return {
       recentFailures,
       commonIssues,
-      recommendations
+      recommendations,
     }
   }
 
@@ -190,7 +190,7 @@ export class WebhookMonitor {
       logger.debug('Webhook monitoring check completed', {
         alertsGenerated: alerts.length,
         successRate: stats.successRate,
-        totalDeliveries: stats.totalDeliveries
+        totalDeliveries: stats.totalDeliveries,
       })
     } catch (error) {
       logger.error('Webhook monitoring check failed', { error })
@@ -214,8 +214,8 @@ export class WebhookMonitor {
           successRate: stats.successRate,
           threshold: this.config.successRateThreshold,
           totalDeliveries: stats.totalDeliveries,
-          failedDeliveries: stats.failedDeliveries
-        }
+          failedDeliveries: stats.failedDeliveries,
+        },
       })
     }
 
@@ -228,8 +228,8 @@ export class WebhookMonitor {
         timestamp: new Date(),
         data: {
           failedDeliveries: stats.failedDeliveries,
-          threshold: this.config.failureCountThreshold
-        }
+          threshold: this.config.failureCountThreshold,
+        },
       })
     }
 
@@ -243,8 +243,8 @@ export class WebhookMonitor {
         timestamp: new Date(),
         data: {
           error: topError.error,
-          count: topError.count
-        }
+          count: topError.count,
+        },
       })
     }
 
@@ -256,8 +256,8 @@ export class WebhookMonitor {
         message: `Average webhook delivery attempts is ${stats.averageAttempts.toFixed(1)}, indicating potential reliability issues`,
         timestamp: new Date(),
         data: {
-          averageAttempts: stats.averageAttempts
-        }
+          averageAttempts: stats.averageAttempts,
+        },
       })
     }
 
@@ -271,7 +271,7 @@ export class WebhookMonitor {
     const logData = {
       title: alert.title,
       message: alert.message,
-      data: alert.data
+      data: alert.data,
     }
 
     switch (alert.level) {
@@ -306,43 +306,48 @@ export class WebhookMonitor {
     }
 
     // Common error recommendations
-    const timeoutErrors = stats.commonErrors.filter(e => 
-      e.error.toLowerCase().includes('timeout') || 
-      e.error.toLowerCase().includes('timed out')
+    const timeoutErrors = stats.commonErrors.filter(
+      (e) =>
+        e.error.toLowerCase().includes('timeout') || e.error.toLowerCase().includes('timed out')
     )
-    
+
     if (timeoutErrors.length > 0) {
       recommendations.push('Increase webhook timeout values or optimize endpoint response times')
     }
 
-    const connectionErrors = stats.commonErrors.filter(e => 
-      e.error.toLowerCase().includes('connection') || 
-      e.error.toLowerCase().includes('network')
+    const connectionErrors = stats.commonErrors.filter(
+      (e) =>
+        e.error.toLowerCase().includes('connection') || e.error.toLowerCase().includes('network')
     )
-    
+
     if (connectionErrors.length > 0) {
       recommendations.push('Check network connectivity and DNS resolution for webhook endpoints')
     }
 
-    const authErrors = stats.commonErrors.filter(e => 
-      e.error.toLowerCase().includes('401') || 
-      e.error.toLowerCase().includes('403') ||
-      e.error.toLowerCase().includes('unauthorized')
+    const authErrors = stats.commonErrors.filter(
+      (e) =>
+        e.error.toLowerCase().includes('401') ||
+        e.error.toLowerCase().includes('403') ||
+        e.error.toLowerCase().includes('unauthorized')
     )
-    
+
     if (authErrors.length > 0) {
       recommendations.push('Verify webhook authentication credentials and permissions')
     }
 
     // High retry recommendations
     if (stats.averageAttempts > 2) {
-      recommendations.push('Consider implementing exponential backoff with jitter to reduce server load')
+      recommendations.push(
+        'Consider implementing exponential backoff with jitter to reduce server load'
+      )
     }
 
     // URL pattern recommendations
-    const urlPatterns = new Set(recentFailures.map(f => new URL(f.url).hostname))
+    const urlPatterns = new Set(recentFailures.map((f) => new URL(f.url).hostname))
     if (urlPatterns.size < recentFailures.length / 2) {
-      recommendations.push('Multiple failures from same domains detected - consider endpoint health monitoring')
+      recommendations.push(
+        'Multiple failures from same domains detected - consider endpoint health monitoring'
+      )
     }
 
     return recommendations
@@ -353,9 +358,9 @@ export class WebhookMonitor {
    */
   public updateConfig(config: Partial<WebhookMonitorConfig>): void {
     this.config = { ...this.config, ...config }
-    
+
     logger.info('Updated webhook monitoring configuration', {
-      config: this.config
+      config: this.config,
     })
 
     // Restart monitoring with new config if currently running

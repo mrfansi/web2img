@@ -87,11 +87,11 @@ test.group('UrlTransformationService', (group) => {
 
     for (const testCase of testCases) {
       const result = service.transformUrl(testCase.input)
-      
+
       assert.equal(result.originalUrl, testCase.input)
       assert.equal(result.transformedUrl, testCase.expectedTransformed)
       assert.equal(result.wasTransformed, testCase.shouldTransform)
-      
+
       if (testCase.shouldTransform) {
         assert.equal(result.transformationType, 'viding.co')
       }
@@ -116,7 +116,7 @@ test.group('UrlTransformationService', (group) => {
 
     for (const testCase of testCases) {
       const result = service.transformUrl(testCase.input)
-      
+
       assert.equal(result.originalUrl, testCase.input)
       assert.equal(result.transformedUrl, testCase.expected)
       assert.isFalse(result.wasTransformed)
@@ -127,10 +127,10 @@ test.group('UrlTransformationService', (group) => {
   test('should generate consistent cache keys', async ({ assert }) => {
     const url = 'https://example.com/test'
     const options = { width: 1280, height: 720, format: 'png' }
-    
+
     const key1 = service.getCacheKey(url, options)
     const key2 = service.getCacheKey(url, options)
-    
+
     assert.equal(key1, key2)
     assert.isTrue(key1.startsWith('screenshot:'))
     assert.isTrue(key1.includes('1280x720'))
@@ -139,11 +139,11 @@ test.group('UrlTransformationService', (group) => {
 
   test('should generate different cache keys for different options', async ({ assert }) => {
     const url = 'https://example.com/test'
-    
+
     const key1 = service.getCacheKey(url, { width: 1280, height: 720, format: 'png' })
     const key2 = service.getCacheKey(url, { width: 1920, height: 1080, format: 'png' })
     const key3 = service.getCacheKey(url, { width: 1280, height: 720, format: 'jpeg' })
-    
+
     assert.notEqual(key1, key2)
     assert.notEqual(key1, key3)
     assert.notEqual(key2, key3)
@@ -151,9 +151,9 @@ test.group('UrlTransformationService', (group) => {
 
   test('should follow redirects (mock implementation)', async ({ assert }) => {
     const testUrl = 'https://redirect-example.com/path'
-    
+
     const result = await service.followRedirects(testUrl)
-    
+
     assert.equal(result.finalUrl, 'https://final-destination.com/path')
     assert.isArray(result.redirectChain)
     assert.equal(result.redirectChain[0], testUrl)
@@ -162,9 +162,9 @@ test.group('UrlTransformationService', (group) => {
 
   test('should handle URLs without redirects', async ({ assert }) => {
     const testUrl = 'https://no-redirect.com/path'
-    
+
     const result = await service.followRedirects(testUrl)
-    
+
     assert.equal(result.finalUrl, testUrl)
     assert.isArray(result.redirectChain)
     assert.equal(result.redirectChain.length, 1)
@@ -174,31 +174,31 @@ test.group('UrlTransformationService', (group) => {
   test('should add and remove transformation rules', async ({ assert }) => {
     const domain = 'test-domain.com'
     const transformFn = (url: string) => url.replace('test-domain.com', 'transformed-domain.com')
-    
+
     // Add rule
     service.addTransformationRule(domain, transformFn)
-    
+
     const rules = service.getTransformationRules()
     assert.isTrue(rules.includes(domain))
-    
+
     // Test transformation
     const result = service.transformUrl('https://test-domain.com/path')
     assert.equal(result.transformedUrl, 'https://transformed-domain.com/path')
     assert.isTrue(result.wasTransformed)
-    
+
     // Remove rule
     const removed = service.removeTransformationRule(domain)
     assert.isTrue(removed)
-    
+
     const rulesAfterRemoval = service.getTransformationRules()
     assert.isFalse(rulesAfterRemoval.includes(domain))
   })
 
   test('should process URL with full pipeline', async ({ assert }) => {
     const testUrl = 'https://viding.co/video/test123'
-    
+
     const result = await service.processUrl(testUrl, false) // Don't follow redirects
-    
+
     assert.equal(result.original, testUrl)
     assert.equal(result.transformed, 'https://internal.viding.co/embed/test123')
     assert.equal(result.final, 'https://internal.viding.co/embed/test123')
@@ -209,9 +209,9 @@ test.group('UrlTransformationService', (group) => {
 
   test('should process URL with redirects', async ({ assert }) => {
     const testUrl = 'https://redirect-example.com/video/test'
-    
+
     const result = await service.processUrl(testUrl, true) // Follow redirects
-    
+
     assert.equal(result.original, testUrl)
     assert.equal(result.final, 'https://final-destination.com/video/test')
     assert.isArray(result.redirectChain)
@@ -247,9 +247,9 @@ test.group('UrlTransformationService', (group) => {
   test('should handle edge cases in URL processing', async ({ assert }) => {
     // Test with URL that has both transformation and special characters
     const complexUrl = 'https://viding.co/video/test-123?param=value&other=test#fragment'
-    
+
     const result = service.transformUrl(complexUrl)
-    
+
     assert.equal(result.originalUrl, complexUrl)
     assert.equal(result.transformedUrl, 'https://internal.viding.co/embed/test-123')
     assert.isTrue(result.wasTransformed)
@@ -257,9 +257,9 @@ test.group('UrlTransformationService', (group) => {
 
   test('should handle URL encoding', async ({ assert }) => {
     const encodedUrl = 'https://example.com/path?query=hello%20world'
-    
+
     const result = service.transformUrl(encodedUrl)
-    
+
     assert.equal(result.originalUrl, encodedUrl)
     // URL constructor normalizes encoding, so %20 becomes +
     assert.isTrue(result.transformedUrl.includes('hello'))

@@ -1,5 +1,9 @@
 import { test } from '@japa/runner'
-import { ScreenshotQueueWorker, getScreenshotQueueWorker, resetScreenshotQueueWorker } from '#services/screenshot_queue_worker'
+import {
+  ScreenshotQueueWorker,
+  getScreenshotQueueWorker,
+  resetScreenshotQueueWorker,
+} from '#services/screenshot_queue_worker'
 
 test.group('ScreenshotQueueWorker', (group) => {
   let worker: ScreenshotQueueWorker

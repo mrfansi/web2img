@@ -176,7 +176,10 @@ export class QueueService {
   /**
    * Get job status by ID
    */
-  async getJobStatus(jobId: string, queueName: 'screenshot' | 'batch' = 'screenshot'): Promise<any> {
+  async getJobStatus(
+    jobId: string,
+    queueName: 'screenshot' | 'batch' = 'screenshot'
+  ): Promise<any> {
     const queue = queueName === 'screenshot' ? this.screenshotQueue : this.batchQueue
     const job = await queue.getJob(jobId)
 
@@ -223,7 +226,10 @@ export class QueueService {
   /**
    * Cancel a job
    */
-  async cancelJob(jobId: string, queueName: 'screenshot' | 'batch' = 'screenshot'): Promise<boolean> {
+  async cancelJob(
+    jobId: string,
+    queueName: 'screenshot' | 'batch' = 'screenshot'
+  ): Promise<boolean> {
     const queue = queueName === 'screenshot' ? this.screenshotQueue : this.batchQueue
     const job = await queue.getJob(jobId)
 

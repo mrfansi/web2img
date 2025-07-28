@@ -7,7 +7,7 @@ export enum BatchJobStatus {
   COMPLETED = 'completed',
   FAILED = 'failed',
   SCHEDULED = 'scheduled',
-  CANCELLED = 'cancelled'
+  CANCELLED = 'cancelled',
 }
 
 export interface BatchConfig {
@@ -55,13 +55,13 @@ export default class BatchJob extends BaseModel {
 
   @column({
     prepare: (value: BatchConfig) => JSON.stringify(value),
-    consume: (value: string) => JSON.parse(value)
+    consume: (value: string) => JSON.parse(value),
   })
   declare config: BatchConfig
 
   @column({
     prepare: (value: BatchResult[]) => JSON.stringify(value),
-    consume: (value: string) => JSON.parse(value)
+    consume: (value: string) => JSON.parse(value),
   })
   declare results: BatchResult[]
 
@@ -93,7 +93,7 @@ export default class BatchJob extends BaseModel {
     batchJob.config = config
     batchJob.results = []
     batchJob.scheduledAt = scheduledAt || null
-    
+
     await batchJob.save()
     return batchJob
   }
@@ -153,7 +153,7 @@ export default class BatchJob extends BaseModel {
    * Update a specific result in the batch job
    */
   async updateResult(itemId: string, updates: Partial<BatchResult>): Promise<void> {
-    this.results = this.results.map(result => 
+    this.results = this.results.map((result) =>
       result.itemId === itemId ? { ...result, ...updates } : result
     )
     await this.save()
@@ -199,14 +199,14 @@ export default class BatchJob extends BaseModel {
    * Get successful results
    */
   get successfulResults(): BatchResult[] {
-    return this.results.filter(result => result.status === 'success')
+    return this.results.filter((result) => result.status === 'success')
   }
 
   /**
    * Get failed results
    */
   get failedResults(): BatchResult[] {
-    return this.results.filter(result => result.status === 'error')
+    return this.results.filter((result) => result.status === 'error')
   }
 
   /**
@@ -214,12 +214,12 @@ export default class BatchJob extends BaseModel {
    */
   get estimatedCompletion(): DateTime | null {
     if (!this.isProcessing || this.completedItems === 0) return null
-    
+
     const elapsedTime = DateTime.now().diff(this.createdAt).as('milliseconds')
     const averageTimePerItem = elapsedTime / (this.completedItems + this.failedItems)
     const remainingItems = this.totalItems - this.completedItems - this.failedItems
     const estimatedRemainingTime = averageTimePerItem * remainingItems
-    
+
     return DateTime.now().plus({ milliseconds: estimatedRemainingTime })
   }
 
@@ -228,11 +228,11 @@ export default class BatchJob extends BaseModel {
    */
   get nextScheduledTime(): DateTime | null {
     if (!this.config.recurrence || !this.scheduledAt) return null
-    
+
     const baseTime = this.scheduledAt
     const recurrence = this.config.recurrence
     const interval = this.config.recurrence_interval || 1
-    
+
     switch (recurrence) {
       case 'hourly':
         return baseTime.plus({ hours: interval })

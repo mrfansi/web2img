@@ -114,14 +114,14 @@ test.group('ScreenshotWorkerService', (group) => {
             status: () => 200,
             statusText: () => 'OK',
           }),
-          waitForLoadState: async (_state: string) => { },
-          waitForTimeout: async (_timeout: number) => { },
+          waitForLoadState: async (_state: string) => {},
+          waitForTimeout: async (_timeout: number) => {},
           evaluate: async (_fn: Function) => 'Mock page content',
           screenshot: async (_options: any) => Buffer.from('mock-screenshot-data'),
-          setViewportSize: async (_size: any) => { },
-          setDefaultTimeout: (_timeout: number) => { },
-          setDefaultNavigationTimeout: (_timeout: number) => { },
-          close: async () => { },
+          setViewportSize: async (_size: any) => {},
+          setDefaultTimeout: (_timeout: number) => {},
+          setDefaultNavigationTimeout: (_timeout: number) => {},
+          close: async () => {},
         }
 
         const cleanup = async () => {
@@ -178,7 +178,11 @@ test.group('ScreenshotWorkerService', (group) => {
       { height: 6000, expectedError: 'Height must be between 1 and 5000 pixels' },
       { timeout: 1000, expectedError: 'Timeout must be between 5 and 60 seconds' },
       { timeout: 70000, expectedError: 'Timeout must be between 5 and 60 seconds' },
-      { format: 'png' as const, quality: 80, expectedError: 'Quality parameter not supported for PNG format' },
+      {
+        format: 'png' as const,
+        quality: 80,
+        expectedError: 'Quality parameter not supported for PNG format',
+      },
       { format: 'jpeg' as const, quality: 0, expectedError: 'Quality must be between 1 and 100' },
       { format: 'jpeg' as const, quality: 101, expectedError: 'Quality must be between 1 and 100' },
     ]
@@ -329,9 +333,9 @@ test.group('ScreenshotWorkerService', (group) => {
         goto: async () => {
           throw new Error('Navigation failed')
         },
-        close: async () => { },
+        close: async () => {},
       }
-      return { page: mockPage, cleanup: async () => { } }
+      return { page: mockPage, cleanup: async () => {} }
     }
 
     const jobData = {
@@ -364,11 +368,11 @@ test.group('ScreenshotWorkerService', (group) => {
           status: () => 404,
           statusText: () => 'Not Found',
         }),
-        waitForLoadState: async () => { },
-        waitForTimeout: async () => { },
-        close: async () => { },
+        waitForLoadState: async () => {},
+        waitForTimeout: async () => {},
+        close: async () => {},
       }
-      return { page: mockPage, cleanup: async () => { } }
+      return { page: mockPage, cleanup: async () => {} }
     }
 
     const jobData = {
@@ -451,9 +455,9 @@ test.group('ScreenshotWorkerService', (group) => {
           error.name = 'TimeoutError'
           throw error
         },
-        close: async () => { },
+        close: async () => {},
       }
-      return { page: mockPage, cleanup: async () => { } }
+      return { page: mockPage, cleanup: async () => {} }
     }
 
     const jobData = {

@@ -11,6 +11,7 @@ The design focuses on extending the existing AdonisJS architecture while maintai
 ### Current Architecture Analysis
 
 The existing system follows a layered architecture:
+
 - **Controllers**: Handle HTTP requests and responses (`screenshot_controller.ts`)
 - **Services**: Business logic and external integrations (cache, queue, browser services)
 - **Models**: Database entities with Lucid ORM (`batch_job.ts`)
@@ -34,9 +35,11 @@ The design extends the current architecture with:
 **Design Decision**: Extend the existing `ScreenshotController` rather than creating new controllers to maintain consistency and reduce code duplication.
 
 #### Enhanced Single Screenshot Endpoint (Requirement 1)
+
 - **Path**: `POST /screenshot`
 - **Current Response**: `{url: string, cached: boolean}`
 - **New Response Format**:
+
 ```typescript
 interface EnhancedScreenshotResponse {
   success: boolean
@@ -49,6 +52,7 @@ interface EnhancedScreenshotResponse {
 ```
 
 **Implementation Changes**:
+
 - Track processing time from request start to completion
 - Calculate file size from screenshot buffer before storage
 - Determine cache hit from cache service response
@@ -56,9 +60,11 @@ interface EnhancedScreenshotResponse {
 - Wrap response in success/error format
 
 #### Enhanced Batch Screenshot Endpoint (Requirement 2)
+
 - **Path**: `POST /batch/screenshots`
 - **Current Config**: Basic parallel, timeout, webhook options
 - **Enhanced Config Interface**:
+
 ```typescript
 interface EnhancedBatchConfig {
   parallel?: number
@@ -82,6 +88,7 @@ interface RecurrenceConfig {
 ```
 
 **Implementation Changes**:
+
 - Extend validation to support new config parameters
 - Add webhook URL validation and authentication header support
 - Implement priority-based queue processing
@@ -89,9 +96,11 @@ interface RecurrenceConfig {
 - Support recurrence configuration with cron parsing
 
 #### Enhanced Batch Status Endpoint (Requirement 3)
+
 - **Path**: `GET /batch/screenshots/:job_id`
 - **Current Response**: Basic job status with results array
 - **Enhanced Response Format**:
+
 ```typescript
 interface EnhancedBatchStatusResponse {
   job_id: string
@@ -114,6 +123,7 @@ interface EnhancedBatchStatusResponse {
 ```
 
 **Implementation Changes**:
+
 - Add progress percentage calculation
 - Implement estimated completion time based on processing rate
 - Add next scheduled time for recurring jobs
@@ -122,9 +132,11 @@ interface EnhancedBatchStatusResponse {
 ### 2. New Batch Management Endpoints
 
 #### Active Jobs Endpoint (Requirement 4)
+
 - **Path**: `GET /batch/screenshots/active`
 - **Purpose**: List all processing and scheduled batch jobs
 - **Response Format**:
+
 ```typescript
 interface ActiveJobsResponse {
   jobs: Array<{
@@ -141,27 +153,33 @@ interface ActiveJobsResponse {
   }>
 }
 ```
+
 - **Implementation**: Query `BatchJob` model for jobs with status 'processing' or 'scheduled'
 
 #### Job Scheduling Endpoint (Requirement 5)
+
 - **Path**: `POST /batch/screenshots/:job_id/schedule`
 - **Purpose**: Schedule existing job for future execution
 - **Request Body**:
+
 ```typescript
 interface ScheduleJobRequest {
   scheduled_time: string // ISO 8601 format
 }
 ```
-- **Validation**: 
+
+- **Validation**:
   - Ensure scheduled_time is in the future
   - Verify job exists and is in valid state (pending/failed)
   - Validate ISO 8601 date format
 - **Response**: Updated job status with 202 status code
 
 #### Job Recurrence Endpoint (Requirement 6)
+
 - **Path**: `POST /batch/screenshots/:job_id/recurrence`
 - **Purpose**: Configure recurring job execution
 - **Request Body**:
+
 ```typescript
 interface RecurrenceRequest {
   pattern: 'hourly' | 'daily' | 'weekly' | 'monthly' | 'custom'
@@ -170,25 +188,29 @@ interface RecurrenceRequest {
   cron?: string // Required when pattern is 'custom'
 }
 ```
-- **Implementation**: 
+
+- **Implementation**:
   - Validate recurrence patterns and cron expressions
   - Calculate next execution time
   - Update job configuration and schedule next run
 - **Response**: Updated job status with next_scheduled_time
 
 #### Job Cancellation Endpoint (Requirement 7)
+
 - **Path**: `POST /batch/screenshots/:job_id/cancel`
 - **Purpose**: Cancel processing or scheduled jobs
-- **Implementation**: 
+- **Implementation**:
   - Update job status to 'cancelled'
   - Remove job from queue if scheduled/pending
   - Stop processing if currently running
 - **Response**: Updated job status with 'cancelled' status
 
 #### Job Results Endpoint (Requirement 8)
+
 - **Path**: `GET /batch/screenshots/:job_id/results`
 - **Purpose**: Retrieve detailed results for completed jobs
 - **Response Format**:
+
 ```typescript
 interface JobResultsResponse {
   job_id: string
@@ -210,9 +232,11 @@ interface JobResultsResponse {
 ### 3. Cache Management Endpoints
 
 #### Cache Statistics Endpoint (Requirement 10)
+
 - **Path**: `GET /cache/stats`
 - **Purpose**: Provide cache performance metrics
 - **Response Format**:
+
 ```typescript
 interface CacheStatisticsResponse {
   enabled: boolean
@@ -225,28 +249,34 @@ interface CacheStatisticsResponse {
   cleanup_interval: number
 }
 ```
+
 - **Implementation**: Extend existing `cacheService.getStats()` to include hit/miss tracking
 
 #### Cache Clear Endpoint (Requirement 9)
+
 - **Path**: `DELETE /cache`
 - **Purpose**: Clear entire cache
 - **Implementation**: Use existing `cacheService.flush()` method
 - **Response**: 204 No Content on success, 500 on failure
 
 #### URL-Specific Cache Invalidation (Requirement 11)
+
 - **Path**: `DELETE /cache/url`
 - **Purpose**: Invalidate cache entries for specific URLs
 - **Request Body**:
+
 ```typescript
 interface CacheInvalidationRequest {
   url: string
 }
 ```
-- **Implementation**: 
+
+- **Implementation**:
   - Generate cache keys for all possible variations of the URL
   - Delete matching cache entries using pattern matching
   - Return count of invalidated entries
 - **Response Format**:
+
 ```typescript
 interface CacheInvalidationResponse {
   invalidated_count: number
@@ -257,6 +287,7 @@ interface CacheInvalidationResponse {
 ### 4. New Service Classes
 
 #### WebhookService
+
 **Purpose**: Handle webhook notifications for batch job completion
 
 ```typescript
@@ -268,12 +299,14 @@ interface WebhookService {
 ```
 
 **Implementation**:
+
 - HTTP client for webhook delivery
 - Retry mechanism with exponential backoff
 - Authentication header support
 - Webhook URL validation
 
 #### JobSchedulerService
+
 **Purpose**: Handle job scheduling and recurrence management
 
 ```typescript
@@ -286,15 +319,18 @@ interface JobSchedulerService {
 ```
 
 **Implementation**:
+
 - Cron expression parsing and validation
 - Next execution time calculation
 - Integration with queue service for scheduling
 - Recurrence pattern management
 
 #### Enhanced CacheService
+
 **Purpose**: Extend existing cache service with new functionality
 
 **New Methods**:
+
 - `invalidateByUrl(url: string): Promise<number>` - URL-specific invalidation
 - `getDetailedStats(): Promise<CacheStatisticsResponse>` - Enhanced statistics
 - `trackHit()` and `trackMiss()` - Hit/miss tracking
@@ -306,6 +342,7 @@ interface JobSchedulerService {
 **Design Decision**: Extend the existing `BatchJob` model with new fields and methods rather than creating separate models to maintain data consistency.
 
 #### New Fields
+
 ```typescript
 interface BatchConfig {
   // Existing fields...
@@ -328,6 +365,7 @@ interface RecurrenceConfig {
 ```
 
 #### New Methods
+
 - `scheduleForExecution(scheduledTime: DateTime)`
 - `setRecurrence(config: RecurrenceConfig)`
 - `calculateNextExecution()`
@@ -357,6 +395,7 @@ interface CacheStatistics {
 **Design Decision**: Maintain the existing error response format while adding specific error codes for new endpoints.
 
 #### New Error Codes
+
 - `job_not_found`: Batch job ID not found
 - `invalid_scheduled_time`: Scheduled time validation failed
 - `invalid_recurrence_config`: Recurrence configuration invalid
@@ -365,6 +404,7 @@ interface CacheStatistics {
 - `webhook_delivery_failed`: Webhook notification failed
 
 #### Error Response Format
+
 ```typescript
 interface ErrorResponse {
   detail: {
@@ -380,6 +420,7 @@ interface ErrorResponse {
 **Design Decision**: Extend existing validation schemas in `screenshot_validator.ts` rather than creating new files to maintain consistency.
 
 #### New Validation Rules
+
 - Webhook URL format validation
 - Scheduled time future validation
 - Recurrence pattern validation
@@ -389,18 +430,21 @@ interface ErrorResponse {
 ## Testing Strategy
 
 ### Unit Tests
+
 - **Controller Tests**: Test new endpoints with various input scenarios
 - **Service Tests**: Test cache operations, job scheduling, and webhook delivery
 - **Model Tests**: Test enhanced BatchJob methods and calculations
 - **Validation Tests**: Test new validation rules and error cases
 
 ### Integration Tests
+
 - **End-to-End Workflows**: Test complete batch job lifecycle with scheduling
 - **Cache Integration**: Test cache invalidation and statistics
 - **Webhook Integration**: Test webhook delivery with authentication
 - **Queue Integration**: Test job scheduling and cancellation
 
 ### Performance Tests
+
 - **Cache Performance**: Test cache hit rates and response times
 - **Batch Processing**: Test large batch jobs with various configurations
 - **Concurrent Operations**: Test multiple simultaneous operations
@@ -412,30 +456,43 @@ interface ErrorResponse {
 The following routes need to be added to `start/routes.ts` within the existing screenshot API group:
 
 ```typescript
-router.group(() => {
-  // Existing routes
-  router.post('/screenshot', '#controllers/screenshot_controller.single')
-  router.post('/batch/screenshots', '#controllers/screenshot_controller.createBatch')
-  router.get('/batch/screenshots/:job_id', '#controllers/screenshot_controller.getBatchStatus')
+router
+  .group(() => {
+    // Existing routes
+    router.post('/screenshot', '#controllers/screenshot_controller.single')
+    router.post('/batch/screenshots', '#controllers/screenshot_controller.createBatch')
+    router.get('/batch/screenshots/:job_id', '#controllers/screenshot_controller.getBatchStatus')
 
-  // New batch management routes
-  router.get('/batch/screenshots/active', '#controllers/screenshot_controller.getActiveBatchJobs')
-  router.post('/batch/screenshots/:job_id/schedule', '#controllers/screenshot_controller.scheduleBatchJob')
-  router.post('/batch/screenshots/:job_id/recurrence', '#controllers/screenshot_controller.setBatchJobRecurrence')
-  router.post('/batch/screenshots/:job_id/cancel', '#controllers/screenshot_controller.cancelBatchJob')
-  router.get('/batch/screenshots/:job_id/results', '#controllers/screenshot_controller.getBatchJobResults')
+    // New batch management routes
+    router.get('/batch/screenshots/active', '#controllers/screenshot_controller.getActiveBatchJobs')
+    router.post(
+      '/batch/screenshots/:job_id/schedule',
+      '#controllers/screenshot_controller.scheduleBatchJob'
+    )
+    router.post(
+      '/batch/screenshots/:job_id/recurrence',
+      '#controllers/screenshot_controller.setBatchJobRecurrence'
+    )
+    router.post(
+      '/batch/screenshots/:job_id/cancel',
+      '#controllers/screenshot_controller.cancelBatchJob'
+    )
+    router.get(
+      '/batch/screenshots/:job_id/results',
+      '#controllers/screenshot_controller.getBatchJobResults'
+    )
 
-  // New cache management routes
-  router.get('/cache/stats', '#controllers/screenshot_controller.getCacheStats')
-  router.delete('/cache', '#controllers/screenshot_controller.clearCache')
-  router.delete('/cache/url', '#controllers/screenshot_controller.invalidateCacheUrl')
-
-}).middleware([
-  middleware.requestLogging(),
-  middleware.apiKeyAuth(),
-  middleware.rateLimit(),
-  middleware.metrics()
-])
+    // New cache management routes
+    router.get('/cache/stats', '#controllers/screenshot_controller.getCacheStats')
+    router.delete('/cache', '#controllers/screenshot_controller.clearCache')
+    router.delete('/cache/url', '#controllers/screenshot_controller.invalidateCacheUrl')
+  })
+  .middleware([
+    middleware.requestLogging(),
+    middleware.apiKeyAuth(),
+    middleware.rateLimit(),
+    middleware.metrics(),
+  ])
 ```
 
 ### Route Ordering Considerations
@@ -449,7 +506,7 @@ router.group(() => {
 The existing `batch_jobs` table needs the following schema additions:
 
 ```sql
-ALTER TABLE batch_jobs 
+ALTER TABLE batch_jobs
 ADD COLUMN next_scheduled_time DATETIME NULL,
 ADD COLUMN recurrence_config JSON NULL,
 ADD COLUMN webhook_url VARCHAR(2048) NULL,
@@ -468,24 +525,28 @@ CREATE INDEX idx_batch_jobs_next_scheduled ON batch_jobs(next_scheduled_time);
 ## Implementation Phases
 
 ### Phase 1: Enhanced Response Data
+
 1. Modify existing endpoints to return enhanced response data
 2. Add processing time tracking and file size calculation
 3. Implement cache hit detection and expiration timestamps
 4. Update response formatters and documentation
 
 ### Phase 2: Batch Job Management
+
 1. Implement active jobs listing endpoint
 2. Add job scheduling functionality
 3. Implement job cancellation with queue integration
 4. Add detailed results endpoint
 
 ### Phase 3: Recurrence and Advanced Features
+
 1. Implement recurrence configuration
 2. Add cron-based scheduling support
 3. Implement webhook notification system
 4. Add priority-based queue processing
 
 ### Phase 4: Cache Management
+
 1. Implement cache statistics endpoint
 2. Add cache clearing functionality
 3. Implement URL-specific cache invalidation
@@ -494,16 +555,19 @@ CREATE INDEX idx_batch_jobs_next_scheduled ON batch_jobs(next_scheduled_time);
 ## Security Considerations
 
 ### Authentication and Authorization
+
 - **Existing Pattern**: Maintain API key authentication for all endpoints
 - **Rate Limiting**: Apply existing rate limiting to new endpoints
 - **Webhook Security**: Validate webhook URLs and implement secure authentication
 
 ### Input Validation
+
 - **URL Validation**: Strict validation for webhook URLs and scheduled times
 - **Parameter Sanitization**: Sanitize all input parameters
 - **SQL Injection Prevention**: Use parameterized queries for database operations
 
 ### Data Privacy
+
 - **Job Isolation**: Ensure users can only access their own batch jobs
 - **Cache Isolation**: Implement cache key prefixing for multi-tenant support
 - **Audit Logging**: Log all administrative operations
@@ -511,16 +575,19 @@ CREATE INDEX idx_batch_jobs_next_scheduled ON batch_jobs(next_scheduled_time);
 ## Performance Optimizations
 
 ### Caching Strategy
+
 - **Response Caching**: Cache frequently accessed job status responses
 - **Database Query Optimization**: Use database indexes for job queries
 - **Memory Management**: Implement cache size limits and cleanup
 
 ### Queue Optimization
+
 - **Priority Queues**: Implement priority-based job processing
 - **Batch Processing**: Optimize batch job processing with configurable concurrency
 - **Dead Letter Queues**: Handle failed jobs with retry mechanisms
 
 ### Database Optimization
+
 - **Indexing**: Add indexes for job status and timestamp queries
 - **Pagination**: Implement pagination for large result sets
 - **Connection Pooling**: Optimize database connection usage
@@ -528,16 +595,19 @@ CREATE INDEX idx_batch_jobs_next_scheduled ON batch_jobs(next_scheduled_time);
 ## Monitoring and Observability
 
 ### Metrics Collection
+
 - **Endpoint Metrics**: Track response times and error rates for new endpoints
 - **Cache Metrics**: Monitor cache hit rates and performance
 - **Queue Metrics**: Track job processing times and failure rates
 
 ### Logging Strategy
+
 - **Structured Logging**: Use consistent log formats for new functionality
 - **Error Tracking**: Implement comprehensive error logging
 - **Performance Logging**: Log slow operations and bottlenecks
 
 ### Health Checks
+
 - **Cache Health**: Monitor cache service availability
 - **Queue Health**: Monitor queue processing status
 - **Database Health**: Monitor database connectivity and performance
@@ -545,16 +615,19 @@ CREATE INDEX idx_batch_jobs_next_scheduled ON batch_jobs(next_scheduled_time);
 ## Deployment Considerations
 
 ### Backward Compatibility
+
 - **API Versioning**: Maintain backward compatibility for existing endpoints
 - **Database Migrations**: Implement safe database schema changes
 - **Configuration Management**: Handle new configuration parameters gracefully
 
 ### Rollout Strategy
+
 - **Feature Flags**: Use feature flags for gradual rollout
 - **A/B Testing**: Test new endpoints with subset of users
 - **Monitoring**: Implement comprehensive monitoring during rollout
 
 ### Scalability
+
 - **Horizontal Scaling**: Ensure new features support horizontal scaling
 - **Load Testing**: Test new endpoints under high load
 - **Resource Management**: Monitor resource usage of new features

@@ -7,13 +7,13 @@ test.group('ImgProxyService', (group) => {
   group.setup(() => {
     // Create new instance for testing with mock config
     imgProxyService = new (ImgProxyService as any)()
-      // Use type assertion to bypass private property restrictions
-      ; (imgProxyService as any).config = {
-        baseUrl: 'https://imgproxy.example.com',
-        key: '943b421c9eb07c830af81030552c86009268de4e532ba2ee2eab8247c6da0881',
-        salt: '520f986b998545b4785e0defbc4f3c1203f22de2374a3d53cb7a7fe9fea309c5'
-      }
-      ; (imgProxyService as any).isConfigured = true
+    // Use type assertion to bypass private property restrictions
+    ;(imgProxyService as any).config = {
+      baseUrl: 'https://imgproxy.example.com',
+      key: '943b421c9eb07c830af81030552c86009268de4e532ba2ee2eab8247c6da0881',
+      salt: '520f986b998545b4785e0defbc4f3c1203f22de2374a3d53cb7a7fe9fea309c5',
+    }
+    ;(imgProxyService as any).isConfigured = true
   })
 
   test('should initialize with proper configuration', async ({ assert }) => {
@@ -69,7 +69,7 @@ test.group('ImgProxyService', (group) => {
       height: 200,
       resize: 'fill' as const,
       enlarge: true,
-      extend: true
+      extend: true,
     }
 
     const result = imgProxyService.generateUrl(imageUrl, options)
@@ -135,7 +135,7 @@ test.group('ImgProxyService', (group) => {
       height: 200,
       strip_metadata: true,
       strip_color_profile: true,
-      auto_rotate: true
+      auto_rotate: true,
     }
 
     const result = imgProxyService.generateUrl(imageUrl, options)
@@ -200,7 +200,7 @@ test.group('ImgProxyService', (group) => {
     const optionsArray = [
       { width: 100, height: 100 },
       { width: 200, height: 200, format: 'webp' },
-      { width: 300, height: 300, quality: 80 }
+      { width: 300, height: 300, quality: 80 },
     ]
 
     const results = imgProxyService.generateMultipleUrls(imageUrl, optionsArray)
@@ -230,7 +230,7 @@ test.group('ImgProxyService', (group) => {
     assert.equal(results[3].size, 'large')
     assert.equal(results[3].width, 1920)
 
-    results.forEach(result => {
+    results.forEach((result) => {
       assert.isString(result.url)
     })
   })
@@ -315,7 +315,7 @@ test.group('ImgProxyService', (group) => {
       sharpen: 1,
       strip_metadata: true,
       auto_rotate: true,
-      filename: 'optimized-image.webp'
+      filename: 'optimized-image.webp',
     }
 
     const result = imgProxyService.generateUrl(imageUrl, options)

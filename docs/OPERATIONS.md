@@ -40,11 +40,13 @@ This document provides operational procedures for monitoring, troubleshooting, a
 ### Health Check Endpoints
 
 #### Basic Health Check
+
 ```bash
 curl -f http://localhost:3333/health
 ```
 
 Expected response:
+
 ```json
 {
   "status": "healthy",
@@ -54,11 +56,13 @@ Expected response:
 ```
 
 #### Detailed Health Check
+
 ```bash
 curl -f http://localhost:3333/health/detailed
 ```
 
 #### Component-Specific Health Checks
+
 ```bash
 # Database health
 curl -f http://localhost:3333/health/database
@@ -76,16 +80,19 @@ curl -f http://localhost:3333/health/storage
 ### Metrics Endpoints
 
 #### Request Metrics
+
 ```bash
 curl http://localhost:3333/metrics/requests
 ```
 
 #### Processing Metrics
+
 ```bash
 curl http://localhost:3333/metrics/processing
 ```
 
 #### System Metrics
+
 ```bash
 curl http://localhost:3333/metrics/system
 ```
@@ -93,6 +100,7 @@ curl http://localhost:3333/metrics/system
 ### Log Monitoring
 
 #### Application Logs
+
 ```bash
 # Docker Compose
 docker-compose logs -f web2img
@@ -105,6 +113,7 @@ tail -f /var/log/web2img/application.log
 ```
 
 #### Log Levels
+
 - `ERROR`: Critical errors requiring immediate attention
 - `WARN`: Warning conditions that should be monitored
 - `INFO`: General operational information
@@ -162,12 +171,14 @@ grep -E "(auth.*failed|invalid.*key|rate.*limit)" /var/log/web2img/application.l
 ### Automated Health Checks
 
 #### Docker Health Check
+
 ```dockerfile
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD node -e "require('http').get('http://localhost:3333/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"
 ```
 
 #### Kubernetes Liveness Probe
+
 ```yaml
 livenessProbe:
   httpGet:
@@ -180,6 +191,7 @@ livenessProbe:
 ```
 
 #### Kubernetes Readiness Probe
+
 ```yaml
 readinessProbe:
   httpGet:
@@ -194,6 +206,7 @@ readinessProbe:
 ### Manual Health Verification
 
 #### Complete System Check
+
 ```bash
 #!/bin/bash
 # health-check.sh
@@ -260,11 +273,13 @@ echo "=== Health Check Complete ==="
 #### 1. Service Won't Start
 
 **Symptoms:**
+
 - Container exits immediately
 - Health checks fail
 - Connection refused errors
 
 **Diagnosis:**
+
 ```bash
 # Check container logs
 docker logs web2img_web2img_1
@@ -277,6 +292,7 @@ netstat -tlnp | grep 3333
 ```
 
 **Solutions:**
+
 - Verify environment variables are set correctly
 - Check database and Redis connectivity
 - Ensure APP_KEY is at least 32 characters
@@ -285,11 +301,13 @@ netstat -tlnp | grep 3333
 #### 2. Database Connection Issues
 
 **Symptoms:**
+
 - "Database connection failed" errors
 - Timeouts on database operations
 - Migration failures
 
 **Diagnosis:**
+
 ```bash
 # Test database connectivity
 mysql -h $DB_HOST -P $DB_PORT -u $DB_USER -p$DB_PASSWORD $DB_DATABASE -e "SELECT 1"
@@ -302,6 +320,7 @@ curl http://localhost:3333/health/database
 ```
 
 **Solutions:**
+
 - Verify database credentials
 - Check database server status
 - Increase connection timeout
@@ -311,11 +330,13 @@ curl http://localhost:3333/health/database
 #### 3. Redis Connection Issues
 
 **Symptoms:**
+
 - Cache misses increase dramatically
 - Queue jobs not processing
 - "Redis connection failed" errors
 
 **Diagnosis:**
+
 ```bash
 # Test Redis connectivity
 redis-cli -h $REDIS_HOST -p $REDIS_PORT -a $REDIS_PASSWORD ping
@@ -328,6 +349,7 @@ redis-cli -h $REDIS_HOST -p $REDIS_PORT -a $REDIS_PASSWORD info memory
 ```
 
 **Solutions:**
+
 - Verify Redis credentials
 - Check Redis server status
 - Clear Redis memory if full
@@ -337,11 +359,13 @@ redis-cli -h $REDIS_HOST -p $REDIS_PORT -a $REDIS_PASSWORD info memory
 #### 4. Screenshot Generation Failures
 
 **Symptoms:**
+
 - High screenshot failure rate
 - Timeout errors
 - Browser crashes
 
 **Diagnosis:**
+
 ```bash
 # Check browser service health
 curl http://localhost:3333/health/browser
@@ -359,6 +383,7 @@ curl -H "X-API-Key: test-key" -H "Content-Type: application/json" \
 ```
 
 **Solutions:**
+
 - Increase screenshot timeout
 - Reduce concurrent browser instances
 - Check target URL accessibility
@@ -368,11 +393,13 @@ curl -H "X-API-Key: test-key" -H "Content-Type: application/json" \
 #### 5. Queue Backup
 
 **Symptoms:**
+
 - Jobs stuck in pending state
 - Queue depth continuously growing
 - Workers not processing jobs
 
 **Diagnosis:**
+
 ```bash
 # Check queue metrics
 curl http://localhost:3333/metrics/processing
@@ -385,6 +412,7 @@ redis-cli -h $REDIS_HOST -p $REDIS_PORT -a $REDIS_PASSWORD llen "web2img:queue:s
 ```
 
 **Solutions:**
+
 - Restart queue workers
 - Increase worker concurrency
 - Clear stuck jobs from queue
@@ -394,11 +422,13 @@ redis-cli -h $REDIS_HOST -p $REDIS_PORT -a $REDIS_PASSWORD llen "web2img:queue:s
 #### 6. High Memory Usage
 
 **Symptoms:**
+
 - Out of memory errors
 - Container restarts
 - Slow performance
 
 **Diagnosis:**
+
 ```bash
 # Check memory usage
 docker stats web2img_web2img_1
@@ -411,6 +441,7 @@ ps aux | grep chromium
 ```
 
 **Solutions:**
+
 - Restart the service
 - Reduce concurrent operations
 - Increase memory limits
@@ -420,6 +451,7 @@ ps aux | grep chromium
 ### Debugging Commands
 
 #### Container Debugging
+
 ```bash
 # Enter container shell
 docker exec -it web2img_web2img_1 /bin/sh
@@ -435,6 +467,7 @@ docker exec web2img_web2img_1 ping google.com
 ```
 
 #### Application Debugging
+
 ```bash
 # Enable debug logging
 docker exec web2img_web2img_1 env LOG_LEVEL=debug
@@ -454,12 +487,15 @@ docker exec web2img_web2img_1 node ace cache:clear
 ### Regular Maintenance Tasks
 
 #### Daily Tasks
+
 1. **Monitor System Health**
+
    ```bash
    ./scripts/health-check.sh
    ```
 
 2. **Check Error Logs**
+
    ```bash
    docker logs web2img_web2img_1 | grep ERROR | tail -50
    ```
@@ -470,13 +506,16 @@ docker exec web2img_web2img_1 node ace cache:clear
    ```
 
 #### Weekly Tasks
+
 1. **Clean Up Old Screenshots**
+
    ```bash
    # Remove screenshots older than 30 days
    find /app/storage/screenshots -type f -mtime +30 -delete
    ```
 
 2. **Database Maintenance**
+
    ```bash
    # Optimize database tables
    docker exec web2img_mysql_1 mysqlcheck -o --all-databases -u root -p
@@ -489,7 +528,9 @@ docker exec web2img_web2img_1 node ace cache:clear
    ```
 
 #### Monthly Tasks
+
 1. **Security Updates**
+
    ```bash
    # Update base images
    docker pull node:18-alpine
@@ -509,6 +550,7 @@ docker exec web2img_web2img_1 node ace cache:clear
 ### Scaling Procedures
 
 #### Horizontal Scaling
+
 ```bash
 # Scale web application
 docker-compose up -d --scale web2img=3
@@ -518,20 +560,22 @@ kubectl scale deployment web2img --replicas=5 -n web2img-prod
 ```
 
 #### Vertical Scaling
+
 ```yaml
 # Update resource limits
 resources:
   limits:
-    cpu: "4.0"
-    memory: "4Gi"
+    cpu: '4.0'
+    memory: '4Gi'
   requests:
-    cpu: "2.0"
-    memory: "2Gi"
+    cpu: '2.0'
+    memory: '2Gi'
 ```
 
 ### Update Procedures
 
 #### Application Updates
+
 ```bash
 # Deploy new version
 ./scripts/deploy.sh production -v v1.2.3
@@ -541,6 +585,7 @@ resources:
 ```
 
 #### Database Schema Updates
+
 ```bash
 # Run migrations
 docker exec web2img_web2img_1 node ace migration:run
@@ -554,6 +599,7 @@ docker exec web2img_web2img_1 node ace migration:rollback
 ### Incident Classification
 
 #### Severity 1 (Critical)
+
 - Service completely down
 - Data loss or corruption
 - Security breach
@@ -561,6 +607,7 @@ docker exec web2img_web2img_1 node ace migration:rollback
 **Response Time:** Immediate (< 15 minutes)
 
 #### Severity 2 (High)
+
 - Significant performance degradation
 - Partial service outage
 - High error rates
@@ -568,6 +615,7 @@ docker exec web2img_web2img_1 node ace migration:rollback
 **Response Time:** < 1 hour
 
 #### Severity 3 (Medium)
+
 - Minor performance issues
 - Non-critical feature failures
 - Monitoring alerts
@@ -575,6 +623,7 @@ docker exec web2img_web2img_1 node ace migration:rollback
 **Response Time:** < 4 hours
 
 #### Severity 4 (Low)
+
 - Cosmetic issues
 - Enhancement requests
 - Documentation updates
@@ -584,23 +633,28 @@ docker exec web2img_web2img_1 node ace migration:rollback
 ### Incident Response Procedures
 
 #### 1. Initial Response
+
 1. **Acknowledge the incident**
 2. **Assess severity level**
 3. **Notify stakeholders**
 4. **Begin investigation**
 
 #### 2. Investigation
+
 1. **Check service health**
+
    ```bash
    ./scripts/health-check.sh
    ```
 
 2. **Review recent changes**
+
    ```bash
    git log --oneline -10
    ```
 
 3. **Check system metrics**
+
    ```bash
    curl http://localhost:3333/metrics/system
    ```
@@ -611,18 +665,21 @@ docker exec web2img_web2img_1 node ace migration:rollback
    ```
 
 #### 3. Mitigation
+
 1. **Apply immediate fixes**
 2. **Scale resources if needed**
 3. **Rollback if necessary**
 4. **Implement workarounds**
 
 #### 4. Resolution
+
 1. **Verify fix effectiveness**
 2. **Monitor for recurrence**
 3. **Update stakeholders**
 4. **Document resolution**
 
 #### 5. Post-Incident
+
 1. **Conduct post-mortem**
 2. **Identify root cause**
 3. **Implement preventive measures**
@@ -638,18 +695,21 @@ docker exec web2img_web2img_1 node ace migration:rollback
 ### Rollback Procedures
 
 #### Quick Rollback
+
 ```bash
 # Rollback to previous version
 ./scripts/deploy.sh production --rollback v1.2.2 -f
 ```
 
 #### Database Rollback
+
 ```bash
 # Rollback database migrations
 docker exec web2img_web2img_1 node ace migration:rollback --batch=1
 ```
 
 #### Configuration Rollback
+
 ```bash
 # Restore previous configuration
 git checkout HEAD~1 -- .env.production
@@ -661,6 +721,7 @@ docker-compose up -d
 ### Performance Monitoring
 
 #### Key Performance Indicators
+
 - Response time (95th percentile < 2 seconds)
 - Throughput (> 100 requests/second)
 - Error rate (< 1%)
@@ -668,6 +729,7 @@ docker-compose up -d
 - Queue processing rate (> 50 jobs/minute)
 
 #### Performance Testing
+
 ```bash
 # Load testing with Apache Bench
 ab -n 1000 -c 10 -H "X-API-Key: test-key" \
@@ -682,6 +744,7 @@ wrk -t12 -c400 -d30s --script=screenshot-test.lua \
 ### Optimization Strategies
 
 #### 1. Database Optimization
+
 ```sql
 -- Add indexes for frequently queried columns
 CREATE INDEX idx_batch_jobs_status ON batch_jobs(status);
@@ -692,6 +755,7 @@ EXPLAIN SELECT * FROM batch_jobs WHERE status = 'pending';
 ```
 
 #### 2. Cache Optimization
+
 ```bash
 # Increase cache TTL for stable content
 SCREENSHOT_CACHE_TTL=7200
@@ -701,6 +765,7 @@ redis-cli CONFIG SET maxmemory-policy allkeys-lru
 ```
 
 #### 3. Queue Optimization
+
 ```bash
 # Increase worker concurrency
 SCREENSHOT_QUEUE_CONCURRENCY=20
@@ -710,6 +775,7 @@ SCREENSHOT_MAX_CONCURRENT=50
 ```
 
 #### 4. Browser Optimization
+
 ```bash
 # Optimize browser settings
 BROWSER_HEADLESS=true
@@ -724,6 +790,7 @@ BROWSER_POOL_SIZE=10
 ### Backup Procedures
 
 #### Database Backup
+
 ```bash
 # Daily database backup
 docker exec web2img_mysql_1 mysqldump -u root -p web2img > backup_$(date +%Y%m%d).sql
@@ -739,6 +806,7 @@ find "$BACKUP_DIR" -name "web2img_*.sql.gz" -mtime +30 -delete
 ```
 
 #### File Storage Backup
+
 ```bash
 # Backup screenshot storage
 rsync -av /app/storage/screenshots/ /backups/screenshots/
@@ -751,6 +819,7 @@ tar -czf "$BACKUP_DIR/screenshots_$DATE.tar.gz" /app/storage/screenshots/
 ```
 
 #### Configuration Backup
+
 ```bash
 # Backup configuration files
 tar -czf config_backup_$(date +%Y%m%d).tar.gz \
@@ -762,6 +831,7 @@ tar -czf config_backup_$(date +%Y%m%d).tar.gz \
 ### Recovery Procedures
 
 #### Database Recovery
+
 ```bash
 # Restore from backup
 docker exec -i web2img_mysql_1 mysql -u root -p web2img < backup_20240115.sql
@@ -773,6 +843,7 @@ docker exec web2img_mysql_1 mysqlbinlog --start-datetime="2024-01-15 10:00:00" \
 ```
 
 #### File Storage Recovery
+
 ```bash
 # Restore screenshot storage
 rsync -av /backups/screenshots/ /app/storage/screenshots/
@@ -782,6 +853,7 @@ tar -xzf screenshots_20240115.tar.gz -C /
 ```
 
 #### Disaster Recovery
+
 ```bash
 # Complete system recovery
 1. Restore database from backup
@@ -794,6 +866,7 @@ tar -xzf screenshots_20240115.tar.gz -C /
 ### Backup Verification
 
 #### Automated Backup Testing
+
 ```bash
 #!/bin/bash
 # test-backup.sh

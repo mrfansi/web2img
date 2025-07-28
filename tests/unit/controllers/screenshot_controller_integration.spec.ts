@@ -25,7 +25,7 @@ test.group('ScreenshotController - Integration Tests', (group) => {
       key: 'test-api-key-123',
       name: 'Test API Key',
       rateLimit: 1000,
-      user: { id: 1, email: 'test@example.com' }
+      user: { id: 1, email: 'test@example.com' },
     }
 
     ApiKey.findByKey = async () => mockApiKey as any
@@ -52,9 +52,9 @@ test.group('ScreenshotController - Integration Tests', (group) => {
           format: 'png',
           width: 1280,
           height: 720,
-          cache: true
+          cache: true,
         }),
-        input: (key: string) => key === 'url' ? 'https://example.com' : undefined
+        input: (key: string) => (key === 'url' ? 'https://example.com' : undefined),
       },
       response: {
         status: (code: number) => {
@@ -69,11 +69,11 @@ test.group('ScreenshotController - Integration Tests', (group) => {
           responseHeaders[name] = value
           return ctx.response
         },
-        getStatus: () => responseStatus
+        getStatus: () => responseStatus,
       },
       correlationId: undefined,
       apiKey: undefined,
-      user: undefined
+      user: undefined,
     }
 
     // Simulate middleware chain execution
@@ -122,8 +122,8 @@ test.group('ScreenshotController - Integration Tests', (group) => {
         },
         ip: () => '127.0.0.1',
         all: () => ({
-          url: 'https://example.com'
-        })
+          url: 'https://example.com',
+        }),
       },
       response: {
         status: (code: number) => {
@@ -134,11 +134,11 @@ test.group('ScreenshotController - Integration Tests', (group) => {
           responseBody = data
           return ctx.response
         },
-        getStatus: () => responseStatus
+        getStatus: () => responseStatus,
       },
       correlationId: undefined,
       apiKey: undefined,
-      user: undefined
+      user: undefined,
     }
 
     const next = async () => {
@@ -169,8 +169,8 @@ test.group('ScreenshotController - Integration Tests', (group) => {
         },
         ip: () => '127.0.0.1',
         all: () => ({
-          url: 'https://example.com'
-        })
+          url: 'https://example.com',
+        }),
       },
       response: {
         status: (code: number) => {
@@ -181,11 +181,11 @@ test.group('ScreenshotController - Integration Tests', (group) => {
           responseBody = data
           return ctx.response
         },
-        getStatus: () => responseStatus
+        getStatus: () => responseStatus,
       },
       correlationId: undefined,
       apiKey: undefined,
-      user: undefined
+      user: undefined,
     }
 
     const next = async () => {
@@ -209,7 +209,7 @@ test.group('ScreenshotController - Integration Tests', (group) => {
       key: 'test-api-key-123',
       name: 'Test API Key',
       rateLimit: 1000,
-      user: { id: 1, email: 'test@example.com' }
+      user: { id: 1, email: 'test@example.com' },
     }
 
     ApiKey.findByKey = async () => mockApiKey as any
@@ -227,14 +227,14 @@ test.group('ScreenshotController - Integration Tests', (group) => {
       scheduledAt: null,
       completedAt: null,
       estimatedCompletion: null,
-      save: async () => {}
+      save: async () => {},
     }
 
     const BatchJob = await import('#models/batch_job')
     BatchJob.default.createBatchJob = async () => mockBatchJob as any
 
     const queueService = await import('#services/queue_service')
-    queueService.default.addBatchJob = async () => ({ id: 'queue-job-123' } as any)
+    queueService.default.addBatchJob = async () => ({ id: 'queue-job-123' }) as any
 
     let responseStatus = 200
     let responseBody: any = null
@@ -253,14 +253,14 @@ test.group('ScreenshotController - Integration Tests', (group) => {
         all: () => ({
           items: [
             { id: 'item1', url: 'https://example.com' },
-            { id: 'item2', url: 'https://google.com' }
+            { id: 'item2', url: 'https://google.com' },
           ],
           config: {
             parallel: 5,
             timeout: 60000,
-            cache: true
-          }
-        })
+            cache: true,
+          },
+        }),
       },
       response: {
         status: (code: number) => {
@@ -275,11 +275,11 @@ test.group('ScreenshotController - Integration Tests', (group) => {
           responseHeaders[name] = value
           return ctx.response
         },
-        getStatus: () => responseStatus
+        getStatus: () => responseStatus,
       },
       correlationId: undefined,
       apiKey: undefined,
-      user: undefined
+      user: undefined,
     }
 
     const next = async () => {
@@ -309,7 +309,8 @@ test.group('ScreenshotController - Integration Tests', (group) => {
   // Helper function to setup mock services
   function setupMockServices() {
     const cacheService = require('#services/cache_service').default
-    const screenshotWorkerService = require('#services/screenshot_worker_service').screenshotWorkerService
+    const screenshotWorkerService =
+      require('#services/screenshot_worker_service').screenshotWorkerService
     const fileStorageService = require('#services/file_storage_service').default
     const imgProxyService = require('#services/imgproxy_service').default
 
@@ -323,7 +324,7 @@ test.group('ScreenshotController - Integration Tests', (group) => {
       workerProcess: screenshotWorkerService.processScreenshotJob,
       storageSave: fileStorageService.saveFile,
       storageGetUrl: fileStorageService.getFileUrl,
-      imgProxyGenerate: imgProxyService.generateUrlWithFallback
+      imgProxyGenerate: imgProxyService.generateUrlWithFallback,
     }
 
     // Setup mocks
@@ -341,7 +342,7 @@ test.group('ScreenshotController - Integration Tests', (group) => {
       height: 720,
       processingTime: 1000,
       finalUrl: 'https://example.com',
-      wasTransformed: false
+      wasTransformed: false,
     })
 
     fileStorageService.saveFile = async () => 'screenshots/2025/01/26/test.png'
@@ -354,7 +355,8 @@ test.group('ScreenshotController - Integration Tests', (group) => {
   // Helper function to cleanup mock services
   function cleanupMockServices(originalMethods: any) {
     const cacheService = require('#services/cache_service').default
-    const screenshotWorkerService = require('#services/screenshot_worker_service').screenshotWorkerService
+    const screenshotWorkerService =
+      require('#services/screenshot_worker_service').screenshotWorkerService
     const fileStorageService = require('#services/file_storage_service').default
     const imgProxyService = require('#services/imgproxy_service').default
 

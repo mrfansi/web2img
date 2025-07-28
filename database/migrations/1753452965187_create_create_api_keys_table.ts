@@ -17,7 +17,7 @@ export default class extends BaseSchema {
 
       // Foreign key constraint
       table.foreign('user_id').references('id').inTable('users').onDelete('CASCADE')
-      
+
       // Index for performance
       table.index(['key'])
       table.index(['user_id'])

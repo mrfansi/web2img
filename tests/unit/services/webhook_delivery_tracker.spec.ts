@@ -78,7 +78,7 @@ test.group('WebhookDeliveryTracker', (group) => {
       success: true,
       statusCode: 200,
       attempt: 1,
-      deliveredAt: new Date()
+      deliveredAt: new Date(),
     }
 
     await tracker.updateDeliveryStatus(id, result)
@@ -113,7 +113,7 @@ test.group('WebhookDeliveryTracker', (group) => {
       statusCode: 500,
       error: 'Internal Server Error',
       attempt: 1,
-      deliveredAt: new Date()
+      deliveredAt: new Date(),
     }
 
     await tracker.updateDeliveryStatus(id, result)
@@ -149,7 +149,7 @@ test.group('WebhookDeliveryTracker', (group) => {
       statusCode: 500,
       error: 'Server Error',
       attempt: maxRetries,
-      deliveredAt: new Date()
+      deliveredAt: new Date(),
     }
 
     await tracker.updateDeliveryStatus(id, result)
@@ -183,7 +183,7 @@ test.group('WebhookDeliveryTracker', (group) => {
       statusCode: 503,
       error: 'Service Unavailable',
       attempt: 1,
-      deliveredAt: new Date()
+      deliveredAt: new Date(),
     }
 
     await tracker.updateDeliveryStatus(id, result1)
@@ -193,7 +193,7 @@ test.group('WebhookDeliveryTracker', (group) => {
       success: true,
       statusCode: 200,
       attempt: 2,
-      deliveredAt: new Date()
+      deliveredAt: new Date(),
     }
 
     await tracker.updateDeliveryStatus(id, result2)
@@ -244,7 +244,7 @@ test.group('WebhookDeliveryTracker', (group) => {
       statusCode: 404,
       error: 'Not Found',
       attempt: 1,
-      deliveredAt: new Date()
+      deliveredAt: new Date(),
     }
 
     await tracker.updateDeliveryStatus(id, result)
@@ -253,7 +253,7 @@ test.group('WebhookDeliveryTracker', (group) => {
 
     assert.isArray(failures)
     // Should contain our failed delivery (among others from previous tests)
-    const ourFailure = failures.find(f => f.id === id)
+    const ourFailure = failures.find((f) => f.id === id)
     if (ourFailure) {
       assert.equal(ourFailure.status, 'failed')
       assert.equal(ourFailure.lastError, 'Not Found')
@@ -274,7 +274,7 @@ test.group('WebhookDeliveryTracker', (group) => {
       success: false,
       error: 'Test error',
       attempt: 1,
-      deliveredAt: new Date()
+      deliveredAt: new Date(),
     }
 
     await tracker.updateDeliveryStatus('error-test', result)
@@ -301,7 +301,7 @@ test.group('WebhookDeliveryTracker', (group) => {
         success: false,
         error: commonError,
         attempt: 1,
-        deliveredAt: new Date()
+        deliveredAt: new Date(),
       }
 
       await tracker.updateDeliveryStatus(id, result)
@@ -310,7 +310,7 @@ test.group('WebhookDeliveryTracker', (group) => {
     const stats = await tracker.getDeliveryStats()
 
     // Should track the common error
-    const errorEntry = stats.commonErrors.find(e => e.error === commonError)
+    const errorEntry = stats.commonErrors.find((e) => e.error === commonError)
     if (errorEntry) {
       assert.isAtLeast(errorEntry.count, 1)
     }
@@ -327,7 +327,7 @@ test.group('WebhookDeliveryTracker', (group) => {
       success: true,
       statusCode: 200,
       attempt: 1,
-      deliveredAt: new Date()
+      deliveredAt: new Date(),
     }
 
     await tracker.updateDeliveryStatus(successId, successResult)
@@ -340,7 +340,7 @@ test.group('WebhookDeliveryTracker', (group) => {
       success: false,
       error: 'Failed',
       attempt: 1,
-      deliveredAt: new Date()
+      deliveredAt: new Date(),
     }
 
     await tracker.updateDeliveryStatus(failId, failResult)

@@ -32,27 +32,30 @@ test.group('CentralRedisManager', (group) => {
     redisManager.getClient()
 
     // Give time for main connection to be tracked
-    await new Promise(resolve => setTimeout(resolve, 20))
+    await new Promise((resolve) => setTimeout(resolve, 20))
     const countAfterClient = redisManager.getOpenConnectionsCount()
 
     // Create duplicate connection
     const duplicate = redisManager.duplicate()
 
     // Give a moment for connection tracking to be updated
-    await new Promise(resolve => setTimeout(resolve, 50))
+    await new Promise((resolve) => setTimeout(resolve, 50))
 
     const finalCount = redisManager.getOpenConnectionsCount()
 
     // Allow for some flexibility in connection counting due to async nature
     // Just ensure we have at least as many connections as before creating the duplicate
-    assert.isTrue(finalCount >= countAfterClient, `Expected ${finalCount} to be >= ${countAfterClient}`)
+    assert.isTrue(
+      finalCount >= countAfterClient,
+      `Expected ${finalCount} to be >= ${countAfterClient}`
+    )
     assert.isDefined(duplicate)
   })
 
   test('should track BullMQ connections', ({ assert }) => {
     const redisManager = getCentralRedisManager()
 
-    // Get base client first  
+    // Get base client first
     redisManager.getClient()
     const countAfterClient = redisManager.getOpenConnectionsCount()
 
@@ -123,7 +126,7 @@ test.group('CentralRedisManager', (group) => {
     redisManager.duplicate()
 
     // Give time for connections to be tracked
-    await new Promise(resolve => setTimeout(resolve, 20))
+    await new Promise((resolve) => setTimeout(resolve, 20))
 
     const countAfterConnections = redisManager.getOpenConnectionsCount()
 
@@ -134,7 +137,7 @@ test.group('CentralRedisManager', (group) => {
     await CentralRedisManager.forceReset()
 
     // Give a moment for cleanup
-    await new Promise(resolve => setTimeout(resolve, 50))
+    await new Promise((resolve) => setTimeout(resolve, 50))
 
     // New instance should have no connections
     const newManager = getCentralRedisManager()
@@ -164,29 +167,35 @@ test.group('CentralRedisManager - Connection Cleanup', (group) => {
     redisManager.getClient() // Creates main connection
 
     // Give time for main connection to be tracked
-    await new Promise(resolve => setTimeout(resolve, 20))
+    await new Promise((resolve) => setTimeout(resolve, 20))
     const initialCount = redisManager.getOpenConnectionsCount()
 
     // Create duplicate connection
     duplicateClient = redisManager.duplicate()
 
     // Give time for duplicate to be tracked
-    await new Promise(resolve => setTimeout(resolve, 30))
+    await new Promise((resolve) => setTimeout(resolve, 30))
 
     const afterDuplicate = redisManager.getOpenConnectionsCount()
     // Be more lenient with connection counting due to async nature
-    assert.isTrue(afterDuplicate >= initialCount, `Expected ${afterDuplicate} to be >= ${initialCount}`)
+    assert.isTrue(
+      afterDuplicate >= initialCount,
+      `Expected ${afterDuplicate} to be >= ${initialCount}`
+    )
 
     // Close the duplicate connection
     await duplicateClient.quit()
     duplicateClient = null
 
     // Give event loop time to process the 'end' event
-    await new Promise(resolve => setTimeout(resolve, 50))
+    await new Promise((resolve) => setTimeout(resolve, 50))
 
     // Connection count should be back to initial or close to it
     const finalCount = redisManager.getOpenConnectionsCount()
-    assert.isTrue(finalCount <= initialCount + 1, `Expected ${finalCount} to be <= ${initialCount + 1}`)
+    assert.isTrue(
+      finalCount <= initialCount + 1,
+      `Expected ${finalCount} to be <= ${initialCount + 1}`
+    )
   })
 
   test('should handle connection errors gracefully', async ({ assert }) => {
@@ -194,7 +203,7 @@ test.group('CentralRedisManager - Connection Cleanup', (group) => {
     const _client = redisManager.getClient()
 
     // Give time for connection to be tracked
-    await new Promise(resolve => setTimeout(resolve, 10))
+    await new Promise((resolve) => setTimeout(resolve, 10))
 
     // Connection should be tracked (allow for 0 if cleanup happened)
     const connectionCount = redisManager.getOpenConnectionsCount()
@@ -226,27 +235,33 @@ test.group('CentralRedisManager - With Leak Detection', (group) => {
     redisManager.getClient()
 
     // Give time for connection to be tracked
-    await new Promise(resolve => setTimeout(resolve, 20))
+    await new Promise((resolve) => setTimeout(resolve, 20))
     const initialCount = redisManager.getOpenConnectionsCount()
 
     // Create a duplicate connection
     const duplicateClient = redisManager.duplicate()
 
     // Give time for duplicate to be tracked
-    await new Promise(resolve => setTimeout(resolve, 30))
+    await new Promise((resolve) => setTimeout(resolve, 30))
 
     const afterDuplicate = redisManager.getOpenConnectionsCount()
-    assert.isTrue(afterDuplicate >= initialCount, `Expected ${afterDuplicate} to be >= ${initialCount}`)
+    assert.isTrue(
+      afterDuplicate >= initialCount,
+      `Expected ${afterDuplicate} to be >= ${initialCount}`
+    )
 
     // Properly clean up the duplicate
     await duplicateClient.quit()
 
     // Give event loop time to process the 'end' event
-    await new Promise(resolve => setTimeout(resolve, 50))
+    await new Promise((resolve) => setTimeout(resolve, 50))
 
     // Should be back to initial count or close
     const finalCount = redisManager.getOpenConnectionsCount()
-    assert.isTrue(finalCount <= initialCount + 1, `Expected ${finalCount} to be <= ${initialCount + 1}`)
+    assert.isTrue(
+      finalCount <= initialCount + 1,
+      `Expected ${finalCount} to be <= ${initialCount + 1}`
+    )
   })
 
   test('should handle multiple connection types', async ({ assert }) => {
@@ -256,7 +271,7 @@ test.group('CentralRedisManager - With Leak Detection', (group) => {
     redisManager.getClient()
 
     // Give time for baseline to be tracked
-    await new Promise(resolve => setTimeout(resolve, 20))
+    await new Promise((resolve) => setTimeout(resolve, 20))
     const initialCount = redisManager.getOpenConnectionsCount()
 
     // Create different types of connections
@@ -264,22 +279,28 @@ test.group('CentralRedisManager - With Leak Detection', (group) => {
     const bullmq = redisManager.duplicateForBullMQ()
 
     // Give time for connections to be tracked
-    await new Promise(resolve => setTimeout(resolve, 50))
+    await new Promise((resolve) => setTimeout(resolve, 50))
 
     const afterConnections = redisManager.getOpenConnectionsCount()
     // Be more lenient - just ensure we have at least as many connections as before
-    assert.isTrue(afterConnections >= initialCount, `Expected ${afterConnections} to be >= ${initialCount}`)
+    assert.isTrue(
+      afterConnections >= initialCount,
+      `Expected ${afterConnections} to be >= ${initialCount}`
+    )
 
     // Properly clean up the duplicates
     await duplicate.quit()
     await bullmq.quit()
 
     // Give event loop time to process events
-    await new Promise(resolve => setTimeout(resolve, 50))
+    await new Promise((resolve) => setTimeout(resolve, 50))
 
     // Should be back to initial count or close
     const finalCount = redisManager.getOpenConnectionsCount()
-    assert.isTrue(finalCount <= initialCount + 2, `Expected ${finalCount} to be <= ${initialCount + 2}`)
+    assert.isTrue(
+      finalCount <= initialCount + 2,
+      `Expected ${finalCount} to be <= ${initialCount + 2}`
+    )
   })
 })
 
@@ -293,7 +314,7 @@ test.group('CentralRedisManager - Leak Detection Demo', (group) => {
   test('should demonstrate connection leak detection', ({ assert }) => {
     const redisManager = getCentralRedisManager()
 
-    // Get initial count 
+    // Get initial count
     const initialCount = redisManager.getOpenConnectionsCount()
 
     // Create connections but intentionally don't clean them up

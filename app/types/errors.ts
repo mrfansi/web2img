@@ -21,7 +21,7 @@ export enum ErrorCode {
   CACHE_ERROR = 'cache_error',
   QUEUE_ERROR = 'queue_error',
   BROWSER_ERROR = 'browser_error',
-  IMGPROXY_ERROR = 'imgproxy_error'
+  IMGPROXY_ERROR = 'imgproxy_error',
 }
 
 /**

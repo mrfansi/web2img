@@ -175,28 +175,28 @@ kind: ConfigMap
 metadata:
   name: web2img-config
 data:
-  NODE_ENV: "production"
-  PORT: "3333"
-  HOST: "0.0.0.0"
-  LOG_LEVEL: "info"
-  
-  DB_HOST: "mysql-service"
-  DB_PORT: "3306"
-  DB_DATABASE: "web2img"
-  
-  REDIS_HOST: "redis-service"
-  REDIS_PORT: "6379"
-  REDIS_DB: "0"
-  
-  STORAGE_PATH: "/app/storage"
-  
-  SCREENSHOT_TIMEOUT: "30000"
-  SCREENSHOT_CACHE_TTL: "3600"
-  SCREENSHOT_MAX_CONCURRENT: "20"
-  SCREENSHOT_QUEUE_CONCURRENCY: "10"
-  
-  BROWSER_HEADLESS: "true"
-  BROWSER_TIMEOUT: "30000"
+  NODE_ENV: 'production'
+  PORT: '3333'
+  HOST: '0.0.0.0'
+  LOG_LEVEL: 'info'
+
+  DB_HOST: 'mysql-service'
+  DB_PORT: '3306'
+  DB_DATABASE: 'web2img'
+
+  REDIS_HOST: 'redis-service'
+  REDIS_PORT: '6379'
+  REDIS_DB: '0'
+
+  STORAGE_PATH: '/app/storage'
+
+  SCREENSHOT_TIMEOUT: '30000'
+  SCREENSHOT_CACHE_TTL: '3600'
+  SCREENSHOT_MAX_CONCURRENT: '20'
+  SCREENSHOT_QUEUE_CONCURRENCY: '10'
+
+  BROWSER_HEADLESS: 'true'
+  BROWSER_TIMEOUT: '30000'
 ```
 
 ### Kubernetes Secrets Example
@@ -208,14 +208,14 @@ metadata:
   name: web2img-secrets
 type: Opaque
 stringData:
-  APP_KEY: "your-production-app-key-32-characters-minimum"
-  DB_USER: "web2img_prod"
-  DB_PASSWORD: "your-secure-db-password"
-  REDIS_PASSWORD: "your-redis-password"
-  IMGPROXY_KEY: "your-imgproxy-key"
-  IMGPROXY_SALT: "your-imgproxy-salt"
-  IMGPROXY_BASE_URL: "https://imgproxy.yourdomain.com"
-  STORAGE_BASE_URL: "https://storage.yourdomain.com"
+  APP_KEY: 'your-production-app-key-32-characters-minimum'
+  DB_USER: 'web2img_prod'
+  DB_PASSWORD: 'your-secure-db-password'
+  REDIS_PASSWORD: 'your-redis-password'
+  IMGPROXY_KEY: 'your-imgproxy-key'
+  IMGPROXY_SALT: 'your-imgproxy-salt'
+  IMGPROXY_BASE_URL: 'https://imgproxy.yourdomain.com'
+  STORAGE_BASE_URL: 'https://storage.yourdomain.com'
 ```
 
 ## Environment-Specific Configurations
@@ -427,21 +427,25 @@ echo "All required environment variables are set"
 ### Common Issues
 
 #### Database Connection Errors
+
 - Verify `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_DATABASE`
 - Check network connectivity
 - Verify database server is running
 
 #### Redis Connection Errors
+
 - Verify `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD`
 - Check Redis server status
 - Verify network connectivity
 
 #### Screenshot Failures
+
 - Check `BROWSER_HEADLESS` setting
 - Verify `SCREENSHOT_TIMEOUT` is appropriate
 - Check system resources and `SCREENSHOT_MAX_CONCURRENT`
 
 #### Storage Issues
+
 - Verify `STORAGE_PATH` exists and is writable
 - Check `STORAGE_BASE_URL` accessibility
 - Verify disk space availability

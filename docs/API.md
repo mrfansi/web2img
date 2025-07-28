@@ -7,11 +7,13 @@ The Website Screenshot API provides powerful screenshot generation capabilities 
 ## 📚 Interactive Documentation
 
 **🎯 For the complete, interactive API documentation, visit:**
+
 ```
 http://localhost:3333/docs
 ```
 
 The Swagger UI provides:
+
 - Complete API reference with all endpoints
 - Interactive testing interface
 - Request/response examples
@@ -20,6 +22,7 @@ The Swagger UI provides:
 - Error code documentation
 
 **📋 OpenAPI Specification:**
+
 ```
 http://localhost:3333/docs/openapi.json
 ```
@@ -101,14 +104,14 @@ X-API-Key: your-api-key-here
 
 #### Parameters
 
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `url` | string | Yes | - | URL of the webpage to screenshot |
-| `format` | string | No | `"png"` | Image format: `"png"`, `"jpeg"`, `"webp"` |
-| `width` | integer | No | `1280` | Viewport width (1-5000 pixels) |
-| `height` | integer | No | `720` | Viewport height (1-5000 pixels) |
-| `timeout` | integer | No | `30000` | Page load timeout in milliseconds (5000-60000) |
-| `cache` | boolean | No | `true` | Whether to use cached results |
+| Parameter | Type    | Required | Default | Description                                    |
+| --------- | ------- | -------- | ------- | ---------------------------------------------- |
+| `url`     | string  | Yes      | -       | URL of the webpage to screenshot               |
+| `format`  | string  | No       | `"png"` | Image format: `"png"`, `"jpeg"`, `"webp"`      |
+| `width`   | integer | No       | `1280`  | Viewport width (1-5000 pixels)                 |
+| `height`  | integer | No       | `720`   | Viewport height (1-5000 pixels)                |
+| `timeout` | integer | No       | `30000` | Page load timeout in milliseconds (5000-60000) |
+| `cache`   | boolean | No       | `true`  | Whether to use cached results                  |
 
 #### Response
 
@@ -124,10 +127,10 @@ Content-Type: application/json
 
 #### Response Fields
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `url` | string | ImgProxy URL for the generated screenshot |
-| `cached` | boolean | Whether the result was served from cache |
+| Field    | Type    | Description                               |
+| -------- | ------- | ----------------------------------------- |
+| `url`    | string  | ImgProxy URL for the generated screenshot |
+| `cached` | boolean | Whether the result was served from cache  |
 
 ### Create Batch Job
 
@@ -177,30 +180,30 @@ X-API-Key: your-api-key-here
 
 ##### Items Array
 
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `id` | string | Yes | - | Unique identifier for the item |
-| `url` | string | Yes | - | URL of the webpage to screenshot |
-| `format` | string | No | `"png"` | Image format: `"png"`, `"jpeg"`, `"webp"` |
-| `width` | integer | No | `1280` | Viewport width (1-5000 pixels) |
-| `height` | integer | No | `720` | Viewport height (1-5000 pixels) |
+| Parameter | Type    | Required | Default | Description                               |
+| --------- | ------- | -------- | ------- | ----------------------------------------- |
+| `id`      | string  | Yes      | -       | Unique identifier for the item            |
+| `url`     | string  | Yes      | -       | URL of the webpage to screenshot          |
+| `format`  | string  | No       | `"png"` | Image format: `"png"`, `"jpeg"`, `"webp"` |
+| `width`   | integer | No       | `1280`  | Viewport width (1-5000 pixels)            |
+| `height`  | integer | No       | `720`   | Viewport height (1-5000 pixels)           |
 
 ##### Config Object
 
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `parallel` | integer | No | `3` | Number of parallel processes (1-50) |
-| `timeout` | integer | No | `30000` | Page load timeout in milliseconds (5000-60000) |
-| `webhook` | string | No | - | Webhook URL for completion notification |
-| `webhook_auth` | string | No | - | Authorization header for webhook requests |
-| `fail_fast` | boolean | No | `false` | Stop processing on first failure |
-| `cache` | boolean | No | `true` | Whether to use cached results |
-| `priority` | string | No | `"normal"` | Job priority: `"high"`, `"normal"`, `"low"` |
-| `scheduled_time` | string | No | - | ISO 8601 timestamp for scheduled execution |
-| `recurrence` | string | No | - | Recurrence pattern: `"hourly"`, `"daily"`, `"weekly"`, `"monthly"` |
-| `recurrence_interval` | integer | No | `1` | Interval for recurrence |
-| `recurrence_count` | integer | No | - | Maximum number of recurrences |
-| `recurrence_cron` | string | No | - | Custom cron expression for scheduling |
+| Parameter             | Type    | Required | Default    | Description                                                        |
+| --------------------- | ------- | -------- | ---------- | ------------------------------------------------------------------ |
+| `parallel`            | integer | No       | `3`        | Number of parallel processes (1-50)                                |
+| `timeout`             | integer | No       | `30000`    | Page load timeout in milliseconds (5000-60000)                     |
+| `webhook`             | string  | No       | -          | Webhook URL for completion notification                            |
+| `webhook_auth`        | string  | No       | -          | Authorization header for webhook requests                          |
+| `fail_fast`           | boolean | No       | `false`    | Stop processing on first failure                                   |
+| `cache`               | boolean | No       | `true`     | Whether to use cached results                                      |
+| `priority`            | string  | No       | `"normal"` | Job priority: `"high"`, `"normal"`, `"low"`                        |
+| `scheduled_time`      | string  | No       | -          | ISO 8601 timestamp for scheduled execution                         |
+| `recurrence`          | string  | No       | -          | Recurrence pattern: `"hourly"`, `"daily"`, `"weekly"`, `"monthly"` |
+| `recurrence_interval` | integer | No       | `1`        | Interval for recurrence                                            |
+| `recurrence_count`    | integer | No       | -          | Maximum number of recurrences                                      |
+| `recurrence_cron`     | string  | No       | -          | Custom cron expression for scheduling                              |
 
 #### Response
 
@@ -338,6 +341,7 @@ GET /health
 ```
 
 Response:
+
 ```json
 {
   "status": "healthy",
@@ -353,6 +357,7 @@ GET /health/detailed
 ```
 
 Response:
+
 ```json
 {
   "status": "healthy",
@@ -473,35 +478,35 @@ curl -X POST https://api.example.com/batch/screenshots \
 ### JavaScript/Node.js
 
 ```javascript
-const ScreenshotAPI = require('@your-org/screenshot-api');
+const ScreenshotAPI = require('@your-org/screenshot-api')
 
 const client = new ScreenshotAPI({
   apiKey: 'your-api-key',
-  baseUrl: 'https://api.example.com'
-});
+  baseUrl: 'https://api.example.com',
+})
 
 // Single screenshot
 const screenshot = await client.screenshot({
   url: 'https://example.com',
   format: 'png',
   width: 1280,
-  height: 720
-});
+  height: 720,
+})
 
 // Batch job
 const batchJob = await client.createBatch({
   items: [
     { id: 'item1', url: 'https://example.com' },
-    { id: 'item2', url: 'https://google.com' }
+    { id: 'item2', url: 'https://google.com' },
   ],
   config: {
     parallel: 2,
-    webhook: 'https://your-app.com/webhook'
-  }
-});
+    webhook: 'https://your-app.com/webhook',
+  },
+})
 
 // Check batch status
-const status = await client.getBatchStatus(batchJob.job_id);
+const status = await client.getBatchStatus(batchJob.job_id)
 ```
 
 ### Python
@@ -574,21 +579,25 @@ status = client.get_batch_status(batch_job['job_id'])
 ### Common Issues
 
 #### Screenshot Timeouts
+
 - Increase timeout value for slow-loading pages
 - Check if the target URL is accessible
 - Verify network connectivity
 
 #### Rate Limiting
+
 - Check rate limit headers in responses
 - Implement exponential backoff
 - Consider upgrading API key limits
 
 #### Webhook Failures
+
 - Verify webhook URL accessibility
 - Check webhook authentication
 - Monitor webhook delivery logs
 
 #### Cache Issues
+
 - Disable cache for testing
 - Check cache TTL settings
 - Verify cache key generation
@@ -596,6 +605,7 @@ status = client.get_batch_status(batch_job['job_id'])
 ### Support
 
 For technical support and questions:
+
 - Email: support@example.com
 - Documentation: https://docs.example.com
 - Status Page: https://status.example.com

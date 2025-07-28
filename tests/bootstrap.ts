@@ -45,12 +45,12 @@ export const runnerHooks: Required<Pick<Config, 'setup' | 'teardown'>> = {
       } catch (error) {
         console.warn('Redis service initialization failed in tests:', error)
       }
-    }
+    },
   ],
   teardown: [
     async () => {
       // Give time for any pending operations to complete
-      await new Promise(resolve => setTimeout(resolve, 100))
+      await new Promise((resolve) => setTimeout(resolve, 100))
 
       // Register CentralRedisManager shutdown before other services
       try {
@@ -75,8 +75,8 @@ export const runnerHooks: Required<Pick<Config, 'setup' | 'teardown'>> = {
       }
 
       // Additional cleanup time
-      await new Promise(resolve => setTimeout(resolve, 100))
-    }
+      await new Promise((resolve) => setTimeout(resolve, 100))
+    },
   ],
 }
 

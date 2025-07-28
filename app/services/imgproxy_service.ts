@@ -99,7 +99,7 @@ export class ImgProxyService {
     if (!this.config) {
       throw new Exception('ImgProxy is not configured', {
         status: 500,
-        code: 'IMGPROXY_NOT_CONFIGURED'
+        code: 'IMGPROXY_NOT_CONFIGURED',
       })
     }
 
@@ -122,7 +122,7 @@ export class ImgProxyService {
       logger.debug('Generated ImgProxy URL', {
         originalUrl: imageUrl,
         options,
-        finalUrl: finalUrl.substring(0, 100) + '...'
+        finalUrl: finalUrl.substring(0, 100) + '...',
       })
 
       return finalUrl
@@ -131,7 +131,7 @@ export class ImgProxyService {
       throw new Exception('Failed to generate ImgProxy URL', {
         status: 500,
         code: 'IMGPROXY_URL_GENERATION_FAILED',
-        cause: error
+        cause: error,
       })
     }
   }
@@ -139,7 +139,10 @@ export class ImgProxyService {
   /**
    * Generate ImgProxy URL with fallback to direct URL
    */
-  public generateUrlWithFallback(imageUrl: string, options: ImgProxyProcessingOptions = {}): string {
+  public generateUrlWithFallback(
+    imageUrl: string,
+    options: ImgProxyProcessingOptions = {}
+  ): string {
     if (!this.isConfigured) {
       logger.debug('ImgProxy not configured, using direct URL', { imageUrl })
       return imageUrl
@@ -150,7 +153,7 @@ export class ImgProxyService {
     } catch (error) {
       logger.warn('ImgProxy URL generation failed, falling back to direct URL', {
         imageUrl,
-        error: error.message
+        error: error.message,
       })
       return imageUrl
     }
@@ -163,9 +166,9 @@ export class ImgProxyService {
     imageUrl: string,
     optionsArray: ImgProxyProcessingOptions[]
   ): { options: ImgProxyProcessingOptions; url: string }[] {
-    return optionsArray.map(options => ({
+    return optionsArray.map((options) => ({
       options,
-      url: this.generateUrlWithFallback(imageUrl, options)
+      url: this.generateUrlWithFallback(imageUrl, options),
     }))
   }
 
@@ -177,17 +180,19 @@ export class ImgProxyService {
       { width: 320, suffix: 'mobile' },
       { width: 768, suffix: 'tablet' },
       { width: 1024, suffix: 'desktop' },
-      { width: 1920, suffix: 'large' }
+      { width: 1920, suffix: 'large' },
     ]
 
-    return sizes.map(size => ({
+    return sizes.map((size) => ({
       size: size.suffix,
       width: size.width,
       url: this.generateUrlWithFallback(imageUrl, {
         ...baseOptions,
         width: size.width,
-        height: baseOptions.height ? Math.round((baseOptions.height * size.width) / (baseOptions.width || size.width)) : undefined
-      })
+        height: baseOptions.height
+          ? Math.round((baseOptions.height * size.width) / (baseOptions.width || size.width))
+          : undefined,
+      }),
     }))
   }
 
@@ -199,7 +204,7 @@ export class ImgProxyService {
       return {
         healthy: false,
         configured: false,
-        message: 'ImgProxy is not configured'
+        message: 'ImgProxy is not configured',
       }
     }
 
@@ -207,7 +212,7 @@ export class ImgProxyService {
     return {
       healthy: isValid,
       configured: true,
-      message: isValid ? 'ImgProxy is healthy' : 'ImgProxy configuration is invalid'
+      message: isValid ? 'ImgProxy is healthy' : 'ImgProxy configuration is invalid',
     }
   }
 

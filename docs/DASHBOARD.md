@@ -9,6 +9,7 @@ The dashboard provides a web-based interface for monitoring system health, viewi
 ## Features
 
 ### 1. Dashboard Web Interface
+
 - **URL**: `/dashboard`
 - **Description**: A responsive web interface built with Tailwind CSS that provides real-time system monitoring
 - **Features**:
@@ -18,8 +19,9 @@ The dashboard provides a web-based interface for monitoring system health, viewi
   - Auto-refresh every 30 seconds
 
 ### 2. System Metrics & Monitoring
+
 - **Health Status**: Overall system health with component-level details
-- **Request Metrics**: 
+- **Request Metrics**:
   - Total requests processed
   - Requests per second
   - Average response time
@@ -36,6 +38,7 @@ The dashboard provides a web-based interface for monitoring system health, viewi
   - Disk usage
 
 ### 3. API Key Management
+
 - **Create API Keys**: Generate new API keys with custom names and rate limits
 - **View API Keys**: List all API keys with masked keys for security
 - **Toggle Status**: Activate/deactivate API keys
@@ -45,9 +48,11 @@ The dashboard provides a web-based interface for monitoring system health, viewi
 ## API Endpoints
 
 ### Dashboard Data
+
 - **GET** `/dashboard/api/data` - Get complete dashboard data including health, metrics, and stats
 
 ### API Key Management
+
 - **GET** `/dashboard/api/keys` - List all API keys
 - **POST** `/dashboard/api/keys` - Create a new API key
   ```json
@@ -69,6 +74,7 @@ The dashboard provides a web-based interface for monitoring system health, viewi
 ## Usage Examples
 
 ### Creating an API Key via Dashboard Web Interface
+
 1. Open `/dashboard` in your browser
 2. Click "Create New API Key" button
 3. Enter a name and optional rate limit
@@ -76,6 +82,7 @@ The dashboard provides a web-based interface for monitoring system health, viewi
 5. Key appears in the API keys table
 
 ### Creating an API Key via API
+
 ```bash
 curl -X POST "http://localhost:57304/dashboard/api/keys" \
   -H "Content-Type: application/json" \
@@ -83,11 +90,13 @@ curl -X POST "http://localhost:57304/dashboard/api/keys" \
 ```
 
 ### Getting Dashboard Data
+
 ```bash
 curl "http://localhost:57304/dashboard/api/data"
 ```
 
 ### Using the Generated API Key
+
 ```bash
 curl -X POST "http://localhost:57304/screenshot" \
   -H "X-API-Key: your-generated-api-key" \
@@ -98,24 +107,28 @@ curl -X POST "http://localhost:57304/screenshot" \
 ## Technical Implementation
 
 ### Controller
+
 - **File**: `app/controllers/dashboard_controller.ts`
-- **Features**: 
+- **Features**:
   - Serves HTML dashboard interface
   - Provides REST API endpoints
   - Integrates with existing health and metrics services
   - Automatic user creation for demo purposes
 
 ### Routes
+
 - **File**: `start/routes.ts`
 - **Middleware**: Request logging and metrics collection
 - **Security**: No authentication (can be added later)
 
 ### Dependencies
+
 - **Tailwind CSS**: For responsive UI styling
 - **Chart.js**: Ready for future chart implementations
 - **Native JavaScript**: No additional frontend frameworks
 
 ### Models Used
+
 - **ApiKey**: For API key management
 - **User**: For associating keys with users
 - **HealthCheckService**: For system health monitoring
@@ -137,6 +150,7 @@ curl -X POST "http://localhost:57304/screenshot" \
 ## Screenshots
 
 The dashboard includes:
+
 - Clean, modern interface with status indicators
 - Responsive design that works on desktop and mobile
 - Real-time data updates

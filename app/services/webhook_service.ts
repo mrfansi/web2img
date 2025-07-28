@@ -59,7 +59,11 @@ export class WebhookService {
   /**
    * Send webhook notification with HTTP POST request
    */
-  public async sendWebhook(url: string, payload: WebhookPayload, auth?: string): Promise<WebhookDeliveryResult> {
+  public async sendWebhook(
+    url: string,
+    payload: WebhookPayload,
+    auth?: string
+  ): Promise<WebhookDeliveryResult> {
     const startTime = Date.now()
 
     try {
@@ -69,14 +73,14 @@ export class WebhookService {
           success: false,
           error: 'Invalid webhook URL',
           attempt: 1,
-          deliveredAt: new Date()
+          deliveredAt: new Date(),
         }
       }
 
       // Prepare headers
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
-        'User-Agent': 'web2img-webhook/1.0'
+        'User-Agent': 'web2img-webhook/1.0',
       }
 
       // Add authentication header if provided
@@ -89,14 +93,14 @@ export class WebhookService {
         method: 'POST',
         headers,
         body: JSON.stringify(payload),
-        signal: AbortSignal.timeout(this.timeout)
+        signal: AbortSignal.timeout(this.timeout),
       })
 
       const deliveryResult: WebhookDeliveryResult = {
         success: response.ok,
         statusCode: response.status,
         attempt: 1,
-        deliveredAt: new Date()
+        deliveredAt: new Date(),
       }
 
       if (response.ok) {
@@ -104,7 +108,7 @@ export class WebhookService {
           url,
           jobId: payload.job_id,
           statusCode: response.status,
-          processingTime: Date.now() - startTime
+          processingTime: Date.now() - startTime,
         })
       } else {
         const errorText = await response.text().catch(() => 'Unknown error')
@@ -114,7 +118,7 @@ export class WebhookService {
           url,
           jobId: payload.job_id,
           statusCode: response.status,
-          error: deliveryResult.error
+          error: deliveryResult.error,
         })
       }
 
@@ -124,14 +128,14 @@ export class WebhookService {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error',
         attempt: 1,
-        deliveredAt: new Date()
+        deliveredAt: new Date(),
       }
 
       logger.error('Webhook delivery error', {
         url,
         jobId: payload.job_id,
         error: deliveryResult.error,
-        processingTime: Date.now() - startTime
+        processingTime: Date.now() - startTime,
       })
 
       return deliveryResult
@@ -141,7 +145,10 @@ export class WebhookService {
   /**
    * Retry webhook delivery with exponential backoff
    */
-  public async retryWebhook(webhookData: WebhookData, attempt: number): Promise<WebhookDeliveryResult> {
+  public async retryWebhook(
+    webhookData: WebhookData,
+    attempt: number
+  ): Promise<WebhookDeliveryResult> {
     const maxRetries = webhookData.maxRetries || this.maxRetries
 
     if (attempt > maxRetries) {
@@ -149,39 +156,32 @@ export class WebhookService {
       logger.error('Webhook retry limit exceeded', {
         url: webhookData.url,
         attempt,
-        maxRetries
+        maxRetries,
       })
 
       return {
         success: false,
         error,
         attempt,
-        deliveredAt: new Date()
+        deliveredAt: new Date(),
       }
     }
 
     // Calculate exponential backoff delay
-    const delay = Math.min(
-      this.baseDelay * Math.pow(2, attempt - 1),
-      this.maxDelay
-    )
+    const delay = Math.min(this.baseDelay * Math.pow(2, attempt - 1), this.maxDelay)
 
     logger.info('Retrying webhook delivery', {
       url: webhookData.url,
       attempt,
       delay,
-      maxRetries
+      maxRetries,
     })
 
     // Wait for the calculated delay
     await this.sleep(delay)
 
     try {
-      const result = await this.sendWebhook(
-        webhookData.url,
-        webhookData.payload,
-        webhookData.auth
-      )
+      const result = await this.sendWebhook(webhookData.url, webhookData.payload, webhookData.auth)
 
       result.attempt = attempt
 
@@ -195,7 +195,7 @@ export class WebhookService {
       logger.error('Webhook retry failed', {
         url: webhookData.url,
         attempt,
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: error instanceof Error ? error.message : 'Unknown error',
       })
 
       if (attempt < maxRetries) {
@@ -206,7 +206,7 @@ export class WebhookService {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error',
         attempt,
-        deliveredAt: new Date()
+        deliveredAt: new Date(),
       }
     }
   }
@@ -278,7 +278,7 @@ export class WebhookService {
       created_at: createdAt.toISOString(),
       completed_at: completedAt.toISOString(),
       processing_time: processingTime,
-      results
+      results,
     }
   }
 
@@ -292,7 +292,7 @@ export class WebhookService {
       trackingId,
       url: webhookData.url,
       hasAuth: !!webhookData.auth,
-      maxRetries: webhookData.maxRetries
+      maxRetries: webhookData.maxRetries,
     })
 
     // Start tracking the delivery
@@ -303,11 +303,7 @@ export class WebhookService {
       webhookData.maxRetries
     )
 
-    const result = await this.sendWebhook(
-      webhookData.url,
-      webhookData.payload,
-      webhookData.auth
-    )
+    const result = await this.sendWebhook(webhookData.url, webhookData.payload, webhookData.auth)
 
     // Update tracking with initial result
     await webhookDeliveryTracker.updateDeliveryStatus(trackingId, result)
@@ -334,14 +330,14 @@ export class WebhookService {
         trackingId,
         url: webhookData.url,
         attempt,
-        maxRetries: webhookData.maxRetries
+        maxRetries: webhookData.maxRetries,
       })
 
       const result: WebhookDeliveryResult = {
         success: false,
         error,
         attempt,
-        deliveredAt: new Date()
+        deliveredAt: new Date(),
       }
 
       await webhookDeliveryTracker.updateDeliveryStatus(trackingId, result)
@@ -349,28 +345,21 @@ export class WebhookService {
     }
 
     // Calculate exponential backoff delay
-    const delay = Math.min(
-      this.baseDelay * Math.pow(2, attempt - 1),
-      this.maxDelay
-    )
+    const delay = Math.min(this.baseDelay * Math.pow(2, attempt - 1), this.maxDelay)
 
     logger.info('Retrying webhook delivery', {
       trackingId,
       url: webhookData.url,
       attempt,
       delay,
-      maxRetries: webhookData.maxRetries
+      maxRetries: webhookData.maxRetries,
     })
 
     // Wait for the calculated delay
     await this.sleep(delay)
 
     try {
-      const result = await this.sendWebhook(
-        webhookData.url,
-        webhookData.payload,
-        webhookData.auth
-      )
+      const result = await this.sendWebhook(webhookData.url, webhookData.payload, webhookData.auth)
 
       result.attempt = attempt
 
@@ -388,14 +377,14 @@ export class WebhookService {
         trackingId,
         url: webhookData.url,
         attempt,
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: error instanceof Error ? error.message : 'Unknown error',
       })
 
       const result: WebhookDeliveryResult = {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error',
         attempt,
-        deliveredAt: new Date()
+        deliveredAt: new Date(),
       }
 
       await webhookDeliveryTracker.updateDeliveryStatus(trackingId, result)
@@ -423,22 +412,22 @@ export class WebhookService {
   private isPrivateIP(hostname: string): boolean {
     // Basic regex patterns for private IP ranges
     const privateIPPatterns = [
-      /^10\./,                    // 10.0.0.0/8
+      /^10\./, // 10.0.0.0/8
       /^172\.(1[6-9]|2[0-9]|3[0-1])\./, // 172.16.0.0/12
-      /^192\.168\./,              // 192.168.0.0/16
-      /^169\.254\./,              // 169.254.0.0/16 (link-local)
-      /^fc00:/,                   // IPv6 unique local
-      /^fe80:/                    // IPv6 link-local
+      /^192\.168\./, // 192.168.0.0/16
+      /^169\.254\./, // 169.254.0.0/16 (link-local)
+      /^fc00:/, // IPv6 unique local
+      /^fe80:/, // IPv6 link-local
     ]
 
-    return privateIPPatterns.some(pattern => pattern.test(hostname))
+    return privateIPPatterns.some((pattern) => pattern.test(hostname))
   }
 
   /**
    * Sleep utility for retry delays
    */
   private sleep(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms))
+    return new Promise((resolve) => setTimeout(resolve, ms))
   }
 }
 

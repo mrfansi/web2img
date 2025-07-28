@@ -1,1370 +1,1182 @@
 {
-	"info": {
-		"_postman_id": "8c5ae5cb-1147-47a9-a9e0-6f74e8565f96",
-		"name": "web2img API",
-		"description": "\n        # web2img API\n        \n        A high-performance API for capturing website screenshots, uploading them to Cloudflare R2, \n        and generating signed imgproxy URLs for image transformations.\n        \n        ## Features\n        \n        * **Screenshot Capture**: Capture screenshots of websites using Playwright\n        * **Cloud Storage**: Upload screenshots to Cloudflare R2 storage\n        * **Image Transformations**: Generate signed imgproxy URLs for image processing\n        * **High Performance**: Handle concurrent requests with async processing\n        \n        ## Authentication\n        \n        This API does not currently require authentication.\n        ",
-		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-		"_exporter_id": "18790079"
-	},
-	"item": [
-		{
-			"name": "batch",
-			"item": [
-				{
-					"name": "Create a batch screenshot job",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"exec": [
-									"pm.environment.set(\"jobId\",pm.response.json().job_id);"
-								],
-								"type": "text/javascript",
-								"packages": {}
-							}
-						},
-						{
-							"listen": "prerequest",
-							"script": {
-								"exec": [
-									""
-								],
-								"type": "text/javascript",
-								"packages": {}
-							}
-						}
-					],
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "x-api-key",
-								"value": "ex dolor Duis"
-							},
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							},
-							{
-								"key": "Accept",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"items\": [\n    {\n      \"url\": \"https://viding.co/mini-rsvp/996144\",\n      \"id\": \"996144\",\n      \"format\": \"png\",\n      \"width\": 1280,\n      \"height\": 720\n    }\n  ]\n}",
-							"options": {
-								"raw": {
-									"language": "json"
-								}
-							}
-						},
-						"url": {
-							"raw": "{{baseUrl}}/batch/screenshots",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"batch",
-								"screenshots"
-							]
-						},
-						"description": "Submit multiple screenshot requests to be processed as a batch"
-					},
-					"response": [
-						{
-							"name": "Successful Response",
-							"originalRequest": {
-								"method": "POST",
-								"header": [
-									{
-										"key": "x-api-key",
-										"value": "ex dolor Duis"
-									},
-									{
-										"key": "Accept",
-										"value": "application/json"
-									}
-								],
-								"body": {
-									"mode": "raw",
-									"raw": "{\n  \"items\": [\n    {\n      \"url\": \"https://example.com\",\n      \"id\": \"example-home\",\n      \"format\": \"png\",\n      \"width\": 1280,\n      \"height\": 720\n    }\n  ],\n  \"config\": {\n    \"parallel\": 3,\n    \"timeout\": 30,\n    \"webhook\": \"https://hhGkctYIuTmSM.wqjvGCwVL\",\n    \"webhook_auth\": \"in qui\",\n    \"fail_fast\": false,\n    \"cache\": true,\n    \"priority\": \"normal\",\n    \"scheduled_time\": \"laborum\",\n    \"recurrence\": \"adip\",\n    \"recurrence_interval\": 17808091,\n    \"recurrence_count\": 87863043,\n    \"recurrence_cron\": \"ut minim veniam et\",\n    \"rate_limit\": 13993235\n  }\n}",
-									"options": {
-										"raw": {
-											"language": "json"
-										}
-									}
-								},
-								"url": {
-									"raw": "{{baseUrl}}/batch/screenshots",
-									"host": [
-										"{{baseUrl}}"
-									],
-									"path": [
-										"batch",
-										"screenshots"
-									]
-								}
-							},
-							"status": "Accepted",
-							"code": 202,
-							"_postman_previewlanguage": "json",
-							"header": [
-								{
-									"key": "Content-Type",
-									"value": "application/json"
-								}
-							],
-							"cookie": [],
-							"body": "{\n  \"completed\": 1,\n  \"created_at\": \"2025-05-23T00:30:00Z\",\n  \"estimated_completion\": \"2025-05-23T00:30:05Z\",\n  \"failed\": 0,\n  \"job_id\": \"batch-123456\",\n  \"priority\": \"high\",\n  \"status\": \"processing\",\n  \"total\": 2,\n  \"updated_at\": \"2025-05-23T00:30:02Z\"\n}"
-						},
-						{
-							"name": "Validation Error",
-							"originalRequest": {
-								"method": "POST",
-								"header": [
-									{
-										"key": "x-api-key",
-										"value": "ex dolor Duis"
-									},
-									{
-										"key": "Accept",
-										"value": "application/json"
-									}
-								],
-								"body": {
-									"mode": "raw",
-									"raw": "{\n  \"items\": [\n    {\n      \"url\": \"https://example.com\",\n      \"id\": \"example-home\",\n      \"format\": \"png\",\n      \"width\": 1280,\n      \"height\": 720\n    }\n  ],\n  \"config\": {\n    \"parallel\": 3,\n    \"timeout\": 30,\n    \"webhook\": \"https://hhGkctYIuTmSM.wqjvGCwVL\",\n    \"webhook_auth\": \"in qui\",\n    \"fail_fast\": false,\n    \"cache\": true,\n    \"priority\": \"normal\",\n    \"scheduled_time\": \"laborum\",\n    \"recurrence\": \"adip\",\n    \"recurrence_interval\": 17808091,\n    \"recurrence_count\": 87863043,\n    \"recurrence_cron\": \"ut minim veniam et\",\n    \"rate_limit\": 13993235\n  }\n}",
-									"options": {
-										"raw": {
-											"language": "json"
-										}
-									}
-								},
-								"url": {
-									"raw": "{{baseUrl}}/batch/screenshots",
-									"host": [
-										"{{baseUrl}}"
-									],
-									"path": [
-										"batch",
-										"screenshots"
-									]
-								}
-							},
-							"status": "Unprocessable Entity (WebDAV) (RFC 4918)",
-							"code": 422,
-							"_postman_previewlanguage": "json",
-							"header": [
-								{
-									"key": "Content-Type",
-									"value": "application/json"
-								}
-							],
-							"cookie": [],
-							"body": "{\n  \"detail\": [\n    {\n      \"loc\": [\n        \"sit dolor minim nostrud et\",\n        \"esse anim\"\n      ],\n      \"msg\": \"incididunt eiusmod elit\",\n      \"type\": \"exercitation velit minim cillum\"\n    },\n    {\n      \"loc\": [\n        \"fugiat irure labo\",\n        \"ullamco eiusmod\"\n      ],\n      \"msg\": \"officia et\",\n      \"type\": \"Lorem in commodo dolore\"\n    }\n  ]\n}"
-						}
-					]
-				},
-				{
-					"name": "Get active batch jobs",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Accept",
-								"value": "application/json"
-							}
-						],
-						"url": {
-							"raw": "{{baseUrl}}/batch/screenshots/active",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"batch",
-								"screenshots",
-								"active"
-							]
-						},
-						"description": "Get all active batch jobs (processing or scheduled)"
-					},
-					"response": [
-						{
-							"name": "Successful Response",
-							"originalRequest": {
-								"method": "GET",
-								"header": [
-									{
-										"key": "Accept",
-										"value": "application/json"
-									}
-								],
-								"url": {
-									"raw": "{{baseUrl}}/batch/screenshots/active",
-									"host": [
-										"{{baseUrl}}"
-									],
-									"path": [
-										"batch",
-										"screenshots",
-										"active"
-									]
-								}
-							},
-							"status": "OK",
-							"code": 200,
-							"_postman_previewlanguage": "json",
-							"header": [
-								{
-									"key": "Content-Type",
-									"value": "application/json"
-								}
-							],
-							"cookie": [],
-							"body": "{\n  \"jobs\": [\n    {\n      \"completed\": 1,\n      \"created_at\": \"2025-05-23T00:30:00Z\",\n      \"estimated_completion\": \"2025-05-23T00:30:05Z\",\n      \"failed\": 0,\n      \"job_id\": \"batch-123456\",\n      \"priority\": \"high\",\n      \"status\": \"processing\",\n      \"total\": 2,\n      \"updated_at\": \"2025-05-23T00:30:02Z\"\n    },\n    {\n      \"completed\": 0,\n      \"created_at\": \"2025-05-23T00:35:00Z\",\n      \"failed\": 0,\n      \"job_id\": \"batch-789012\",\n      \"next_scheduled_time\": \"2025-06-02T12:00:00Z\",\n      \"priority\": \"normal\",\n      \"recurrence\": \"daily\",\n      \"scheduled_time\": \"2025-06-01T12:00:00Z\",\n      \"status\": \"scheduled\",\n      \"total\": 3,\n      \"updated_at\": \"2025-05-23T00:35:00Z\"\n    }\n  ]\n}"
-						}
-					]
-				},
-				{
-					"name": "Get batch job status",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Accept",
-								"value": "application/json"
-							}
-						],
-						"url": {
-							"raw": "{{baseUrl}}/batch/screenshots/:job_id",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"batch",
-								"screenshots",
-								":job_id"
-							],
-							"variable": [
-								{
-									"key": "job_id",
-									"value": "{{jobId}}",
-									"description": "(Required) Batch job ID"
-								}
-							]
-						},
-						"description": "Get the status of a batch screenshot job"
-					},
-					"response": [
-						{
-							"name": "Successful Response",
-							"originalRequest": {
-								"method": "GET",
-								"header": [
-									{
-										"key": "Accept",
-										"value": "application/json"
-									}
-								],
-								"url": {
-									"raw": "{{baseUrl}}/batch/screenshots/:job_id",
-									"host": [
-										"{{baseUrl}}"
-									],
-									"path": [
-										"batch",
-										"screenshots",
-										":job_id"
-									],
-									"variable": [
-										{
-											"key": "job_id",
-											"value": "do nostrud occaecat aute",
-											"description": "(Required) Batch job ID"
-										}
-									]
-								}
-							},
-							"status": "OK",
-							"code": 200,
-							"_postman_previewlanguage": "json",
-							"header": [
-								{
-									"key": "Content-Type",
-									"value": "application/json"
-								}
-							],
-							"cookie": [],
-							"body": "{\n  \"completed\": 1,\n  \"created_at\": \"2025-05-23T00:30:00Z\",\n  \"estimated_completion\": \"2025-05-23T00:30:05Z\",\n  \"failed\": 0,\n  \"job_id\": \"batch-123456\",\n  \"priority\": \"high\",\n  \"status\": \"processing\",\n  \"total\": 2,\n  \"updated_at\": \"2025-05-23T00:30:02Z\"\n}"
-						},
-						{
-							"name": "Validation Error",
-							"originalRequest": {
-								"method": "GET",
-								"header": [
-									{
-										"key": "Accept",
-										"value": "application/json"
-									}
-								],
-								"url": {
-									"raw": "{{baseUrl}}/batch/screenshots/:job_id",
-									"host": [
-										"{{baseUrl}}"
-									],
-									"path": [
-										"batch",
-										"screenshots",
-										":job_id"
-									],
-									"variable": [
-										{
-											"key": "job_id",
-											"value": "do nostrud occaecat aute",
-											"description": "(Required) Batch job ID"
-										}
-									]
-								}
-							},
-							"status": "Unprocessable Entity (WebDAV) (RFC 4918)",
-							"code": 422,
-							"_postman_previewlanguage": "json",
-							"header": [
-								{
-									"key": "Content-Type",
-									"value": "application/json"
-								}
-							],
-							"cookie": [],
-							"body": "{\n  \"detail\": [\n    {\n      \"loc\": [\n        \"sit dolor minim nostrud et\",\n        \"esse anim\"\n      ],\n      \"msg\": \"incididunt eiusmod elit\",\n      \"type\": \"exercitation velit minim cillum\"\n    },\n    {\n      \"loc\": [\n        \"fugiat irure labo\",\n        \"ullamco eiusmod\"\n      ],\n      \"msg\": \"officia et\",\n      \"type\": \"Lorem in commodo dolore\"\n    }\n  ]\n}"
-						}
-					]
-				},
-				{
-					"name": "Schedule a batch job",
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							},
-							{
-								"key": "Accept",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"scheduled_time\": \"2025-06-01T12:00:00Z\"\n}",
-							"options": {
-								"raw": {
-									"language": "json"
-								}
-							}
-						},
-						"url": {
-							"raw": "{{baseUrl}}/batch/screenshots/:job_id/schedule",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"batch",
-								"screenshots",
-								":job_id",
-								"schedule"
-							],
-							"variable": [
-								{
-									"key": "job_id",
-									"value": "{{jobId}}",
-									"description": "(Required) Batch job ID"
-								}
-							]
-						},
-						"description": "Schedule a batch job for future execution"
-					},
-					"response": [
-						{
-							"name": "Successful Response",
-							"originalRequest": {
-								"method": "POST",
-								"header": [
-									{
-										"key": "Accept",
-										"value": "application/json"
-									}
-								],
-								"body": {
-									"mode": "raw",
-									"raw": "{\n  \"scheduled_time\": \"2025-06-01T12:00:00Z\"\n}",
-									"options": {
-										"raw": {
-											"language": "json"
-										}
-									}
-								},
-								"url": {
-									"raw": "{{baseUrl}}/batch/screenshots/:job_id/schedule",
-									"host": [
-										"{{baseUrl}}"
-									],
-									"path": [
-										"batch",
-										"screenshots",
-										":job_id",
-										"schedule"
-									],
-									"variable": [
-										{
-											"key": "job_id",
-											"value": "do nostrud occaecat aute",
-											"description": "(Required) Batch job ID"
-										}
-									]
-								}
-							},
-							"status": "Accepted",
-							"code": 202,
-							"_postman_previewlanguage": "json",
-							"header": [
-								{
-									"key": "Content-Type",
-									"value": "application/json"
-								}
-							],
-							"cookie": [],
-							"body": "{\n  \"completed\": 1,\n  \"created_at\": \"2025-05-23T00:30:00Z\",\n  \"estimated_completion\": \"2025-05-23T00:30:05Z\",\n  \"failed\": 0,\n  \"job_id\": \"batch-123456\",\n  \"priority\": \"high\",\n  \"status\": \"processing\",\n  \"total\": 2,\n  \"updated_at\": \"2025-05-23T00:30:02Z\"\n}"
-						},
-						{
-							"name": "Validation Error",
-							"originalRequest": {
-								"method": "POST",
-								"header": [
-									{
-										"key": "Accept",
-										"value": "application/json"
-									}
-								],
-								"body": {
-									"mode": "raw",
-									"raw": "{\n  \"scheduled_time\": \"2025-06-01T12:00:00Z\"\n}",
-									"options": {
-										"raw": {
-											"language": "json"
-										}
-									}
-								},
-								"url": {
-									"raw": "{{baseUrl}}/batch/screenshots/:job_id/schedule",
-									"host": [
-										"{{baseUrl}}"
-									],
-									"path": [
-										"batch",
-										"screenshots",
-										":job_id",
-										"schedule"
-									],
-									"variable": [
-										{
-											"key": "job_id",
-											"value": "do nostrud occaecat aute",
-											"description": "(Required) Batch job ID"
-										}
-									]
-								}
-							},
-							"status": "Unprocessable Entity (WebDAV) (RFC 4918)",
-							"code": 422,
-							"_postman_previewlanguage": "json",
-							"header": [
-								{
-									"key": "Content-Type",
-									"value": "application/json"
-								}
-							],
-							"cookie": [],
-							"body": "{\n  \"detail\": [\n    {\n      \"loc\": [\n        \"sit dolor minim nostrud et\",\n        \"esse anim\"\n      ],\n      \"msg\": \"incididunt eiusmod elit\",\n      \"type\": \"exercitation velit minim cillum\"\n    },\n    {\n      \"loc\": [\n        \"fugiat irure labo\",\n        \"ullamco eiusmod\"\n      ],\n      \"msg\": \"officia et\",\n      \"type\": \"Lorem in commodo dolore\"\n    }\n  ]\n}"
-						}
-					]
-				},
-				{
-					"name": "Set job recurrence",
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							},
-							{
-								"key": "Accept",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"pattern\": \"daily\",\n  \"interval\": 1,\n  \"count\": 7,\n  \"cron\": \"aute\"\n}",
-							"options": {
-								"raw": {
-									"language": "json"
-								}
-							}
-						},
-						"url": {
-							"raw": "{{baseUrl}}/batch/screenshots/:job_id/recurrence",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"batch",
-								"screenshots",
-								":job_id",
-								"recurrence"
-							],
-							"variable": [
-								{
-									"key": "job_id",
-									"value": "{{jobId}}",
-									"description": "(Required) Batch job ID"
-								}
-							]
-						},
-						"description": "Set a job to recur with the specified pattern"
-					},
-					"response": [
-						{
-							"name": "Successful Response",
-							"originalRequest": {
-								"method": "POST",
-								"header": [
-									{
-										"key": "Accept",
-										"value": "application/json"
-									}
-								],
-								"body": {
-									"mode": "raw",
-									"raw": "{\n  \"pattern\": \"daily\",\n  \"interval\": 1,\n  \"count\": 7,\n  \"cron\": \"aute\"\n}",
-									"options": {
-										"raw": {
-											"language": "json"
-										}
-									}
-								},
-								"url": {
-									"raw": "{{baseUrl}}/batch/screenshots/:job_id/recurrence",
-									"host": [
-										"{{baseUrl}}"
-									],
-									"path": [
-										"batch",
-										"screenshots",
-										":job_id",
-										"recurrence"
-									],
-									"variable": [
-										{
-											"key": "job_id",
-											"value": "do nostrud occaecat aute",
-											"description": "(Required) Batch job ID"
-										}
-									]
-								}
-							},
-							"status": "Accepted",
-							"code": 202,
-							"_postman_previewlanguage": "json",
-							"header": [
-								{
-									"key": "Content-Type",
-									"value": "application/json"
-								}
-							],
-							"cookie": [],
-							"body": "{\n  \"completed\": 1,\n  \"created_at\": \"2025-05-23T00:30:00Z\",\n  \"estimated_completion\": \"2025-05-23T00:30:05Z\",\n  \"failed\": 0,\n  \"job_id\": \"batch-123456\",\n  \"priority\": \"high\",\n  \"status\": \"processing\",\n  \"total\": 2,\n  \"updated_at\": \"2025-05-23T00:30:02Z\"\n}"
-						},
-						{
-							"name": "Validation Error",
-							"originalRequest": {
-								"method": "POST",
-								"header": [
-									{
-										"key": "Accept",
-										"value": "application/json"
-									}
-								],
-								"body": {
-									"mode": "raw",
-									"raw": "{\n  \"pattern\": \"daily\",\n  \"interval\": 1,\n  \"count\": 7,\n  \"cron\": \"aute\"\n}",
-									"options": {
-										"raw": {
-											"language": "json"
-										}
-									}
-								},
-								"url": {
-									"raw": "{{baseUrl}}/batch/screenshots/:job_id/recurrence",
-									"host": [
-										"{{baseUrl}}"
-									],
-									"path": [
-										"batch",
-										"screenshots",
-										":job_id",
-										"recurrence"
-									],
-									"variable": [
-										{
-											"key": "job_id",
-											"value": "do nostrud occaecat aute",
-											"description": "(Required) Batch job ID"
-										}
-									]
-								}
-							},
-							"status": "Unprocessable Entity (WebDAV) (RFC 4918)",
-							"code": 422,
-							"_postman_previewlanguage": "json",
-							"header": [
-								{
-									"key": "Content-Type",
-									"value": "application/json"
-								}
-							],
-							"cookie": [],
-							"body": "{\n  \"detail\": [\n    {\n      \"loc\": [\n        \"sit dolor minim nostrud et\",\n        \"esse anim\"\n      ],\n      \"msg\": \"incididunt eiusmod elit\",\n      \"type\": \"exercitation velit minim cillum\"\n    },\n    {\n      \"loc\": [\n        \"fugiat irure labo\",\n        \"ullamco eiusmod\"\n      ],\n      \"msg\": \"officia et\",\n      \"type\": \"Lorem in commodo dolore\"\n    }\n  ]\n}"
-						}
-					]
-				},
-				{
-					"name": "Cancel a batch job",
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Accept",
-								"value": "application/json"
-							}
-						],
-						"url": {
-							"raw": "{{baseUrl}}/batch/screenshots/:job_id/cancel",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"batch",
-								"screenshots",
-								":job_id",
-								"cancel"
-							],
-							"variable": [
-								{
-									"key": "job_id",
-									"value": "{{jobId}}",
-									"description": "(Required) Batch job ID"
-								}
-							]
-						},
-						"description": "Cancel a batch job that is processing or scheduled"
-					},
-					"response": [
-						{
-							"name": "Successful Response",
-							"originalRequest": {
-								"method": "POST",
-								"header": [
-									{
-										"key": "Accept",
-										"value": "application/json"
-									}
-								],
-								"url": {
-									"raw": "{{baseUrl}}/batch/screenshots/:job_id/cancel",
-									"host": [
-										"{{baseUrl}}"
-									],
-									"path": [
-										"batch",
-										"screenshots",
-										":job_id",
-										"cancel"
-									],
-									"variable": [
-										{
-											"key": "job_id",
-											"value": "do nostrud occaecat aute",
-											"description": "(Required) Batch job ID"
-										}
-									]
-								}
-							},
-							"status": "OK",
-							"code": 200,
-							"_postman_previewlanguage": "json",
-							"header": [
-								{
-									"key": "Content-Type",
-									"value": "application/json"
-								}
-							],
-							"cookie": [],
-							"body": "{\n  \"completed\": 1,\n  \"created_at\": \"2025-05-23T00:30:00Z\",\n  \"estimated_completion\": \"2025-05-23T00:30:05Z\",\n  \"failed\": 0,\n  \"job_id\": \"batch-123456\",\n  \"priority\": \"high\",\n  \"status\": \"processing\",\n  \"total\": 2,\n  \"updated_at\": \"2025-05-23T00:30:02Z\"\n}"
-						},
-						{
-							"name": "Validation Error",
-							"originalRequest": {
-								"method": "POST",
-								"header": [
-									{
-										"key": "Accept",
-										"value": "application/json"
-									}
-								],
-								"url": {
-									"raw": "{{baseUrl}}/batch/screenshots/:job_id/cancel",
-									"host": [
-										"{{baseUrl}}"
-									],
-									"path": [
-										"batch",
-										"screenshots",
-										":job_id",
-										"cancel"
-									],
-									"variable": [
-										{
-											"key": "job_id",
-											"value": "do nostrud occaecat aute",
-											"description": "(Required) Batch job ID"
-										}
-									]
-								}
-							},
-							"status": "Unprocessable Entity (WebDAV) (RFC 4918)",
-							"code": 422,
-							"_postman_previewlanguage": "json",
-							"header": [
-								{
-									"key": "Content-Type",
-									"value": "application/json"
-								}
-							],
-							"cookie": [],
-							"body": "{\n  \"detail\": [\n    {\n      \"loc\": [\n        \"sit dolor minim nostrud et\",\n        \"esse anim\"\n      ],\n      \"msg\": \"incididunt eiusmod elit\",\n      \"type\": \"exercitation velit minim cillum\"\n    },\n    {\n      \"loc\": [\n        \"fugiat irure labo\",\n        \"ullamco eiusmod\"\n      ],\n      \"msg\": \"officia et\",\n      \"type\": \"Lorem in commodo dolore\"\n    }\n  ]\n}"
-						}
-					]
-				},
-				{
-					"name": "Get batch job results",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Accept",
-								"value": "application/json"
-							}
-						],
-						"url": {
-							"raw": "{{baseUrl}}/batch/screenshots/:job_id/results",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"batch",
-								"screenshots",
-								":job_id",
-								"results"
-							],
-							"variable": [
-								{
-									"key": "job_id",
-									"value": "{{jobId}}",
-									"description": "(Required) Batch job ID"
-								}
-							]
-						},
-						"description": "Get the results of a batch screenshot job"
-					},
-					"response": [
-						{
-							"name": "Successful Response",
-							"originalRequest": {
-								"method": "GET",
-								"header": [
-									{
-										"key": "Accept",
-										"value": "application/json"
-									}
-								],
-								"url": {
-									"raw": "{{baseUrl}}/batch/screenshots/:job_id/results",
-									"host": [
-										"{{baseUrl}}"
-									],
-									"path": [
-										"batch",
-										"screenshots",
-										":job_id",
-										"results"
-									],
-									"variable": [
-										{
-											"key": "job_id",
-											"value": "do nostrud occaecat aute",
-											"description": "(Required) Batch job ID"
-										}
-									]
-								}
-							},
-							"status": "OK",
-							"code": 200,
-							"_postman_previewlanguage": "json",
-							"header": [
-								{
-									"key": "Content-Type",
-									"value": "application/json"
-								}
-							],
-							"cookie": [],
-							"body": "{\n  \"job_id\": \"batch-123456\",\n  \"status\": \"completed\",\n  \"total\": 2,\n  \"succeeded\": 2,\n  \"failed\": 0,\n  \"processing_time\": 3.45,\n  \"results\": [\n    {\n      \"id\": \"example-home\",\n      \"status\": \"success\",\n      \"url\": \"incididunt cupidatat eu\",\n      \"error\": \"ad in\",\n      \"cached\": false\n    },\n    {\n      \"id\": \"example-home\",\n      \"status\": \"success\",\n      \"url\": \"sit do non enim\",\n      \"error\": \"sed id\",\n      \"cached\": true\n    }\n  ]\n}"
-						},
-						{
-							"name": "Validation Error",
-							"originalRequest": {
-								"method": "GET",
-								"header": [
-									{
-										"key": "Accept",
-										"value": "application/json"
-									}
-								],
-								"url": {
-									"raw": "{{baseUrl}}/batch/screenshots/:job_id/results",
-									"host": [
-										"{{baseUrl}}"
-									],
-									"path": [
-										"batch",
-										"screenshots",
-										":job_id",
-										"results"
-									],
-									"variable": [
-										{
-											"key": "job_id",
-											"value": "do nostrud occaecat aute",
-											"description": "(Required) Batch job ID"
-										}
-									]
-								}
-							},
-							"status": "Unprocessable Entity (WebDAV) (RFC 4918)",
-							"code": 422,
-							"_postman_previewlanguage": "json",
-							"header": [
-								{
-									"key": "Content-Type",
-									"value": "application/json"
-								}
-							],
-							"cookie": [],
-							"body": "{\n  \"detail\": [\n    {\n      \"loc\": [\n        \"sit dolor minim nostrud et\",\n        \"esse anim\"\n      ],\n      \"msg\": \"incididunt eiusmod elit\",\n      \"type\": \"exercitation velit minim cillum\"\n    },\n    {\n      \"loc\": [\n        \"fugiat irure labo\",\n        \"ullamco eiusmod\"\n      ],\n      \"msg\": \"officia et\",\n      \"type\": \"Lorem in commodo dolore\"\n    }\n  ]\n}"
-						}
-					]
-				}
-			]
-		},
-		{
-			"name": "cache",
-			"item": [
-				{
-					"name": "Clear the entire cache",
-					"request": {
-						"method": "DELETE",
-						"header": [],
-						"url": {
-							"raw": "{{baseUrl}}/cache",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"cache"
-							]
-						},
-						"description": "Clear all items from the cache."
-					},
-					"response": [
-						{
-							"name": "Cache cleared successfully",
-							"originalRequest": {
-								"method": "DELETE",
-								"header": [],
-								"url": {
-									"raw": "{{baseUrl}}/cache",
-									"host": [
-										"{{baseUrl}}"
-									],
-									"path": [
-										"cache"
-									]
-								}
-							},
-							"status": "No Content",
-							"code": 204,
-							"_postman_previewlanguage": "text",
-							"header": [
-								{
-									"key": "Content-Type",
-									"value": "text/plain"
-								}
-							],
-							"cookie": [],
-							"body": ""
-						}
-					]
-				},
-				{
-					"name": "Get cache statistics",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Accept",
-								"value": "application/json"
-							}
-						],
-						"url": {
-							"raw": "{{baseUrl}}/cache/stats",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"cache",
-								"stats"
-							]
-						},
-						"description": "Get statistics about the cache, including hit rate, size, and configuration.\n    \n    ## Statistics\n    - enabled: Whether the cache is enabled\n    - size: Current number of items in the cache\n    - max_size: Maximum number of items allowed in the cache\n    - ttl: Time-to-live for cache items in seconds\n    - hits: Number of cache hits\n    - misses: Number of cache misses\n    - hit_rate: Ratio of hits to total requests"
-					},
-					"response": [
-						{
-							"name": "Cache statistics",
-							"originalRequest": {
-								"method": "GET",
-								"header": [
-									{
-										"key": "Accept",
-										"value": "application/json"
-									}
-								],
-								"url": {
-									"raw": "{{baseUrl}}/cache/stats",
-									"host": [
-										"{{baseUrl}}"
-									],
-									"path": [
-										"cache",
-										"stats"
-									]
-								}
-							},
-							"status": "OK",
-							"code": 200,
-							"_postman_previewlanguage": "json",
-							"header": [
-								{
-									"key": "Content-Type",
-									"value": "application/json"
-								}
-							],
-							"cookie": [],
-							"body": "{\n  \"enabled\": true,\n  \"size\": 42,\n  \"max_size\": 100,\n  \"ttl\": 3600,\n  \"hits\": 156,\n  \"misses\": 89,\n  \"hit_rate\": 0.637,\n  \"cleanup_interval\": 300\n}"
-						}
-					]
-				},
-				{
-					"name": "Invalidate cache entries for a URL",
-					"request": {
-						"method": "DELETE",
-						"header": [
-							{
-								"key": "Accept",
-								"value": "application/json"
-							}
-						],
-						"url": {
-							"raw": "{{baseUrl}}/cache/url?url=veniam aute qui",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"cache",
-								"url"
-							],
-							"query": [
-								{
-									"key": "url",
-									"value": "veniam aute qui",
-									"description": "(Required) URL to invalidate in the cache"
-								}
-							]
-						},
-						"description": "Invalidate all cache entries for a specific URL."
-					},
-					"response": [
-						{
-							"name": "Cache entries invalidated",
-							"originalRequest": {
-								"method": "DELETE",
-								"header": [
-									{
-										"key": "Accept",
-										"value": "application/json"
-									}
-								],
-								"url": {
-									"raw": "{{baseUrl}}/cache/url?url=veniam aute qui",
-									"host": [
-										"{{baseUrl}}"
-									],
-									"path": [
-										"cache",
-										"url"
-									],
-									"query": [
-										{
-											"key": "url",
-											"value": "veniam aute qui"
-										}
-									]
-								}
-							},
-							"status": "OK",
-							"code": 200,
-							"_postman_previewlanguage": "json",
-							"header": [
-								{
-									"key": "Content-Type",
-									"value": "application/json"
-								}
-							],
-							"cookie": [],
-							"body": "{\n  \"invalidated\": 3\n}"
-						},
-						{
-							"name": "Validation Error",
-							"originalRequest": {
-								"method": "DELETE",
-								"header": [
-									{
-										"key": "Accept",
-										"value": "application/json"
-									}
-								],
-								"url": {
-									"raw": "{{baseUrl}}/cache/url?url=veniam aute qui",
-									"host": [
-										"{{baseUrl}}"
-									],
-									"path": [
-										"cache",
-										"url"
-									],
-									"query": [
-										{
-											"key": "url",
-											"value": "veniam aute qui"
-										}
-									]
-								}
-							},
-							"status": "Unprocessable Entity (WebDAV) (RFC 4918)",
-							"code": 422,
-							"_postman_previewlanguage": "json",
-							"header": [
-								{
-									"key": "Content-Type",
-									"value": "application/json"
-								}
-							],
-							"cookie": [],
-							"body": "{\n  \"detail\": [\n    {\n      \"loc\": [\n        \"sit dolor minim nostrud et\",\n        \"esse anim\"\n      ],\n      \"msg\": \"incididunt eiusmod elit\",\n      \"type\": \"exercitation velit minim cillum\"\n    },\n    {\n      \"loc\": [\n        \"fugiat irure labo\",\n        \"ullamco eiusmod\"\n      ],\n      \"msg\": \"officia et\",\n      \"type\": \"Lorem in commodo dolore\"\n    }\n  ]\n}"
-						}
-					]
-				}
-			]
-		},
-		{
-			"name": "Capture website screenshot",
-			"event": [
-				{
-					"listen": "test",
-					"script": {
-						"exec": [
-							""
-						],
-						"type": "text/javascript",
-						"packages": {}
-					}
-				}
-			],
-			"request": {
-				"method": "POST",
-				"header": [
-					{
-						"key": "Content-Type",
-						"value": "application/json"
-					},
-					{
-						"key": "Accept",
-						"value": "application/json"
-					},
-					{
-						"key": "X-API-Key",
-						"value": "{{apiKey}}",
-						"type": "text"
-					}
-				],
-				"body": {
-					"mode": "raw",
-					"raw": "{\n  \"format\": \"jpeg\",\n  \"height\": 1440,\n  \"url\": \"https://viding.co/mini-rsvp/996144\",\n  \"width\": 1080,\n  \"cache\": false\n}",
-					"options": {
-						"raw": {
-							"language": "json"
-						}
-					}
-				},
-				"url": {
-					"raw": "{{baseUrl}}/screenshot",
-					"host": [
-						"{{baseUrl}}"
-					],
-					"path": [
-						"screenshot"
-					]
-				},
-				"description": "Capture a screenshot of a website, upload it to R2, and return a signed imgproxy URL.\n    \n    ## Process Flow\n    1. Checks if the screenshot is already cached\n    2. If cached, returns the cached URL immediately\n    3. Otherwise, captures a screenshot of the provided URL using Playwright\n    4. Uploads the screenshot to Cloudflare R2 storage\n    5. Generates a signed imgproxy URL for the image with the specified transformations\n    6. Caches the result for future requests\n    7. Returns the URL to the processed image\n    \n    ## Cache Control\n    - Use `cache=false` to bypass the cache and force a fresh screenshot\n    - Cache TTL is configurable via the CACHE_TTL_SECONDS environment variable (default: 1 hour)\n    \n    ## Notes\n    - The URL must be a valid HTTP or HTTPS URL\n    - Supported formats: png, jpeg, webp\n    - Width and height must be between 1 and 5000 pixels\n    - The returned URL will be valid indefinitely"
-			},
-			"response": [
-				{
-					"name": "Successfully captured screenshot and generated imgproxy URL",
-					"originalRequest": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Accept",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"format\": \"png\",\n  \"height\": 720,\n  \"url\": \"https://example.com\",\n  \"width\": 1280\n}",
-							"options": {
-								"raw": {
-									"language": "json"
-								}
-							}
-						},
-						"url": {
-							"raw": "{{baseUrl}}/screenshot?cache=true",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"screenshot"
-							],
-							"query": [
-								{
-									"key": "cache",
-									"value": "true"
-								}
-							]
-						}
-					},
-					"status": "OK",
-					"code": 200,
-					"_postman_previewlanguage": "json",
-					"header": [
-						{
-							"key": "Content-Type",
-							"value": "application/json"
-						}
-					],
-					"cookie": [],
-					"body": "{\n  \"url\": \"https://your-imgproxy-url.example.com/signed_path/resize:fit:1280:720/format:png/base64_encoded_url\"\n}"
-				},
-				{
-					"name": "Invalid input parameters",
-					"originalRequest": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Accept",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"format\": \"png\",\n  \"height\": 720,\n  \"url\": \"https://example.com\",\n  \"width\": 1280\n}",
-							"options": {
-								"raw": {
-									"language": "json"
-								}
-							}
-						},
-						"url": {
-							"raw": "{{baseUrl}}/screenshot?cache=true",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"screenshot"
-							],
-							"query": [
-								{
-									"key": "cache",
-									"value": "true"
-								}
-							]
-						}
-					},
-					"status": "Bad Request",
-					"code": 400,
-					"_postman_previewlanguage": "json",
-					"header": [
-						{
-							"key": "Content-Type",
-							"value": "application/json"
-						}
-					],
-					"cookie": [],
-					"body": "{\n  \"detail\": \"Invalid URL format\"\n}"
-				},
-				{
-					"name": "Server error",
-					"originalRequest": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Accept",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"format\": \"png\",\n  \"height\": 720,\n  \"url\": \"https://example.com\",\n  \"width\": 1280\n}",
-							"options": {
-								"raw": {
-									"language": "json"
-								}
-							}
-						},
-						"url": {
-							"raw": "{{baseUrl}}/screenshot?cache=true",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"screenshot"
-							],
-							"query": [
-								{
-									"key": "cache",
-									"value": "true"
-								}
-							]
-						}
-					},
-					"status": "Internal Server Error",
-					"code": 500,
-					"_postman_previewlanguage": "json",
-					"header": [
-						{
-							"key": "Content-Type",
-							"value": "application/json"
-						}
-					],
-					"cookie": [],
-					"body": "{\n  \"detail\": \"Failed to process screenshot: Error message\"\n}"
-				},
-				{
-					"name": "Validation Error",
-					"originalRequest": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							},
-							{
-								"key": "Accept",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"format\": \"jpeg\",\n  \"height\": 1440,\n  \"url\": \"invalid-url\",\n  \"width\": 1080\n}",
-							"options": {
-								"raw": {
-									"language": "json"
-								}
-							}
-						},
-						"url": {
-							"raw": "{{baseUrl}}/screenshot?cache=false",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"screenshot"
-							],
-							"query": [
-								{
-									"key": "cache",
-									"value": "false",
-									"description": "Whether to use cache (if available)"
-								}
-							]
-						}
-					},
-					"status": "Unprocessable Entity",
-					"code": 422,
-					"_postman_previewlanguage": "json",
-					"header": [
-						{
-							"key": "date",
-							"value": "Tue, 27 May 2025 08:01:58 GMT"
-						},
-						{
-							"key": "server",
-							"value": "uvicorn"
-						},
-						{
-							"key": "content-length",
-							"value": "189"
-						},
-						{
-							"key": "content-type",
-							"value": "application/json"
-						},
-						{
-							"key": "x-request-id",
-							"value": "4697d547-1f0b-44f7-b801-f8a0f6290f32"
-						}
-					],
-					"cookie": [],
-					"body": "{\n    \"detail\": [\n        {\n            \"type\": \"url_parsing\",\n            \"loc\": [\n                \"body\",\n                \"url\"\n            ],\n            \"msg\": \"Input should be a valid URL, relative URL without a base\",\n            \"input\": \"invalid-url\",\n            \"ctx\": {\n                \"error\": \"relative URL without a base\"\n            }\n        }\n    ]\n}"
-				}
-			]
-		}
-	],
-	"variable": [
-		{
-			"key": "baseUrl",
-			"value": "/",
-			"type": "string"
-		}
-	]
+  "info": {
+    "_postman_id": "8c5ae5cb-1147-47a9-a9e0-6f74e8565f96",
+    "name": "web2img API",
+    "description": "\n        # web2img API\n        \n        A high-performance API for capturing website screenshots, uploading them to Cloudflare R2, \n        and generating signed imgproxy URLs for image transformations.\n        \n        ## Features\n        \n        * **Screenshot Capture**: Capture screenshots of websites using Playwright\n        * **Cloud Storage**: Upload screenshots to Cloudflare R2 storage\n        * **Image Transformations**: Generate signed imgproxy URLs for image processing\n        * **High Performance**: Handle concurrent requests with async processing\n        \n        ## Authentication\n        \n        This API does not currently require authentication.\n        ",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "18790079"
+  },
+  "item": [
+    {
+      "name": "batch",
+      "item": [
+        {
+          "name": "Create a batch screenshot job",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": ["pm.environment.set(\"jobId\",pm.response.json().job_id);"],
+                "type": "text/javascript",
+                "packages": {}
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [""],
+                "type": "text/javascript",
+                "packages": {}
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-api-key",
+                "value": "ex dolor Duis"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"items\": [\n    {\n      \"url\": \"https://viding.co/mini-rsvp/996144\",\n      \"id\": \"996144\",\n      \"format\": \"png\",\n      \"width\": 1280,\n      \"height\": 720\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/batch/screenshots",
+              "host": ["{{baseUrl}}"],
+              "path": ["batch", "screenshots"]
+            },
+            "description": "Submit multiple screenshot requests to be processed as a batch"
+          },
+          "response": [
+            {
+              "name": "Successful Response",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "x-api-key",
+                    "value": "ex dolor Duis"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"items\": [\n    {\n      \"url\": \"https://example.com\",\n      \"id\": \"example-home\",\n      \"format\": \"png\",\n      \"width\": 1280,\n      \"height\": 720\n    }\n  ],\n  \"config\": {\n    \"parallel\": 3,\n    \"timeout\": 30,\n    \"webhook\": \"https://hhGkctYIuTmSM.wqjvGCwVL\",\n    \"webhook_auth\": \"in qui\",\n    \"fail_fast\": false,\n    \"cache\": true,\n    \"priority\": \"normal\",\n    \"scheduled_time\": \"laborum\",\n    \"recurrence\": \"adip\",\n    \"recurrence_interval\": 17808091,\n    \"recurrence_count\": 87863043,\n    \"recurrence_cron\": \"ut minim veniam et\",\n    \"rate_limit\": 13993235\n  }\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/batch/screenshots",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["batch", "screenshots"]
+                }
+              },
+              "status": "Accepted",
+              "code": 202,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"completed\": 1,\n  \"created_at\": \"2025-05-23T00:30:00Z\",\n  \"estimated_completion\": \"2025-05-23T00:30:05Z\",\n  \"failed\": 0,\n  \"job_id\": \"batch-123456\",\n  \"priority\": \"high\",\n  \"status\": \"processing\",\n  \"total\": 2,\n  \"updated_at\": \"2025-05-23T00:30:02Z\"\n}"
+            },
+            {
+              "name": "Validation Error",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "x-api-key",
+                    "value": "ex dolor Duis"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"items\": [\n    {\n      \"url\": \"https://example.com\",\n      \"id\": \"example-home\",\n      \"format\": \"png\",\n      \"width\": 1280,\n      \"height\": 720\n    }\n  ],\n  \"config\": {\n    \"parallel\": 3,\n    \"timeout\": 30,\n    \"webhook\": \"https://hhGkctYIuTmSM.wqjvGCwVL\",\n    \"webhook_auth\": \"in qui\",\n    \"fail_fast\": false,\n    \"cache\": true,\n    \"priority\": \"normal\",\n    \"scheduled_time\": \"laborum\",\n    \"recurrence\": \"adip\",\n    \"recurrence_interval\": 17808091,\n    \"recurrence_count\": 87863043,\n    \"recurrence_cron\": \"ut minim veniam et\",\n    \"rate_limit\": 13993235\n  }\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/batch/screenshots",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["batch", "screenshots"]
+                }
+              },
+              "status": "Unprocessable Entity (WebDAV) (RFC 4918)",
+              "code": 422,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"detail\": [\n    {\n      \"loc\": [\n        \"sit dolor minim nostrud et\",\n        \"esse anim\"\n      ],\n      \"msg\": \"incididunt eiusmod elit\",\n      \"type\": \"exercitation velit minim cillum\"\n    },\n    {\n      \"loc\": [\n        \"fugiat irure labo\",\n        \"ullamco eiusmod\"\n      ],\n      \"msg\": \"officia et\",\n      \"type\": \"Lorem in commodo dolore\"\n    }\n  ]\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get active batch jobs",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/batch/screenshots/active",
+              "host": ["{{baseUrl}}"],
+              "path": ["batch", "screenshots", "active"]
+            },
+            "description": "Get all active batch jobs (processing or scheduled)"
+          },
+          "response": [
+            {
+              "name": "Successful Response",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/batch/screenshots/active",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["batch", "screenshots", "active"]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"jobs\": [\n    {\n      \"completed\": 1,\n      \"created_at\": \"2025-05-23T00:30:00Z\",\n      \"estimated_completion\": \"2025-05-23T00:30:05Z\",\n      \"failed\": 0,\n      \"job_id\": \"batch-123456\",\n      \"priority\": \"high\",\n      \"status\": \"processing\",\n      \"total\": 2,\n      \"updated_at\": \"2025-05-23T00:30:02Z\"\n    },\n    {\n      \"completed\": 0,\n      \"created_at\": \"2025-05-23T00:35:00Z\",\n      \"failed\": 0,\n      \"job_id\": \"batch-789012\",\n      \"next_scheduled_time\": \"2025-06-02T12:00:00Z\",\n      \"priority\": \"normal\",\n      \"recurrence\": \"daily\",\n      \"scheduled_time\": \"2025-06-01T12:00:00Z\",\n      \"status\": \"scheduled\",\n      \"total\": 3,\n      \"updated_at\": \"2025-05-23T00:35:00Z\"\n    }\n  ]\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get batch job status",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/batch/screenshots/:job_id",
+              "host": ["{{baseUrl}}"],
+              "path": ["batch", "screenshots", ":job_id"],
+              "variable": [
+                {
+                  "key": "job_id",
+                  "value": "{{jobId}}",
+                  "description": "(Required) Batch job ID"
+                }
+              ]
+            },
+            "description": "Get the status of a batch screenshot job"
+          },
+          "response": [
+            {
+              "name": "Successful Response",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/batch/screenshots/:job_id",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["batch", "screenshots", ":job_id"],
+                  "variable": [
+                    {
+                      "key": "job_id",
+                      "value": "do nostrud occaecat aute",
+                      "description": "(Required) Batch job ID"
+                    }
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"completed\": 1,\n  \"created_at\": \"2025-05-23T00:30:00Z\",\n  \"estimated_completion\": \"2025-05-23T00:30:05Z\",\n  \"failed\": 0,\n  \"job_id\": \"batch-123456\",\n  \"priority\": \"high\",\n  \"status\": \"processing\",\n  \"total\": 2,\n  \"updated_at\": \"2025-05-23T00:30:02Z\"\n}"
+            },
+            {
+              "name": "Validation Error",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/batch/screenshots/:job_id",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["batch", "screenshots", ":job_id"],
+                  "variable": [
+                    {
+                      "key": "job_id",
+                      "value": "do nostrud occaecat aute",
+                      "description": "(Required) Batch job ID"
+                    }
+                  ]
+                }
+              },
+              "status": "Unprocessable Entity (WebDAV) (RFC 4918)",
+              "code": 422,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"detail\": [\n    {\n      \"loc\": [\n        \"sit dolor minim nostrud et\",\n        \"esse anim\"\n      ],\n      \"msg\": \"incididunt eiusmod elit\",\n      \"type\": \"exercitation velit minim cillum\"\n    },\n    {\n      \"loc\": [\n        \"fugiat irure labo\",\n        \"ullamco eiusmod\"\n      ],\n      \"msg\": \"officia et\",\n      \"type\": \"Lorem in commodo dolore\"\n    }\n  ]\n}"
+            }
+          ]
+        },
+        {
+          "name": "Schedule a batch job",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"scheduled_time\": \"2025-06-01T12:00:00Z\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/batch/screenshots/:job_id/schedule",
+              "host": ["{{baseUrl}}"],
+              "path": ["batch", "screenshots", ":job_id", "schedule"],
+              "variable": [
+                {
+                  "key": "job_id",
+                  "value": "{{jobId}}",
+                  "description": "(Required) Batch job ID"
+                }
+              ]
+            },
+            "description": "Schedule a batch job for future execution"
+          },
+          "response": [
+            {
+              "name": "Successful Response",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"scheduled_time\": \"2025-06-01T12:00:00Z\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/batch/screenshots/:job_id/schedule",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["batch", "screenshots", ":job_id", "schedule"],
+                  "variable": [
+                    {
+                      "key": "job_id",
+                      "value": "do nostrud occaecat aute",
+                      "description": "(Required) Batch job ID"
+                    }
+                  ]
+                }
+              },
+              "status": "Accepted",
+              "code": 202,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"completed\": 1,\n  \"created_at\": \"2025-05-23T00:30:00Z\",\n  \"estimated_completion\": \"2025-05-23T00:30:05Z\",\n  \"failed\": 0,\n  \"job_id\": \"batch-123456\",\n  \"priority\": \"high\",\n  \"status\": \"processing\",\n  \"total\": 2,\n  \"updated_at\": \"2025-05-23T00:30:02Z\"\n}"
+            },
+            {
+              "name": "Validation Error",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"scheduled_time\": \"2025-06-01T12:00:00Z\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/batch/screenshots/:job_id/schedule",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["batch", "screenshots", ":job_id", "schedule"],
+                  "variable": [
+                    {
+                      "key": "job_id",
+                      "value": "do nostrud occaecat aute",
+                      "description": "(Required) Batch job ID"
+                    }
+                  ]
+                }
+              },
+              "status": "Unprocessable Entity (WebDAV) (RFC 4918)",
+              "code": 422,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"detail\": [\n    {\n      \"loc\": [\n        \"sit dolor minim nostrud et\",\n        \"esse anim\"\n      ],\n      \"msg\": \"incididunt eiusmod elit\",\n      \"type\": \"exercitation velit minim cillum\"\n    },\n    {\n      \"loc\": [\n        \"fugiat irure labo\",\n        \"ullamco eiusmod\"\n      ],\n      \"msg\": \"officia et\",\n      \"type\": \"Lorem in commodo dolore\"\n    }\n  ]\n}"
+            }
+          ]
+        },
+        {
+          "name": "Set job recurrence",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pattern\": \"daily\",\n  \"interval\": 1,\n  \"count\": 7,\n  \"cron\": \"aute\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/batch/screenshots/:job_id/recurrence",
+              "host": ["{{baseUrl}}"],
+              "path": ["batch", "screenshots", ":job_id", "recurrence"],
+              "variable": [
+                {
+                  "key": "job_id",
+                  "value": "{{jobId}}",
+                  "description": "(Required) Batch job ID"
+                }
+              ]
+            },
+            "description": "Set a job to recur with the specified pattern"
+          },
+          "response": [
+            {
+              "name": "Successful Response",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"pattern\": \"daily\",\n  \"interval\": 1,\n  \"count\": 7,\n  \"cron\": \"aute\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/batch/screenshots/:job_id/recurrence",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["batch", "screenshots", ":job_id", "recurrence"],
+                  "variable": [
+                    {
+                      "key": "job_id",
+                      "value": "do nostrud occaecat aute",
+                      "description": "(Required) Batch job ID"
+                    }
+                  ]
+                }
+              },
+              "status": "Accepted",
+              "code": 202,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"completed\": 1,\n  \"created_at\": \"2025-05-23T00:30:00Z\",\n  \"estimated_completion\": \"2025-05-23T00:30:05Z\",\n  \"failed\": 0,\n  \"job_id\": \"batch-123456\",\n  \"priority\": \"high\",\n  \"status\": \"processing\",\n  \"total\": 2,\n  \"updated_at\": \"2025-05-23T00:30:02Z\"\n}"
+            },
+            {
+              "name": "Validation Error",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"pattern\": \"daily\",\n  \"interval\": 1,\n  \"count\": 7,\n  \"cron\": \"aute\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/batch/screenshots/:job_id/recurrence",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["batch", "screenshots", ":job_id", "recurrence"],
+                  "variable": [
+                    {
+                      "key": "job_id",
+                      "value": "do nostrud occaecat aute",
+                      "description": "(Required) Batch job ID"
+                    }
+                  ]
+                }
+              },
+              "status": "Unprocessable Entity (WebDAV) (RFC 4918)",
+              "code": 422,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"detail\": [\n    {\n      \"loc\": [\n        \"sit dolor minim nostrud et\",\n        \"esse anim\"\n      ],\n      \"msg\": \"incididunt eiusmod elit\",\n      \"type\": \"exercitation velit minim cillum\"\n    },\n    {\n      \"loc\": [\n        \"fugiat irure labo\",\n        \"ullamco eiusmod\"\n      ],\n      \"msg\": \"officia et\",\n      \"type\": \"Lorem in commodo dolore\"\n    }\n  ]\n}"
+            }
+          ]
+        },
+        {
+          "name": "Cancel a batch job",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/batch/screenshots/:job_id/cancel",
+              "host": ["{{baseUrl}}"],
+              "path": ["batch", "screenshots", ":job_id", "cancel"],
+              "variable": [
+                {
+                  "key": "job_id",
+                  "value": "{{jobId}}",
+                  "description": "(Required) Batch job ID"
+                }
+              ]
+            },
+            "description": "Cancel a batch job that is processing or scheduled"
+          },
+          "response": [
+            {
+              "name": "Successful Response",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/batch/screenshots/:job_id/cancel",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["batch", "screenshots", ":job_id", "cancel"],
+                  "variable": [
+                    {
+                      "key": "job_id",
+                      "value": "do nostrud occaecat aute",
+                      "description": "(Required) Batch job ID"
+                    }
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"completed\": 1,\n  \"created_at\": \"2025-05-23T00:30:00Z\",\n  \"estimated_completion\": \"2025-05-23T00:30:05Z\",\n  \"failed\": 0,\n  \"job_id\": \"batch-123456\",\n  \"priority\": \"high\",\n  \"status\": \"processing\",\n  \"total\": 2,\n  \"updated_at\": \"2025-05-23T00:30:02Z\"\n}"
+            },
+            {
+              "name": "Validation Error",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/batch/screenshots/:job_id/cancel",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["batch", "screenshots", ":job_id", "cancel"],
+                  "variable": [
+                    {
+                      "key": "job_id",
+                      "value": "do nostrud occaecat aute",
+                      "description": "(Required) Batch job ID"
+                    }
+                  ]
+                }
+              },
+              "status": "Unprocessable Entity (WebDAV) (RFC 4918)",
+              "code": 422,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"detail\": [\n    {\n      \"loc\": [\n        \"sit dolor minim nostrud et\",\n        \"esse anim\"\n      ],\n      \"msg\": \"incididunt eiusmod elit\",\n      \"type\": \"exercitation velit minim cillum\"\n    },\n    {\n      \"loc\": [\n        \"fugiat irure labo\",\n        \"ullamco eiusmod\"\n      ],\n      \"msg\": \"officia et\",\n      \"type\": \"Lorem in commodo dolore\"\n    }\n  ]\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get batch job results",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/batch/screenshots/:job_id/results",
+              "host": ["{{baseUrl}}"],
+              "path": ["batch", "screenshots", ":job_id", "results"],
+              "variable": [
+                {
+                  "key": "job_id",
+                  "value": "{{jobId}}",
+                  "description": "(Required) Batch job ID"
+                }
+              ]
+            },
+            "description": "Get the results of a batch screenshot job"
+          },
+          "response": [
+            {
+              "name": "Successful Response",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/batch/screenshots/:job_id/results",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["batch", "screenshots", ":job_id", "results"],
+                  "variable": [
+                    {
+                      "key": "job_id",
+                      "value": "do nostrud occaecat aute",
+                      "description": "(Required) Batch job ID"
+                    }
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"job_id\": \"batch-123456\",\n  \"status\": \"completed\",\n  \"total\": 2,\n  \"succeeded\": 2,\n  \"failed\": 0,\n  \"processing_time\": 3.45,\n  \"results\": [\n    {\n      \"id\": \"example-home\",\n      \"status\": \"success\",\n      \"url\": \"incididunt cupidatat eu\",\n      \"error\": \"ad in\",\n      \"cached\": false\n    },\n    {\n      \"id\": \"example-home\",\n      \"status\": \"success\",\n      \"url\": \"sit do non enim\",\n      \"error\": \"sed id\",\n      \"cached\": true\n    }\n  ]\n}"
+            },
+            {
+              "name": "Validation Error",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/batch/screenshots/:job_id/results",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["batch", "screenshots", ":job_id", "results"],
+                  "variable": [
+                    {
+                      "key": "job_id",
+                      "value": "do nostrud occaecat aute",
+                      "description": "(Required) Batch job ID"
+                    }
+                  ]
+                }
+              },
+              "status": "Unprocessable Entity (WebDAV) (RFC 4918)",
+              "code": 422,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"detail\": [\n    {\n      \"loc\": [\n        \"sit dolor minim nostrud et\",\n        \"esse anim\"\n      ],\n      \"msg\": \"incididunt eiusmod elit\",\n      \"type\": \"exercitation velit minim cillum\"\n    },\n    {\n      \"loc\": [\n        \"fugiat irure labo\",\n        \"ullamco eiusmod\"\n      ],\n      \"msg\": \"officia et\",\n      \"type\": \"Lorem in commodo dolore\"\n    }\n  ]\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "cache",
+      "item": [
+        {
+          "name": "Clear the entire cache",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/cache",
+              "host": ["{{baseUrl}}"],
+              "path": ["cache"]
+            },
+            "description": "Clear all items from the cache."
+          },
+          "response": [
+            {
+              "name": "Cache cleared successfully",
+              "originalRequest": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/cache",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["cache"]
+                }
+              },
+              "status": "No Content",
+              "code": 204,
+              "_postman_previewlanguage": "text",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "text/plain"
+                }
+              ],
+              "cookie": [],
+              "body": ""
+            }
+          ]
+        },
+        {
+          "name": "Get cache statistics",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/cache/stats",
+              "host": ["{{baseUrl}}"],
+              "path": ["cache", "stats"]
+            },
+            "description": "Get statistics about the cache, including hit rate, size, and configuration.\n    \n    ## Statistics\n    - enabled: Whether the cache is enabled\n    - size: Current number of items in the cache\n    - max_size: Maximum number of items allowed in the cache\n    - ttl: Time-to-live for cache items in seconds\n    - hits: Number of cache hits\n    - misses: Number of cache misses\n    - hit_rate: Ratio of hits to total requests"
+          },
+          "response": [
+            {
+              "name": "Cache statistics",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/cache/stats",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["cache", "stats"]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"enabled\": true,\n  \"size\": 42,\n  \"max_size\": 100,\n  \"ttl\": 3600,\n  \"hits\": 156,\n  \"misses\": 89,\n  \"hit_rate\": 0.637,\n  \"cleanup_interval\": 300\n}"
+            }
+          ]
+        },
+        {
+          "name": "Invalidate cache entries for a URL",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/cache/url?url=veniam aute qui",
+              "host": ["{{baseUrl}}"],
+              "path": ["cache", "url"],
+              "query": [
+                {
+                  "key": "url",
+                  "value": "veniam aute qui",
+                  "description": "(Required) URL to invalidate in the cache"
+                }
+              ]
+            },
+            "description": "Invalidate all cache entries for a specific URL."
+          },
+          "response": [
+            {
+              "name": "Cache entries invalidated",
+              "originalRequest": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/cache/url?url=veniam aute qui",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["cache", "url"],
+                  "query": [
+                    {
+                      "key": "url",
+                      "value": "veniam aute qui"
+                    }
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"invalidated\": 3\n}"
+            },
+            {
+              "name": "Validation Error",
+              "originalRequest": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/cache/url?url=veniam aute qui",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["cache", "url"],
+                  "query": [
+                    {
+                      "key": "url",
+                      "value": "veniam aute qui"
+                    }
+                  ]
+                }
+              },
+              "status": "Unprocessable Entity (WebDAV) (RFC 4918)",
+              "code": 422,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"detail\": [\n    {\n      \"loc\": [\n        \"sit dolor minim nostrud et\",\n        \"esse anim\"\n      ],\n      \"msg\": \"incididunt eiusmod elit\",\n      \"type\": \"exercitation velit minim cillum\"\n    },\n    {\n      \"loc\": [\n        \"fugiat irure labo\",\n        \"ullamco eiusmod\"\n      ],\n      \"msg\": \"officia et\",\n      \"type\": \"Lorem in commodo dolore\"\n    }\n  ]\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Capture website screenshot",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [""],
+            "type": "text/javascript",
+            "packages": {}
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-API-Key",
+            "value": "{{apiKey}}",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"format\": \"jpeg\",\n  \"height\": 1440,\n  \"url\": \"https://viding.co/mini-rsvp/996144\",\n  \"width\": 1080,\n  \"cache\": false\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/screenshot",
+          "host": ["{{baseUrl}}"],
+          "path": ["screenshot"]
+        },
+        "description": "Capture a screenshot of a website, upload it to R2, and return a signed imgproxy URL.\n    \n    ## Process Flow\n    1. Checks if the screenshot is already cached\n    2. If cached, returns the cached URL immediately\n    3. Otherwise, captures a screenshot of the provided URL using Playwright\n    4. Uploads the screenshot to Cloudflare R2 storage\n    5. Generates a signed imgproxy URL for the image with the specified transformations\n    6. Caches the result for future requests\n    7. Returns the URL to the processed image\n    \n    ## Cache Control\n    - Use `cache=false` to bypass the cache and force a fresh screenshot\n    - Cache TTL is configurable via the CACHE_TTL_SECONDS environment variable (default: 1 hour)\n    \n    ## Notes\n    - The URL must be a valid HTTP or HTTPS URL\n    - Supported formats: png, jpeg, webp\n    - Width and height must be between 1 and 5000 pixels\n    - The returned URL will be valid indefinitely"
+      },
+      "response": [
+        {
+          "name": "Successfully captured screenshot and generated imgproxy URL",
+          "originalRequest": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"format\": \"png\",\n  \"height\": 720,\n  \"url\": \"https://example.com\",\n  \"width\": 1280\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/screenshot?cache=true",
+              "host": ["{{baseUrl}}"],
+              "path": ["screenshot"],
+              "query": [
+                {
+                  "key": "cache",
+                  "value": "true"
+                }
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "cookie": [],
+          "body": "{\n  \"url\": \"https://your-imgproxy-url.example.com/signed_path/resize:fit:1280:720/format:png/base64_encoded_url\"\n}"
+        },
+        {
+          "name": "Invalid input parameters",
+          "originalRequest": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"format\": \"png\",\n  \"height\": 720,\n  \"url\": \"https://example.com\",\n  \"width\": 1280\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/screenshot?cache=true",
+              "host": ["{{baseUrl}}"],
+              "path": ["screenshot"],
+              "query": [
+                {
+                  "key": "cache",
+                  "value": "true"
+                }
+              ]
+            }
+          },
+          "status": "Bad Request",
+          "code": 400,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "cookie": [],
+          "body": "{\n  \"detail\": \"Invalid URL format\"\n}"
+        },
+        {
+          "name": "Server error",
+          "originalRequest": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"format\": \"png\",\n  \"height\": 720,\n  \"url\": \"https://example.com\",\n  \"width\": 1280\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/screenshot?cache=true",
+              "host": ["{{baseUrl}}"],
+              "path": ["screenshot"],
+              "query": [
+                {
+                  "key": "cache",
+                  "value": "true"
+                }
+              ]
+            }
+          },
+          "status": "Internal Server Error",
+          "code": 500,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "cookie": [],
+          "body": "{\n  \"detail\": \"Failed to process screenshot: Error message\"\n}"
+        },
+        {
+          "name": "Validation Error",
+          "originalRequest": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"format\": \"jpeg\",\n  \"height\": 1440,\n  \"url\": \"invalid-url\",\n  \"width\": 1080\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/screenshot?cache=false",
+              "host": ["{{baseUrl}}"],
+              "path": ["screenshot"],
+              "query": [
+                {
+                  "key": "cache",
+                  "value": "false",
+                  "description": "Whether to use cache (if available)"
+                }
+              ]
+            }
+          },
+          "status": "Unprocessable Entity",
+          "code": 422,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "date",
+              "value": "Tue, 27 May 2025 08:01:58 GMT"
+            },
+            {
+              "key": "server",
+              "value": "uvicorn"
+            },
+            {
+              "key": "content-length",
+              "value": "189"
+            },
+            {
+              "key": "content-type",
+              "value": "application/json"
+            },
+            {
+              "key": "x-request-id",
+              "value": "4697d547-1f0b-44f7-b801-f8a0f6290f32"
+            }
+          ],
+          "cookie": [],
+          "body": "{\n    \"detail\": [\n        {\n            \"type\": \"url_parsing\",\n            \"loc\": [\n                \"body\",\n                \"url\"\n            ],\n            \"msg\": \"Input should be a valid URL, relative URL without a base\",\n            \"input\": \"invalid-url\",\n            \"ctx\": {\n                \"error\": \"relative URL without a base\"\n            }\n        }\n    ]\n}"
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "/",
+      "type": "string"
+    }
+  ]
 }

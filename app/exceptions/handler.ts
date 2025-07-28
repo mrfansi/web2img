@@ -47,16 +47,16 @@ export default class HttpExceptionHandler extends ExceptionHandler {
    * Handle screenshot-specific exceptions
    */
   private async handleScreenshotException(
-    error: ScreenshotException, 
-    ctx: HttpContext, 
+    error: ScreenshotException,
+    ctx: HttpContext,
     correlationId: string
   ) {
     const errorResponse = error.getErrorResponse()
-    
+
     // Add correlation ID to error response
     errorResponse.detail.context = {
       ...errorResponse.detail.context,
-      correlationId
+      correlationId,
     }
 
     ctx.response.status(error.status || 500)
@@ -73,9 +73,9 @@ export default class HttpExceptionHandler extends ExceptionHandler {
         message: 'Validation failed',
         context: {
           correlationId,
-          errors: error.messages || error.message
-        }
-      }
+          errors: error.messages || error.message,
+        },
+      },
     }
 
     ctx.response.status(400)
@@ -91,9 +91,9 @@ export default class HttpExceptionHandler extends ExceptionHandler {
         error: ErrorCode.UNAUTHORIZED,
         message: error.message || 'Authentication failed',
         context: {
-          correlationId
-        }
-      }
+          correlationId,
+        },
+      },
     }
 
     ctx.response.status(401)
@@ -106,15 +106,15 @@ export default class HttpExceptionHandler extends ExceptionHandler {
   private async handleHttpException(error: any, ctx: HttpContext, correlationId: string) {
     const status = error.status || 500
     const errorCode = this.mapStatusToErrorCode(status)
-    
+
     const errorResponse = {
       detail: {
         error: errorCode,
         message: error.message || 'An error occurred',
         context: {
-          correlationId
-        }
-      }
+          correlationId,
+        },
+      },
     }
 
     ctx.response.status(status)
@@ -130,9 +130,9 @@ export default class HttpExceptionHandler extends ExceptionHandler {
         error: ErrorCode.SERVICE_OVERLOADED,
         message: 'An unexpected error occurred',
         context: {
-          correlationId
-        }
-      }
+          correlationId,
+        },
+      },
     }
 
     ctx.response.status(500)
@@ -143,18 +143,22 @@ export default class HttpExceptionHandler extends ExceptionHandler {
    * Check if error is a validation error
    */
   private isValidationError(error: any): boolean {
-    return error.code === 'E_VALIDATION_ERROR' || 
-           error.name === 'ValidationError' ||
-           (error.messages && Array.isArray(error.messages))
+    return (
+      error.code === 'E_VALIDATION_ERROR' ||
+      error.name === 'ValidationError' ||
+      (error.messages && Array.isArray(error.messages))
+    )
   }
 
   /**
    * Check if error is an authentication error
    */
   private isAuthenticationError(error: any): boolean {
-    return error.code === 'E_UNAUTHORIZED_ACCESS' ||
-           error.name === 'AuthenticationError' ||
-           (error.status === 401)
+    return (
+      error.code === 'E_UNAUTHORIZED_ACCESS' ||
+      error.name === 'AuthenticationError' ||
+      error.status === 401
+    )
   }
 
   /**
@@ -201,10 +205,10 @@ export default class HttpExceptionHandler extends ExceptionHandler {
           code: error.code,
           message: error.message,
           stack: error.stack,
-          context: error.context
+          context: error.context,
         },
         request: errorContext,
-        correlationId
+        correlationId,
       })
       return
     }
@@ -214,10 +218,10 @@ export default class HttpExceptionHandler extends ExceptionHandler {
       error: {
         name: error instanceof Error ? error.name : 'Unknown',
         message: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined
+        stack: error instanceof Error ? error.stack : undefined,
       },
       request: errorContext,
-      correlationId
+      correlationId,
     })
 
     return super.report(error, ctx)

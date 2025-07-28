@@ -49,7 +49,7 @@ export default defineConfig({
     () => import('@adonisjs/auth/auth_provider'),
     () => import('@adonisjs/redis/redis_provider'),
     () => import('@adonisjs/core/providers/edge_provider'),
-    () => import('@adonisjs/drive/drive_provider')
+    () => import('@adonisjs/drive/drive_provider'),
   ],
 
   /*
@@ -86,8 +86,10 @@ export default defineConfig({
     ],
     forceExit: true,
   },
-  metaFiles: [{
-    pattern: 'resources/views/**/*.edge',
-    reloadServer: false,
-  }]
+  metaFiles: [
+    {
+      pattern: 'resources/views/**/*.edge',
+      reloadServer: false,
+    },
+  ],
 })

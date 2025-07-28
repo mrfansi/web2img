@@ -73,30 +73,23 @@ export class WebhookDeliveryTracker {
       maxRetries,
       lastAttemptAt: new Date(),
       createdAt: new Date(),
-      deliveryResults: []
+      deliveryResults: [],
     }
 
     try {
-      await redisService.executeCommand(
-        async () => {
-          const key = this.keyPrefix + id
-          const ttl = this.maxTrackingDays * 24 * 60 * 60 // 7 days in seconds
+      await redisService.executeCommand(async () => {
+        const key = this.keyPrefix + id
+        const ttl = this.maxTrackingDays * 24 * 60 * 60 // 7 days in seconds
 
-          await redisService.getClient().setex(
-            key,
-            ttl,
-            JSON.stringify(status)
-          )
+        await redisService.getClient().setex(key, ttl, JSON.stringify(status))
 
-          logger.info('Started tracking webhook delivery', {
-            id,
-            url,
-            jobId,
-            maxRetries
-          })
-        },
-        'start webhook tracking'
-      )
+        logger.info('Started tracking webhook delivery', {
+          id,
+          url,
+          jobId,
+          maxRetries,
+        })
+      }, 'start webhook tracking')
     } catch (error) {
       logger.error('Failed to start webhook tracking', { id, url, jobId, error })
     }
@@ -105,65 +98,55 @@ export class WebhookDeliveryTracker {
   /**
    * Update webhook delivery status with attempt result
    */
-  public async updateDeliveryStatus(
-    id: string,
-    result: WebhookDeliveryResult
-  ): Promise<void> {
+  public async updateDeliveryStatus(id: string, result: WebhookDeliveryResult): Promise<void> {
     try {
-      await redisService.executeCommand(
-        async () => {
-          const key = this.keyPrefix + id
-          const statusData = await redisService.getClient().get(key)
+      await redisService.executeCommand(async () => {
+        const key = this.keyPrefix + id
+        const statusData = await redisService.getClient().get(key)
 
-          if (!statusData) {
-            logger.warn('Webhook delivery status not found for update', { id })
-            return
-          }
+        if (!statusData) {
+          logger.warn('Webhook delivery status not found for update', { id })
+          return
+        }
 
-          const status: WebhookDeliveryStatus = JSON.parse(statusData)
+        const status: WebhookDeliveryStatus = JSON.parse(statusData)
 
-          // Update status
-          status.attempts = result.attempt
-          status.lastAttemptAt = result.deliveredAt
-          status.deliveryResults.push(result)
+        // Update status
+        status.attempts = result.attempt
+        status.lastAttemptAt = result.deliveredAt
+        status.deliveryResults.push(result)
 
-          if (result.success) {
-            status.status = 'delivered'
-            status.completedAt = result.deliveredAt
-          } else if (result.attempt >= status.maxRetries) {
-            status.status = 'failed'
-            status.completedAt = result.deliveredAt
-            status.lastError = result.error
-          } else {
-            status.status = 'retrying'
-            status.lastError = result.error
-          }
+        if (result.success) {
+          status.status = 'delivered'
+          status.completedAt = result.deliveredAt
+        } else if (result.attempt >= status.maxRetries) {
+          status.status = 'failed'
+          status.completedAt = result.deliveredAt
+          status.lastError = result.error
+        } else {
+          status.status = 'retrying'
+          status.lastError = result.error
+        }
 
-          // Save updated status
-          const ttl = this.maxTrackingDays * 24 * 60 * 60
-          await redisService.getClient().setex(
-            key,
-            ttl,
-            JSON.stringify(status)
-          )
+        // Save updated status
+        const ttl = this.maxTrackingDays * 24 * 60 * 60
+        await redisService.getClient().setex(key, ttl, JSON.stringify(status))
 
-          // Update statistics
-          await this.updateStats(status)
+        // Update statistics
+        await this.updateStats(status)
 
-          // Check for alerting conditions
-          if (status.status === 'failed') {
-            await this.checkAlertConditions(status)
-          }
+        // Check for alerting conditions
+        if (status.status === 'failed') {
+          await this.checkAlertConditions(status)
+        }
 
-          logger.info('Updated webhook delivery status', {
-            id,
-            status: status.status,
-            attempt: result.attempt,
-            success: result.success
-          })
-        },
-        'update webhook delivery status'
-      )
+        logger.info('Updated webhook delivery status', {
+          id,
+          status: status.status,
+          attempt: result.attempt,
+          success: result.success,
+        })
+      }, 'update webhook delivery status')
     } catch (error) {
       logger.error('Failed to update webhook delivery status', { id, error })
     }
@@ -174,33 +157,30 @@ export class WebhookDeliveryTracker {
    */
   public async getDeliveryStatus(id: string): Promise<WebhookDeliveryStatus | null> {
     try {
-      return await redisService.executeCommand(
-        async () => {
-          const key = this.keyPrefix + id
-          const statusData = await redisService.getClient().get(key)
+      return await redisService.executeCommand(async () => {
+        const key = this.keyPrefix + id
+        const statusData = await redisService.getClient().get(key)
 
-          if (!statusData) {
-            return null
-          }
+        if (!statusData) {
+          return null
+        }
 
-          const status: WebhookDeliveryStatus = JSON.parse(statusData)
+        const status: WebhookDeliveryStatus = JSON.parse(statusData)
 
-          // Convert date strings back to Date objects
-          status.createdAt = new Date(status.createdAt)
-          status.lastAttemptAt = new Date(status.lastAttemptAt)
-          if (status.completedAt) {
-            status.completedAt = new Date(status.completedAt)
-          }
+        // Convert date strings back to Date objects
+        status.createdAt = new Date(status.createdAt)
+        status.lastAttemptAt = new Date(status.lastAttemptAt)
+        if (status.completedAt) {
+          status.completedAt = new Date(status.completedAt)
+        }
 
-          status.deliveryResults = status.deliveryResults.map(result => ({
-            ...result,
-            deliveredAt: new Date(result.deliveredAt)
-          }))
+        status.deliveryResults = status.deliveryResults.map((result) => ({
+          ...result,
+          deliveredAt: new Date(result.deliveredAt),
+        }))
 
-          return status
-        },
-        'get webhook delivery status'
-      )
+        return status
+      }, 'get webhook delivery status')
     } catch (error) {
       logger.error('Failed to get webhook delivery status', { id, error })
       return null
@@ -212,25 +192,22 @@ export class WebhookDeliveryTracker {
    */
   public async getDeliveryStats(): Promise<WebhookDeliveryStats> {
     try {
-      return await redisService.executeCommand(
-        async () => {
-          const statsData = await redisService.getClient().get(this.statsKey)
+      return await redisService.executeCommand(async () => {
+        const statsData = await redisService.getClient().get(this.statsKey)
 
-          if (!statsData) {
-            return {
-              totalDeliveries: 0,
-              successfulDeliveries: 0,
-              failedDeliveries: 0,
-              averageAttempts: 0,
-              successRate: 0,
-              commonErrors: []
-            }
+        if (!statsData) {
+          return {
+            totalDeliveries: 0,
+            successfulDeliveries: 0,
+            failedDeliveries: 0,
+            averageAttempts: 0,
+            successRate: 0,
+            commonErrors: [],
           }
+        }
 
-          return JSON.parse(statsData)
-        },
-        'get webhook delivery stats'
-      )
+        return JSON.parse(statsData)
+      }, 'get webhook delivery stats')
     } catch (error) {
       logger.error('Failed to get webhook delivery stats', { error })
       return {
@@ -239,7 +216,7 @@ export class WebhookDeliveryTracker {
         failedDeliveries: 0,
         averageAttempts: 0,
         successRate: 0,
-        commonErrors: []
+        commonErrors: [],
       }
     }
   }
@@ -249,42 +226,40 @@ export class WebhookDeliveryTracker {
    */
   public async getRecentFailures(limit: number = 50): Promise<WebhookDeliveryStatus[]> {
     try {
-      return await redisService.executeCommand(
-        async () => {
-          const pattern = this.keyPrefix + '*'
-          const keys = await redisService.getClient().keys(pattern)
+      return await redisService.executeCommand(async () => {
+        const pattern = this.keyPrefix + '*'
+        const keys = await redisService.getClient().keys(pattern)
 
-          const failures: WebhookDeliveryStatus[] = []
+        const failures: WebhookDeliveryStatus[] = []
 
-          for (const key of keys.slice(0, limit * 2)) { // Get more keys to filter
-            const statusData = await redisService.getClient().get(key)
-            if (statusData) {
-              const status: WebhookDeliveryStatus = JSON.parse(statusData)
+        for (const key of keys.slice(0, limit * 2)) {
+          // Get more keys to filter
+          const statusData = await redisService.getClient().get(key)
+          if (statusData) {
+            const status: WebhookDeliveryStatus = JSON.parse(statusData)
 
-              if (status.status === 'failed') {
-                // Convert date strings back to Date objects
-                status.createdAt = new Date(status.createdAt)
-                status.lastAttemptAt = new Date(status.lastAttemptAt)
-                if (status.completedAt) {
-                  status.completedAt = new Date(status.completedAt)
-                }
-
-                failures.push(status)
+            if (status.status === 'failed') {
+              // Convert date strings back to Date objects
+              status.createdAt = new Date(status.createdAt)
+              status.lastAttemptAt = new Date(status.lastAttemptAt)
+              if (status.completedAt) {
+                status.completedAt = new Date(status.completedAt)
               }
+
+              failures.push(status)
             }
           }
+        }
 
-          // Sort by completion time (most recent first) and limit
-          return failures
-            .sort((a, b) => {
-              const aTime = a.completedAt?.getTime() || 0
-              const bTime = b.completedAt?.getTime() || 0
-              return bTime - aTime
-            })
-            .slice(0, limit)
-        },
-        'get recent webhook failures'
-      )
+        // Sort by completion time (most recent first) and limit
+        return failures
+          .sort((a, b) => {
+            const aTime = a.completedAt?.getTime() || 0
+            const bTime = b.completedAt?.getTime() || 0
+            return bTime - aTime
+          })
+          .slice(0, limit)
+      }, 'get recent webhook failures')
     } catch (error) {
       logger.error('Failed to get recent webhook failures', { error })
       return []
@@ -296,32 +271,29 @@ export class WebhookDeliveryTracker {
    */
   public async cleanupOldData(): Promise<number> {
     try {
-      return await redisService.executeCommand(
-        async () => {
-          const pattern = this.keyPrefix + '*'
-          const keys = await redisService.getClient().keys(pattern)
+      return await redisService.executeCommand(async () => {
+        const pattern = this.keyPrefix + '*'
+        const keys = await redisService.getClient().keys(pattern)
 
-          let cleanedCount = 0
-          const cutoffTime = Date.now() - (this.maxTrackingDays * 24 * 60 * 60 * 1000)
+        let cleanedCount = 0
+        const cutoffTime = Date.now() - this.maxTrackingDays * 24 * 60 * 60 * 1000
 
-          for (const key of keys) {
-            const statusData = await redisService.getClient().get(key)
-            if (statusData) {
-              const status: WebhookDeliveryStatus = JSON.parse(statusData)
-              const createdTime = new Date(status.createdAt).getTime()
+        for (const key of keys) {
+          const statusData = await redisService.getClient().get(key)
+          if (statusData) {
+            const status: WebhookDeliveryStatus = JSON.parse(statusData)
+            const createdTime = new Date(status.createdAt).getTime()
 
-              if (createdTime < cutoffTime) {
-                await redisService.getClient().del(key)
-                cleanedCount++
-              }
+            if (createdTime < cutoffTime) {
+              await redisService.getClient().del(key)
+              cleanedCount++
             }
           }
+        }
 
-          logger.info('Cleaned up old webhook delivery data', { cleanedCount })
-          return cleanedCount
-        },
-        'cleanup old webhook data'
-      )
+        logger.info('Cleaned up old webhook delivery data', { cleanedCount })
+        return cleanedCount
+      }, 'cleanup old webhook data')
     } catch (error) {
       logger.error('Failed to cleanup old webhook data', { error })
       return 0
@@ -331,19 +303,19 @@ export class WebhookDeliveryTracker {
   /**
    * Update delivery statistics
    */
-  private async updateStats(
-    status: WebhookDeliveryStatus
-  ): Promise<void> {
+  private async updateStats(status: WebhookDeliveryStatus): Promise<void> {
     try {
       const statsData = await redisService.getClient().get(this.statsKey)
-      let stats: WebhookDeliveryStats = statsData ? JSON.parse(statsData) : {
-        totalDeliveries: 0,
-        successfulDeliveries: 0,
-        failedDeliveries: 0,
-        averageAttempts: 0,
-        successRate: 0,
-        commonErrors: []
-      }
+      let stats: WebhookDeliveryStats = statsData
+        ? JSON.parse(statsData)
+        : {
+            totalDeliveries: 0,
+            successfulDeliveries: 0,
+            failedDeliveries: 0,
+            averageAttempts: 0,
+            successRate: 0,
+            commonErrors: [],
+          }
 
       // Update counters only when delivery is complete
       if (status.status === 'delivered' || status.status === 'failed') {
@@ -359,7 +331,7 @@ export class WebhookDeliveryTracker {
 
             // Track common errors
             if (status.lastError) {
-              const existingError = stats.commonErrors.find(e => e.error === status.lastError)
+              const existingError = stats.commonErrors.find((e) => e.error === status.lastError)
               if (existingError) {
                 existingError.count++
               } else {
@@ -367,32 +339,24 @@ export class WebhookDeliveryTracker {
               }
 
               // Keep only top 10 most common errors
-              stats.commonErrors = stats.commonErrors
-                .sort((a, b) => b.count - a.count)
-                .slice(0, 10)
+              stats.commonErrors = stats.commonErrors.sort((a, b) => b.count - a.count).slice(0, 10)
             }
           }
 
           // Recalculate derived stats
-          stats.successRate = stats.totalDeliveries > 0
-            ? stats.successfulDeliveries / stats.totalDeliveries
-            : 0
+          stats.successRate =
+            stats.totalDeliveries > 0 ? stats.successfulDeliveries / stats.totalDeliveries : 0
 
           // Calculate average attempts (simplified)
-          const totalAttempts = stats.successfulDeliveries + (stats.failedDeliveries * 5) // Assume failed ones used max retries
-          stats.averageAttempts = stats.totalDeliveries > 0
-            ? totalAttempts / stats.totalDeliveries
-            : 0
+          const totalAttempts = stats.successfulDeliveries + stats.failedDeliveries * 5 // Assume failed ones used max retries
+          stats.averageAttempts =
+            stats.totalDeliveries > 0 ? totalAttempts / stats.totalDeliveries : 0
         }
       }
 
       // Save updated stats with TTL
       const ttl = this.maxTrackingDays * 24 * 60 * 60
-      await redisService.getClient().setex(
-        this.statsKey,
-        ttl,
-        JSON.stringify(stats)
-      )
+      await redisService.getClient().setex(this.statsKey, ttl, JSON.stringify(stats))
     } catch (error) {
       logger.error('Failed to update webhook stats', { error })
     }
@@ -411,7 +375,7 @@ export class WebhookDeliveryTracker {
           successRate: stats.successRate,
           threshold: this.alertThreshold,
           totalDeliveries: stats.totalDeliveries,
-          failedDeliveries: stats.failedDeliveries
+          failedDeliveries: stats.failedDeliveries,
         })
       }
 
@@ -424,7 +388,7 @@ export class WebhookDeliveryTracker {
         lastError: status.lastError,
         duration: status.completedAt
           ? status.completedAt.getTime() - status.createdAt.getTime()
-          : 0
+          : 0,
       })
     } catch (error) {
       logger.error('Failed to check webhook alert conditions', { error })

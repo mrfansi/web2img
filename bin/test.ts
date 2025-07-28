@@ -63,7 +63,7 @@ new Ignitor(APP_ROOT, { importer: IMPORTER })
             } catch (error) {
               console.warn('Final cleanup failed:', error)
             }
-          }
+          },
         ]),
       },
     })

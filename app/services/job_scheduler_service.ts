@@ -240,7 +240,7 @@ export class JobSchedulerService {
 
       // Update run count and next run time
       const cronJob = this.scheduledJobs.get(scheduledJobId)
-      const nextRun = cronJob ? cronJob.nextDate() as unknown as Date : undefined
+      const nextRun = cronJob ? (cronJob.nextDate() as unknown as Date) : undefined
 
       await this.updateScheduledJobStatus(scheduledJobId, {
         ...currentStatus,
@@ -384,8 +384,10 @@ export class JobSchedulerService {
           ...currentMetadata.schedule,
           cronExpression: updates.cronExpression || currentMetadata.schedule.cronExpression,
           timezone: updates.timezone || currentMetadata.schedule.timezone,
-          endDate: updates.endDate !== undefined ? updates.endDate : currentMetadata.schedule.endDate,
-          maxRuns: updates.maxRuns !== undefined ? updates.maxRuns : currentMetadata.schedule.maxRuns,
+          endDate:
+            updates.endDate !== undefined ? updates.endDate : currentMetadata.schedule.endDate,
+          maxRuns:
+            updates.maxRuns !== undefined ? updates.maxRuns : currentMetadata.schedule.maxRuns,
         },
       }
 
@@ -433,11 +435,13 @@ export class JobSchedulerService {
   /**
    * List all scheduled jobs
    */
-  async listScheduledJobs(filters: {
-    status?: ScheduledJobStatus['status']
-    type?: 'screenshot' | 'batch'
-    createdBy?: string
-  } = {}): Promise<Array<ScheduledJobData & { status: ScheduledJobStatus }>> {
+  async listScheduledJobs(
+    filters: {
+      status?: ScheduledJobStatus['status']
+      type?: 'screenshot' | 'batch'
+      createdBy?: string
+    } = {}
+  ): Promise<Array<ScheduledJobData & { status: ScheduledJobStatus }>> {
     try {
       const pattern = 'scheduled:metadata:*'
       const keys = await this.redisConnection.keys(pattern)
@@ -632,10 +636,7 @@ export class JobSchedulerService {
     const metadataKey = `scheduled:metadata:${scheduledJobId}`
     const statusKey = `scheduled:status:${scheduledJobId}`
 
-    await Promise.all([
-      this.redisConnection.del(metadataKey),
-      this.redisConnection.del(statusKey),
-    ])
+    await Promise.all([this.redisConnection.del(metadataKey), this.redisConnection.del(statusKey)])
 
     // Stop and remove cron job if it exists
     const cronJob = this.scheduledJobs.get(scheduledJobId)
@@ -650,7 +651,7 @@ export class JobSchedulerService {
    */
   private isValidCronExpression(expression: string): boolean {
     try {
-      new CronJob(expression, () => { }, null, false)
+      new CronJob(expression, () => {}, null, false)
       return true
     } catch {
       return false

@@ -133,7 +133,7 @@ export class ScreenshotWorkerService {
         options,
         errorName: error.name,
         errorMessage: error.message,
-        errorStack: error.stack
+        errorStack: error.stack,
       })
       throw new Error(`Failed to capture screenshot for ${url}: ${error.message}`)
     }
@@ -167,7 +167,7 @@ export class ScreenshotWorkerService {
         timeout,
         errorName: error.name,
         errorMessage: error.message,
-        errorStack: error.stack
+        errorStack: error.stack,
       })
 
       if (error.name === 'TimeoutError') {
@@ -188,7 +188,7 @@ export class ScreenshotWorkerService {
       // Wait for images to load (with timeout)
       await Promise.race([
         page.waitForLoadState('networkidle'),
-        new Promise(resolve => setTimeout(resolve, 5000)), // Max 5 seconds for images
+        new Promise((resolve) => setTimeout(resolve, 5000)), // Max 5 seconds for images
       ])
 
       // Wait for any JavaScript to execute

@@ -1,147 +1,243 @@
 <!-- Create API Key Modal -->
-<div id="create-api-key-modal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full">
-    <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
-        <div class="mt-3">
-            <h3 class="text-lg font-medium text-gray-900 mb-4">Create New API Key</h3>
-            <form id="create-api-key-form">
-                <div class="mb-4">
-                    <label for="api-key-name" class="block text-sm font-medium text-gray-700">Name</label>
-                    <input type="text" id="api-key-name" name="name" required
-                        class="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                </div>
-                <div class="mb-4">
-                    <label for="api-key-rate-limit" class="block text-sm font-medium text-gray-700">Rate Limit
-                        (requests/hour)</label>
-                    <input type="number" id="api-key-rate-limit" name="rateLimit" value="1000" min="1" max="10000"
-                        class="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                </div>
-                <div class="flex justify-end space-x-3">
-                    <button type="button" onclick="hideCreateApiKeyModal()"
-                        class="bg-gray-300 hover:bg-gray-400 text-gray-800 px-4 py-2 rounded-md text-sm font-medium">
-                        Cancel
-                    </button>
-                    <button type="submit"
-                        class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium">
-                        Create
-                    </button>
-                </div>
-            </form>
+<div
+  id="create-api-key-modal"
+  class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full"
+>
+  <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+    <div class="mt-3">
+      <h3 class="text-lg font-medium text-gray-900 mb-4">
+        Create New API Key
+      </h3>
+      <form id="create-api-key-form">
+        <div class="mb-4">
+          <label for="api-key-name" class="block text-sm font-medium text-gray-700">Name</label>
+          <input
+            type="text"
+            id="api-key-name"
+            name="name"
+            required
+            class="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
         </div>
+        <div class="mb-4">
+          <label for="api-key-rate-limit" class="block text-sm font-medium text-gray-700">Rate Limit
+                        (requests/hour)</label>
+          <input
+            type="number"
+            id="api-key-rate-limit"
+            name="rateLimit"
+            value="1000"
+            min="1"
+            max="10000"
+            class="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+        <div class="flex justify-end space-x-3">
+          <button
+            type="button"
+            onclick="hideCreateApiKeyModal()"
+            class="bg-gray-300 hover:bg-gray-400 text-gray-800 px-4 py-2 rounded-md text-sm font-medium"
+          >
+            Cancel
+                    </button>
+          <button
+            type="submit"
+            class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium"
+          >
+            Create
+                    </button>
+        </div>
+      </form>
     </div>
+  </div>
 </div>
 
 <!-- New API Key Display Modal -->
-<div id="new-api-key-modal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full">
-    <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
-        <div class="mt-3">
-            <h3 class="text-lg font-medium text-gray-900 mb-4">API Key Created Successfully</h3>
-            <div class="mb-4">
-                <p class="text-sm text-gray-600 mb-2">Your new API key:</p>
-                <div class="bg-gray-100 p-3 rounded border">
-                    <code id="new-api-key-value" class="text-sm break-all"></code>
-                </div>
-                <p class="text-xs text-red-600 mt-2">⚠️ Save this key now - you won't be able to see it again!</p>
-            </div>
-            <div class="flex justify-end">
-                <button onclick="hideNewApiKeyModal()"
-                    class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium">
-                    Close
-                </button>
-            </div>
+<div
+  id="new-api-key-modal"
+  class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full"
+>
+  <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+    <div class="mt-3">
+      <h3 class="text-lg font-medium text-gray-900 mb-4">
+        API Key Created Successfully
+      </h3>
+      <div class="mb-4">
+        <p class="text-sm text-gray-600 mb-2">
+          Your new API key:
+        </p>
+        <div class="bg-gray-100 p-3 rounded border">
+          <code id="new-api-key-value" class="text-sm break-all"></code>
         </div>
+        <p class="text-xs text-red-600 mt-2">
+          ⚠️ Save this key now - you won't be able to see it again!
+        </p>
+      </div>
+      <div class="flex justify-end">
+        <button
+          onclick="hideNewApiKeyModal()"
+          class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium"
+        >
+          Close
+                </button>
+      </div>
     </div>
+  </div>
 </div>
 
 <!-- Create User Modal -->
-<div id="new-user-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center p-4 hidden">
-    <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
-        <h3 class="text-lg font-medium text-gray-900 mb-4">Create New User</h3>
+<div
+  id="new-user-modal"
+  class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center p-4 hidden"
+>
+  <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
+    <h3 class="text-lg font-medium text-gray-900 mb-4">
+      Create New User
+    </h3>
 
-        <form id="create-user-form" class="space-y-4">
-            <div>
-                <label for="user-name" class="block text-sm font-medium text-gray-700">Full Name</label>
-                <input type="text" id="user-name" name="fullName" required
-                    class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
-            </div>
+    <form id="create-user-form" class="space-y-4">
+      <div>
+        <label for="user-name" class="block text-sm font-medium text-gray-700">Full Name</label>
+        <input
+          type="text"
+          id="user-name"
+          name="fullName"
+          required
+          class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+        />
+      </div>
 
-            <div>
-                <label for="user-email" class="block text-sm font-medium text-gray-700">Email</label>
-                <input type="email" id="user-email" name="email" required
-                    class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
-            </div>
+      <div>
+        <label for="user-email" class="block text-sm font-medium text-gray-700">Email</label>
+        <input
+          type="email"
+          id="user-email"
+          name="email"
+          required
+          class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+        />
+      </div>
 
-            <div>
-                <label for="user-password" class="block text-sm font-medium text-gray-700">Password</label>
-                <input type="password" id="user-password" name="password" required minlength="6"
-                    class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
-                <p class="mt-1 text-xs text-gray-500">Minimum 6 characters</p>
-            </div>
+      <div>
+        <label for="user-password" class="block text-sm font-medium text-gray-700">Password</label>
+        <input
+          type="password"
+          id="user-password"
+          name="password"
+          required
+          minlength="6"
+          class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+        />
+        <p class="mt-1 text-xs text-gray-500">
+          Minimum 6 characters
+        </p>
+      </div>
 
-            <div class="flex space-x-3">
-                <button type="submit"
-                    class="flex-1 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm font-medium">
-                    Create User
+      <div class="flex space-x-3">
+        <button
+          type="submit"
+          class="flex-1 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm font-medium"
+        >
+          Create User
                 </button>
-                <button type="button" onclick="hideNewUserModal()"
-                    class="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-700 px-4 py-2 rounded-md text-sm font-medium">
-                    Cancel
+        <button
+          type="button"
+          onclick="hideNewUserModal()"
+          class="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-700 px-4 py-2 rounded-md text-sm font-medium"
+        >
+          Cancel
                 </button>
-            </div>
-        </form>
+      </div>
+    </form>
 
-        <div id="user-creation-success"
-            class="hidden mt-4 p-3 bg-green-100 border border-green-400 text-green-700 rounded">
-            User created successfully!
-        </div>
+    <div
+      id="user-creation-success"
+      class="hidden mt-4 p-3 bg-green-100 border border-green-400 text-green-700 rounded"
+    >
+      User created successfully!
     </div>
+  </div>
 </div>
 
 <!-- Change Password Modal -->
-<div id="change-password-modal"
-    class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center p-4 hidden">
-    <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
-        <h3 class="text-lg font-medium text-gray-900 mb-4">Change Password</h3>
+<div
+  id="change-password-modal"
+  class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center p-4 hidden"
+>
+  <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
+    <h3 class="text-lg font-medium text-gray-900 mb-4">
+      Change Password
+    </h3>
 
-        <form id="change-password-form" class="space-y-4">
-            <div>
-                <label for="current-password" class="block text-sm font-medium text-gray-700">Current Password</label>
-                <input type="password" id="current-password" name="currentPassword" required
-                    class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
-            </div>
+    <form id="change-password-form" class="space-y-4">
+      <div>
+        <label for="current-password" class="block text-sm font-medium text-gray-700">Current Password</label>
+        <input
+          type="password"
+          id="current-password"
+          name="currentPassword"
+          required
+          class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+        />
+      </div>
 
-            <div>
-                <label for="new-password" class="block text-sm font-medium text-gray-700">New Password</label>
-                <input type="password" id="new-password" name="newPassword" required minlength="6"
-                    class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
-                <p class="mt-1 text-xs text-gray-500">Minimum 6 characters</p>
-            </div>
+      <div>
+        <label for="new-password" class="block text-sm font-medium text-gray-700">New Password</label>
+        <input
+          type="password"
+          id="new-password"
+          name="newPassword"
+          required
+          minlength="6"
+          class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+        />
+        <p class="mt-1 text-xs text-gray-500">
+          Minimum 6 characters
+        </p>
+      </div>
 
-            <div>
-                <label for="confirm-password" class="block text-sm font-medium text-gray-700">Confirm New
+      <div>
+        <label for="confirm-password" class="block text-sm font-medium text-gray-700">Confirm New
                     Password</label>
-                <input type="password" id="confirm-password" name="confirmPassword" required minlength="6"
-                    class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
-            </div>
+        <input
+          type="password"
+          id="confirm-password"
+          name="confirmPassword"
+          required
+          minlength="6"
+          class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+        />
+      </div>
 
-            <div class="flex space-x-3">
-                <button type="submit"
-                    class="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium">
-                    Change Password
+      <div class="flex space-x-3">
+        <button
+          type="submit"
+          class="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium"
+        >
+          Change Password
                 </button>
-                <button type="button" onclick="hideChangePasswordModal()"
-                    class="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-700 px-4 py-2 rounded-md text-sm font-medium">
-                    Cancel
+        <button
+          type="button"
+          onclick="hideChangePasswordModal()"
+          class="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-700 px-4 py-2 rounded-md text-sm font-medium"
+        >
+          Cancel
                 </button>
-            </div>
-        </form>
+      </div>
+    </form>
 
-        <div id="password-change-success"
-            class="hidden mt-4 p-3 bg-green-100 border border-green-400 text-green-700 rounded">
-            Password changed successfully!
-        </div>
-
-        <div id="password-change-error" class="hidden mt-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
-            <span id="password-error-text"></span>
-        </div>
+    <div
+      id="password-change-success"
+      class="hidden mt-4 p-3 bg-green-100 border border-green-400 text-green-700 rounded"
+    >
+      Password changed successfully!
     </div>
+
+    <div
+      id="password-change-error"
+      class="hidden mt-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded"
+    >
+      <span id="password-error-text"></span>
+    </div>
+  </div>
 </div>

@@ -57,16 +57,16 @@ export class FileStorageService {
 
   constructor() {
     this.diskName = env.get('DRIVE_DISK', 'fs')
-    
+
     // Set base URL based on storage type
     if (this.diskName === 'r2') {
       this.baseUrl = env.get('R2_PUBLIC_URL') || `https://${env.get('R2_BUCKET')}.r2.dev`
     } else {
-      this.baseUrl = env.get('DRIVE_BASE_URL') 
+      this.baseUrl = env.get('DRIVE_BASE_URL')
         ? `${env.get('DRIVE_BASE_URL')}/storage`
         : 'http://localhost:3333/storage'
     }
-    
+
     this.maxFileAge = (env.get('SCREENSHOT_MAX_AGE_DAYS') || 7) * 24 * 60 * 60 * 1000 // Convert days to milliseconds
     this.maxStorageSize = 10 * 1024 * 1024 * 1024 // 10GB default
     this.minFreeSpace = 1024 * 1024 * 1024 // 1GB minimum free space
@@ -88,7 +88,7 @@ export class FileStorageService {
   public async initialize(): Promise<void> {
     try {
       const disk = drive.use(this.diskName)
-      
+
       // Ensure base directories exist for local filesystem
       if (this.diskName === 'fs') {
         const directories = ['screenshots', 'temp', 'cache']
@@ -108,7 +108,7 @@ export class FileStorageService {
       throw new Exception('Failed to initialize file storage', {
         status: 500,
         code: 'STORAGE_INIT_FAILED',
-        cause: error
+        cause: error,
       })
     }
   }
@@ -116,10 +116,14 @@ export class FileStorageService {
   /**
    * Save file to storage with organized directory structure
    */
-  public async saveFile(buffer: Buffer, filename: string, category: string = 'screenshots'): Promise<string> {
+  public async saveFile(
+    buffer: Buffer,
+    filename: string,
+    category: string = 'screenshots'
+  ): Promise<string> {
     try {
       const disk = drive.use(this.diskName)
-      
+
       // Generate organized path structure (year/month/day)
       const now = new Date()
       const year = now.getFullYear().toString()
@@ -128,7 +132,7 @@ export class FileStorageService {
 
       // Generate unique filename if file already exists
       const finalFilename = await this.generateUniqueFilename(category, year, month, day, filename)
-      
+
       // Create the full path
       const relativePath = join(category, year, month, day, finalFilename).replace(/\\/g, '/')
 
@@ -139,7 +143,7 @@ export class FileStorageService {
         path: relativePath,
         size: buffer.length,
         category,
-        disk: this.diskName
+        disk: this.diskName,
       })
 
       return relativePath
@@ -148,7 +152,7 @@ export class FileStorageService {
       throw new Exception('Failed to save file to storage', {
         status: 500,
         code: 'STORAGE_SAVE_FAILED',
-        cause: error
+        cause: error,
       })
     }
   }
@@ -158,12 +162,12 @@ export class FileStorageService {
    */
   public getFileUrl(relativePath: string): string {
     const cleanPath = relativePath.startsWith('/') ? relativePath.slice(1) : relativePath
-    
+
     // For R2, use the CDN URL if available, otherwise construct URL
     if (this.diskName === 'r2') {
       return `${this.baseUrl}/${cleanPath}`
     }
-    
+
     // For local filesystem, use the configured base URL
     return `${this.baseUrl}/${cleanPath}`
   }
@@ -175,10 +179,10 @@ export class FileStorageService {
     if (this.diskName !== 'fs') {
       throw new Exception('Absolute paths are only available for local filesystem', {
         status: 400,
-        code: 'INVALID_OPERATION'
+        code: 'INVALID_OPERATION',
       })
     }
-    
+
     // For local filesystem, construct the path manually
     const { join } = require('node:path')
     const app = require('@adonisjs/core/services/app').default
@@ -204,7 +208,7 @@ export class FileStorageService {
   public async getFileMetadata(relativePath: string): Promise<FileMetadata | null> {
     try {
       const disk = drive.use(this.diskName)
-      
+
       // Get file content for hash calculation and size
       const buffer = await disk.get(relativePath)
       const hash = createHash('sha256').update(buffer).digest('hex')
@@ -212,7 +216,7 @@ export class FileStorageService {
       // For local filesystem, we can get more detailed stats
       let createdAt = new Date()
       let lastAccessed = new Date()
-      
+
       if (this.diskName === 'fs') {
         try {
           const { promises: fs } = await import('node:fs')
@@ -230,7 +234,7 @@ export class FileStorageService {
         size: buffer.length,
         createdAt,
         lastAccessed,
-        hash
+        hash,
       }
     } catch (error) {
       logger.warn('Failed to get file metadata', { path: relativePath, error })
@@ -252,7 +256,7 @@ export class FileStorageService {
       throw new Exception('Failed to delete file from storage', {
         status: 500,
         code: 'STORAGE_DELETE_FAILED',
-        cause: error
+        cause: error,
       })
     }
   }
@@ -264,13 +268,16 @@ export class FileStorageService {
     const tempPath = await this.saveFile(buffer, filename, 'temp')
 
     // Schedule cleanup after 1 hour
-    setTimeout(async () => {
-      try {
-        await this.deleteFile(tempPath)
-      } catch (error) {
-        logger.warn('Failed to cleanup temp file', { path: tempPath, error })
-      }
-    }, 60 * 60 * 1000) // 1 hour
+    setTimeout(
+      async () => {
+        try {
+          await this.deleteFile(tempPath)
+        } catch (error) {
+          logger.warn('Failed to cleanup temp file', { path: tempPath, error })
+        }
+      },
+      60 * 60 * 1000
+    ) // 1 hour
 
     return tempPath
   }
@@ -283,16 +290,16 @@ export class FileStorageService {
     let totalDeleted = 0
 
     try {
-      logger.info('Starting scheduled file cleanup', { 
+      logger.info('Starting scheduled file cleanup', {
         maxAge: this.maxFileAge,
-        diskName: this.diskName 
+        diskName: this.diskName,
       })
 
       totalDeleted = await this.cleanupOldFiles()
 
-      logger.info('Scheduled cleanup completed', { 
+      logger.info('Scheduled cleanup completed', {
         deletedFiles: totalDeleted,
-        diskName: this.diskName 
+        diskName: this.diskName,
       })
     } catch (error) {
       const errorMsg = `Scheduled cleanup failed: ${error.message}`
@@ -322,14 +329,18 @@ export class FileStorageService {
         }
       }
 
-      logger.info('Cleanup completed', { deletedFiles: deletedCount, cutoffDate, disk: this.diskName })
+      logger.info('Cleanup completed', {
+        deletedFiles: deletedCount,
+        cutoffDate,
+        disk: this.diskName,
+      })
       return deletedCount
     } catch (error) {
       logger.error('Cleanup failed', { error })
       throw new Exception('File cleanup failed', {
         status: 500,
         code: 'STORAGE_CLEANUP_FAILED',
-        cause: error
+        cause: error,
       })
     }
   }
@@ -345,7 +356,7 @@ export class FileStorageService {
         totalSize: 0,
         availableSpace: 0,
         usedSpace: 0,
-        directories: {}
+        directories: {},
       }
 
       // For local filesystem, get disk space information
@@ -383,7 +394,7 @@ export class FileStorageService {
       throw new Exception('Failed to get storage statistics', {
         status: 500,
         code: 'STORAGE_STATS_FAILED',
-        cause: error
+        cause: error,
       })
     }
   }
@@ -397,7 +408,7 @@ export class FileStorageService {
       availableSpace: 0,
       usedSpace: 0,
       warnings: [],
-      errors: []
+      errors: [],
     }
 
     try {
@@ -424,7 +435,9 @@ export class FileStorageService {
           health.usedSpace = (diskStats.blocks - diskStats.bavail) * diskStats.bsize
 
           if (health.availableSpace < this.minFreeSpace) {
-            health.warnings.push(`Low disk space: ${Math.round(health.availableSpace / 1024 / 1024)} MB remaining`)
+            health.warnings.push(
+              `Low disk space: ${Math.round(health.availableSpace / 1024 / 1024)} MB remaining`
+            )
             if (health.availableSpace < this.minFreeSpace / 2) {
               health.healthy = false
               health.errors.push('Critically low disk space')
@@ -439,12 +452,13 @@ export class FileStorageService {
       try {
         const stats = await this.getStorageStats()
         if (stats.totalSize > this.maxStorageSize) {
-          health.warnings.push(`Storage size limit exceeded: ${Math.round(stats.totalSize / 1024 / 1024)} MB`)
+          health.warnings.push(
+            `Storage size limit exceeded: ${Math.round(stats.totalSize / 1024 / 1024)} MB`
+          )
         }
       } catch (error) {
         health.warnings.push('Could not check storage size limits')
       }
-
     } catch (error) {
       health.errors.push(`Health check failed: ${error.message}`)
       health.healthy = false
@@ -456,7 +470,13 @@ export class FileStorageService {
   /**
    * Generate unique filename if file already exists
    */
-  private async generateUniqueFilename(category: string, year: string, month: string, day: string, filename: string): Promise<string> {
+  private async generateUniqueFilename(
+    category: string,
+    year: string,
+    month: string,
+    day: string,
+    filename: string
+  ): Promise<string> {
     const disk = drive.use(this.diskName)
     const ext = extname(filename)
     const name = basename(filename, ext)
@@ -475,7 +495,14 @@ export class FileStorageService {
   /**
    * Check if file exists in specific path
    */
-  private async fileExistsInPath(disk: any, category: string, year: string, month: string, day: string, filename: string): Promise<boolean> {
+  private async fileExistsInPath(
+    disk: any,
+    category: string,
+    year: string,
+    month: string,
+    day: string,
+    filename: string
+  ): Promise<boolean> {
     try {
       const fullPath = join(category, year, month, day, filename).replace(/\\/g, '/')
       return await disk.exists(fullPath)
@@ -525,7 +552,10 @@ export class FileStorageService {
   /**
    * Get statistics for a directory
    */
-  private async getDirectoryStats(disk: any, directory: string): Promise<{ files: number; size: number }> {
+  private async getDirectoryStats(
+    disk: any,
+    directory: string
+  ): Promise<{ files: number; size: number }> {
     let files = 0
     let size = 0
 
@@ -562,14 +592,14 @@ export class FileStorageService {
         const app = require('@adonisjs/core/services/app').default
         const storagePath = app.makePath(env.get('DRIVE_LOCAL_PATH', 'storage'))
         const fullPath = join(storagePath, directory)
-        
+
         try {
           await fs.access(fullPath)
           const entries = await fs.readdir(fullPath, { withFileTypes: true })
 
           for (const entry of entries) {
             const relativePath = join(directory, entry.name).replace(/\\/g, '/')
-            
+
             if (entry.isDirectory()) {
               const subFiles = await this.listFilesRecursively(disk, relativePath)
               files.push(...subFiles)

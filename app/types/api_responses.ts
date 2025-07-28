@@ -61,7 +61,7 @@ export enum ErrorCodes {
   USERS_FETCH_FAILED = 'users_fetch_failed',
   INVALID_CREDENTIALS = 'invalid_credentials',
   VALIDATION_ERROR = 'validation_error',
-  INTERNAL_ERROR = 'internal_error'
+  INTERNAL_ERROR = 'internal_error',
 }
 
 /**
@@ -75,5 +75,5 @@ export const ErrorMessages = {
   [ErrorCodes.USERS_FETCH_FAILED]: 'Failed to fetch users',
   [ErrorCodes.INVALID_CREDENTIALS]: 'Invalid email or password',
   [ErrorCodes.VALIDATION_ERROR]: 'Validation failed',
-  [ErrorCodes.INTERNAL_ERROR]: 'Internal server error'
+  [ErrorCodes.INTERNAL_ERROR]: 'Internal server error',
 } as const

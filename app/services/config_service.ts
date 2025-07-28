@@ -5,78 +5,78 @@ import env from '#start/env'
  * with additional runtime checks and type safety
  */
 export class ConfigService {
-    /**
-     * Get ImgProxy configuration with validation
-     */
-    static getImgProxyConfig() {
-        const url = env.get('IMGPROXY_URL')
-        const key = env.get('IMGPROXY_KEY')
-        const salt = env.get('IMGPROXY_SALT')
+  /**
+   * Get ImgProxy configuration with validation
+   */
+  static getImgProxyConfig() {
+    const url = env.get('IMGPROXY_URL')
+    const key = env.get('IMGPROXY_KEY')
+    const salt = env.get('IMGPROXY_SALT')
 
-        // Validate that if ImgProxy is configured, all required fields are present
-        if (url && (!key || !salt)) {
-            throw new Error('IMGPROXY_KEY and IMGPROXY_SALT are required when IMGPROXY_URL is set')
-        }
-
-        return {
-            url,
-            key,
-            salt,
-            isEnabled: Boolean(url && key && salt)
-        }
+    // Validate that if ImgProxy is configured, all required fields are present
+    if (url && (!key || !salt)) {
+      throw new Error('IMGPROXY_KEY and IMGPROXY_SALT are required when IMGPROXY_URL is set')
     }
 
-    /**
-     * Get storage configuration with validation
-     */
-    static getStorageConfig() {
-        const path = env.get('DRIVE_LOCAL_PATH') || 'storage'
-        const baseUrl = env.get('DRIVE_BASE_URL') || 'http://localhost:3333'
+    return {
+      url,
+      key,
+      salt,
+      isEnabled: Boolean(url && key && salt),
+    }
+  }
 
-        // Ensure storage path is absolute or relative to project root
-        if (!path.startsWith('/') && !path.startsWith('./')) {
-            // For relative paths, they're relative to project root
-        }
+  /**
+   * Get storage configuration with validation
+   */
+  static getStorageConfig() {
+    const path = env.get('DRIVE_LOCAL_PATH') || 'storage'
+    const baseUrl = env.get('DRIVE_BASE_URL') || 'http://localhost:3333'
 
-        return {
-            path,
-            baseUrl: baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl // Remove trailing slash
-        }
+    // Ensure storage path is absolute or relative to project root
+    if (!path.startsWith('/') && !path.startsWith('./')) {
+      // For relative paths, they're relative to project root
     }
 
-    /**
-     * Get screenshot configuration with validation
-     */
-    static getScreenshotConfig() {
-        return {
-            timeout: env.get('SCREENSHOT_TIMEOUT'),
-            cacheTtl: env.get('SCREENSHOT_CACHE_TTL'),
-            maxConcurrent: env.get('SCREENSHOT_MAX_CONCURRENT'),
-            queueConcurrency: env.get('SCREENSHOT_QUEUE_CONCURRENCY')
-        }
+    return {
+      path,
+      baseUrl: baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl, // Remove trailing slash
     }
+  }
 
-    /**
-     * Get browser configuration
-     */
-    static getBrowserConfig() {
-        return {
-            headless: env.get('BROWSER_HEADLESS'),
-            timeout: env.get('BROWSER_TIMEOUT')
-        }
+  /**
+   * Get screenshot configuration with validation
+   */
+  static getScreenshotConfig() {
+    return {
+      timeout: env.get('SCREENSHOT_TIMEOUT'),
+      cacheTtl: env.get('SCREENSHOT_CACHE_TTL'),
+      maxConcurrent: env.get('SCREENSHOT_MAX_CONCURRENT'),
+      queueConcurrency: env.get('SCREENSHOT_QUEUE_CONCURRENCY'),
     }
+  }
 
-    /**
-     * Validate all configurations at startup
-     */
-    static validateAll() {
-        try {
-            this.getImgProxyConfig()
-            this.getStorageConfig()
-            this.getScreenshotConfig()
-            this.getBrowserConfig()
-        } catch (error) {
-            throw new Error(`Configuration validation failed: ${error.message}`)
-        }
+  /**
+   * Get browser configuration
+   */
+  static getBrowserConfig() {
+    return {
+      headless: env.get('BROWSER_HEADLESS'),
+      timeout: env.get('BROWSER_TIMEOUT'),
     }
+  }
+
+  /**
+   * Validate all configurations at startup
+   */
+  static validateAll() {
+    try {
+      this.getImgProxyConfig()
+      this.getStorageConfig()
+      this.getScreenshotConfig()
+      this.getBrowserConfig()
+    } catch (error) {
+      throw new Error(`Configuration validation failed: ${error.message}`)
+    }
+  }
 }

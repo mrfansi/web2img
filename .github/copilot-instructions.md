@@ -30,8 +30,9 @@ const bullmqClient = getCentralRedisManager().duplicateForBullMQ()
 ### Import Path Patterns
 
 Use AdonisJS path imports exclusively:
+
 - `#services/*` for services (singletons)
-- `#controllers/*` for HTTP controllers  
+- `#controllers/*` for HTTP controllers
 - `#middleware/*` for middleware
 - `#models/*` for Lucid models
 - `#validators/*` for Vine validators
@@ -40,6 +41,7 @@ Use AdonisJS path imports exclusively:
 ### Queue Architecture
 
 Screenshot processing uses **BullMQ** with two queue types:
+
 - `screenshot` queue: Single screenshot jobs
 - `batch` queue: Bulk processing jobs
 
@@ -48,6 +50,7 @@ Queue workers are managed by `ApplicationBootstrap` and must be properly initial
 ### Service Layer Structure
 
 Services are organized by responsibility:
+
 - **Worker Services**: `screenshot_worker_service`, `screenshot_queue_worker`, `batch_queue_worker`
 - **Infrastructure**: `browser_service`, `cache_service`, `file_storage_service`, `redis_service`
 - **External Integration**: `imgproxy_service`, `webhook_service`, `url_transformation_service`
@@ -58,8 +61,9 @@ Services are organized by responsibility:
 ### Testing Approach
 
 The project uses **Japa** with automatic Redis connection leak detection. Tests are organized in:
+
 - `unit/` - Service and component unit tests
-- `integration/` - Cross-service integration tests  
+- `integration/` - Cross-service integration tests
 - `performance/` - Load and performance tests
 
 **Critical**: All tests include automatic Redis connection leak detection in `tests/bootstrap.ts`. Tests will fail if connections aren't properly closed.
@@ -67,6 +71,7 @@ The project uses **Japa** with automatic Redis connection leak detection. Tests 
 ### Application Lifecycle Management
 
 **ApplicationBootstrap** manages the complete system lifecycle:
+
 ```typescript
 // Always initialize in this order
 await applicationBootstrap.initialize()
@@ -87,6 +92,7 @@ The bootstrap handles proper service initialization order and graceful shutdown 
 ### API Request/Response Patterns
 
 All API endpoints follow consistent patterns:
+
 - **Authentication**: `X-API-Key` header required for all endpoints
 - **Rate Limiting**: Headers include `X-RateLimit-*` fields for client throttling
 - **Error Format**: `{ detail: { error: 'code', message: 'description' } }`
@@ -94,14 +100,15 @@ All API endpoints follow consistent patterns:
 - **Status Codes**: 200 (success), 202 (accepted/queued), 429 (rate limited), 401 (auth failed)
 
 API routes structure:
+
 ```typescript
 // Health/metrics routes (no auth)
 router.get('/health/**')
 router.get('/metrics/**')
 
 // Screenshot API routes (full middleware stack)
-router.post('/screenshot')          // Single screenshot
-router.post('/batch/screenshots')   // Create batch job  
+router.post('/screenshot') // Single screenshot
+router.post('/batch/screenshots') // Create batch job
 router.get('/batch/screenshots/:job_id') // Get batch status
 ```
 
@@ -118,6 +125,7 @@ router.get('/batch/screenshots/:job_id') // Get batch status
 ### Batch Processing & Scheduling
 
 The system supports complex batch operations with:
+
 - **Parallel Processing**: Configurable concurrency (1-50 parallel jobs)
 - **Scheduled Jobs**: ISO 8601 timestamps with cron-based recurrence
 - **Job Priorities**: `high`, `normal`, `low` queue priorities
@@ -135,6 +143,7 @@ Uses **Lucid ORM** with MySQL. Migrations are timestamp-based in `database/migra
 ## Configuration & Environment
 
 Critical environment variables:
+
 - Redis: Standard AdonisJS Redis config
 - Storage: `STORAGE_PATH`, `STORAGE_BASE_URL`
 - ImgProxy: `IMGPROXY_BASE_URL`, `IMGPROXY_KEY`, `IMGPROXY_SALT` (optional)
@@ -146,7 +155,7 @@ Use `ConfigService` for validated environment access with runtime checks.
 
 ```bash
 npm run dev         # Development with HMR
-npm test           # Full test suite with leak detection  
+npm test           # Full test suite with leak detection
 npm run build      # Production build
 node ace migration:run  # Database migrations
 ```

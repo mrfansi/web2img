@@ -51,7 +51,11 @@ test.group('Health Check Service', (group) => {
     assert.isString(health.message)
     assert.isNumber(health.responseTime)
     assert.isTrue(health.responseTime! > 0)
-    assert.oneOf(health.status, [HealthStatus.HEALTHY, HealthStatus.DEGRADED, HealthStatus.UNHEALTHY])
+    assert.oneOf(health.status, [
+      HealthStatus.HEALTHY,
+      HealthStatus.DEGRADED,
+      HealthStatus.UNHEALTHY,
+    ])
   })
 
   test('should check Redis health', async ({ assert }) => {
@@ -66,7 +70,11 @@ test.group('Health Check Service', (group) => {
     assert.isString(health.message)
     assert.isNumber(health.responseTime)
     assert.isTrue(health.responseTime! >= 0)
-    assert.oneOf(health.status, [HealthStatus.HEALTHY, HealthStatus.DEGRADED, HealthStatus.UNHEALTHY])
+    assert.oneOf(health.status, [
+      HealthStatus.HEALTHY,
+      HealthStatus.DEGRADED,
+      HealthStatus.UNHEALTHY,
+    ])
   })
 
   test('should check browser health', async ({ assert }) => {
@@ -80,7 +88,11 @@ test.group('Health Check Service', (group) => {
     assert.isString(health.message)
     assert.isNumber(health.responseTime)
     assert.isTrue(health.responseTime! >= 0)
-    assert.oneOf(health.status, [HealthStatus.HEALTHY, HealthStatus.DEGRADED, HealthStatus.UNHEALTHY])
+    assert.oneOf(health.status, [
+      HealthStatus.HEALTHY,
+      HealthStatus.DEGRADED,
+      HealthStatus.UNHEALTHY,
+    ])
   })
 
   test('should check storage health', async ({ assert }) => {
@@ -95,7 +107,11 @@ test.group('Health Check Service', (group) => {
     assert.isString(health.message)
     assert.isNumber(health.responseTime)
     assert.isTrue(health.responseTime! >= 0)
-    assert.oneOf(health.status, [HealthStatus.HEALTHY, HealthStatus.DEGRADED, HealthStatus.UNHEALTHY])
+    assert.oneOf(health.status, [
+      HealthStatus.HEALTHY,
+      HealthStatus.DEGRADED,
+      HealthStatus.UNHEALTHY,
+    ])
   })
 
   test('should check ImgProxy health', async ({ assert }) => {
@@ -110,7 +126,11 @@ test.group('Health Check Service', (group) => {
     assert.isString(health.message)
     assert.isNumber(health.responseTime)
     assert.isTrue(health.responseTime! >= 0)
-    assert.oneOf(health.status, [HealthStatus.HEALTHY, HealthStatus.DEGRADED, HealthStatus.UNHEALTHY])
+    assert.oneOf(health.status, [
+      HealthStatus.HEALTHY,
+      HealthStatus.DEGRADED,
+      HealthStatus.UNHEALTHY,
+    ])
 
     // ImgProxy might not be configured in test environment
     if (health.status === HealthStatus.DEGRADED) {
@@ -122,10 +142,10 @@ test.group('Health Check Service', (group) => {
     const health = await healthCheckService.checkSystemHealth()
     const { summary, components } = health
 
-    const componentStatuses = Object.values(components).map(c => c.status)
-    const expectedHealthy = componentStatuses.filter(s => s === HealthStatus.HEALTHY).length
-    const expectedUnhealthy = componentStatuses.filter(s => s === HealthStatus.UNHEALTHY).length
-    const expectedDegraded = componentStatuses.filter(s => s === HealthStatus.DEGRADED).length
+    const componentStatuses = Object.values(components).map((c) => c.status)
+    const expectedHealthy = componentStatuses.filter((s) => s === HealthStatus.HEALTHY).length
+    const expectedUnhealthy = componentStatuses.filter((s) => s === HealthStatus.UNHEALTHY).length
+    const expectedDegraded = componentStatuses.filter((s) => s === HealthStatus.DEGRADED).length
 
     assert.equal(summary.healthy, expectedHealthy)
     assert.equal(summary.unhealthy, expectedUnhealthy)
@@ -149,10 +169,10 @@ test.group('Health Check Service', (group) => {
 
   test('should track uptime correctly', async ({ assert }) => {
     const health1 = await healthCheckService.checkSystemHealth()
-    
+
     // Wait a bit
-    await new Promise(resolve => setTimeout(resolve, 100))
-    
+    await new Promise((resolve) => setTimeout(resolve, 100))
+
     const health2 = await healthCheckService.checkSystemHealth()
 
     assert.isTrue(health2.uptime >= health1.uptime)
@@ -161,13 +181,13 @@ test.group('Health Check Service', (group) => {
   test('should reset start time correctly', async ({ assert }) => {
     // Get initial uptime
     const health1 = await healthCheckService.checkSystemHealth()
-    
+
     // Wait a bit
-    await new Promise(resolve => setTimeout(resolve, 100))
-    
+    await new Promise((resolve) => setTimeout(resolve, 100))
+
     // Reset start time
     healthCheckService.resetStartTime()
-    
+
     // Get new uptime
     const health2 = await healthCheckService.checkSystemHealth()
 
@@ -184,17 +204,21 @@ test.group('Health Check Service', (group) => {
       healthCheckService.checkRedisHealth(),
       healthCheckService.checkBrowserHealth(),
       healthCheckService.checkStorageHealth(),
-      healthCheckService.checkImgProxyHealth()
+      healthCheckService.checkImgProxyHealth(),
     ])
 
     const healthChecks = [database, redis, browser, storage, imgproxy]
 
-    healthChecks.forEach(health => {
+    healthChecks.forEach((health) => {
       assert.isObject(health)
       assert.property(health, 'status')
       assert.property(health, 'message')
       assert.property(health, 'responseTime')
-      assert.oneOf(health.status, [HealthStatus.HEALTHY, HealthStatus.DEGRADED, HealthStatus.UNHEALTHY])
+      assert.oneOf(health.status, [
+        HealthStatus.HEALTHY,
+        HealthStatus.DEGRADED,
+        HealthStatus.UNHEALTHY,
+      ])
       assert.isString(health.message)
       assert.isNumber(health.responseTime)
       assert.isTrue(health.responseTime! >= 0)
@@ -204,7 +228,7 @@ test.group('Health Check Service', (group) => {
   test('should include response times in all health checks', async ({ assert }) => {
     const health = await healthCheckService.checkSystemHealth()
 
-    Object.values(health.components).forEach(component => {
+    Object.values(health.components).forEach((component) => {
       assert.property(component, 'responseTime')
       assert.isNumber(component.responseTime)
       assert.isTrue(component.responseTime! >= 0)

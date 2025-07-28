@@ -15,8 +15,9 @@ node ace create:user
 ```
 
 This will prompt you for:
+
 - Full name
-- Email address  
+- Email address
 - Password (with confirmation)
 
 #### Non-Interactive Mode
@@ -26,6 +27,7 @@ node ace create:user --non-interactive --name "John Doe" --email "john@example.c
 ```
 
 **Flags:**
+
 - `--name` - Full name of the user (required in non-interactive mode)
 - `--email` - Email address of the user (required in non-interactive mode)
 - `--password` - Password for the user (required in non-interactive mode)
@@ -48,6 +50,7 @@ node ace create:user --help
 ```
 
 **Validation:**
+
 - Full name: 1-100 characters, required
 - Email: Valid email format, must be unique
 - Password: 6-100 characters, required
@@ -61,6 +64,7 @@ node ace list:users
 ```
 
 **Output includes:**
+
 - User ID
 - Full Name
 - Email Address
@@ -68,15 +72,16 @@ node ace list:users
 - Last Updated Date
 
 **Example output:**
+
 ```
 [ info ] Loading user accounts...
 [ success ] Found 3 user(s):
 
 ID | Full Name      | Email                   | Created    | Last Updated
 -------------------------------------------------------------------------
-3  | Test User      | test@example.com        | 2025-07-26 | 2025-07-26  
-2  | Muhammad Irfan | mrfansi17@gmail.com     | 2025-07-26 | 2025-07-26  
-1  | Dashboard User | dashboard@web2img.local | 2025-07-26 | 2025-07-26  
+3  | Test User      | test@example.com        | 2025-07-26 | 2025-07-26
+2  | Muhammad Irfan | mrfansi17@gmail.com     | 2025-07-26 | 2025-07-26
+1  | Dashboard User | dashboard@web2img.local | 2025-07-26 | 2025-07-26
 
 [ info ] Total users: 3
 ```
@@ -132,6 +137,7 @@ node ace list:users | grep "Total users:"
 ## Error Handling
 
 The CLI commands provide proper exit codes:
+
 - **Exit Code 0**: Success
 - **Exit Code 1**: Error (validation failed, user exists, etc.)
 
@@ -148,6 +154,7 @@ This makes them suitable for use in automated scripts and CI/CD pipelines.
 ## Integration with Dashboard
 
 Users created via CLI can immediately:
+
 - Log in to the dashboard at `/auth/login`
 - Create and manage API keys
 - Create additional users through the web interface

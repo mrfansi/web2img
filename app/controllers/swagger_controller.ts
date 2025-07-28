@@ -5,13 +5,13 @@ import swaggerService from '#services/swagger_service'
  * Controller for serving OpenAPI/Swagger documentation
  */
 export default class SwaggerController {
-    /**
-     * Serve the Swagger UI interface
-     * GET /docs
-     */
-    async ui({ response }: HttpContext) {
-        // Return HTML directly with the Swagger UI
-        const html = `
+  /**
+   * Serve the Swagger UI interface
+   * GET /docs
+   */
+  async ui({ response }: HttpContext) {
+    // Return HTML directly with the Swagger UI
+    const html = `
         <!DOCTYPE html>
         <html lang="en">
         <head>
@@ -108,53 +108,53 @@ export default class SwaggerController {
         </html>
         `
 
-        response.header('Content-Type', 'text/html')
-        return html
+    response.header('Content-Type', 'text/html')
+    return html
+  }
+
+  /**
+   * Serve the OpenAPI JSON specification
+   * GET /docs/openapi.json
+   */
+  async spec({ request, response }: HttpContext) {
+    const spec = swaggerService.getSpec()
+
+    // Update the server URL to match the current request
+    const protocol = request.header('x-forwarded-proto') || request.protocol()
+    const host = request.header('host') || 'localhost:3333'
+    const currentServerUrl = `${protocol}://${host}`
+
+    // Clone the spec and update server URLs to include current server
+    const updatedSpec = {
+      ...spec,
+      servers: [
+        {
+          url: currentServerUrl,
+          description: 'Current server',
+        },
+        ...(spec.servers || []),
+      ],
     }
 
-    /**
-     * Serve the OpenAPI JSON specification
-     * GET /docs/openapi.json
-     */
-    async spec({ request, response }: HttpContext) {
-        const spec = swaggerService.getSpec()
+    response.header('Content-Type', 'application/json')
+    return updatedSpec
+  }
 
-        // Update the server URL to match the current request
-        const protocol = request.header('x-forwarded-proto') || request.protocol()
-        const host = request.header('host') || 'localhost:3333'
-        const currentServerUrl = `${protocol}://${host}`
+  /**
+   * Serve a pretty-printed JSON version of the spec
+   * GET /docs/openapi
+   */
+  async specPretty({ response }: HttpContext) {
+    const specJson = swaggerService.getSpecJson()
+    response.header('Content-Type', 'application/json')
+    return specJson
+  }
 
-        // Clone the spec and update server URLs to include current server
-        const updatedSpec = {
-            ...spec,
-            servers: [
-                {
-                    url: currentServerUrl,
-                    description: 'Current server'
-                },
-                ...(spec.servers || [])
-            ]
-        }
-
-        response.header('Content-Type', 'application/json')
-        return updatedSpec
-    }
-
-    /**
-     * Serve a pretty-printed JSON version of the spec
-     * GET /docs/openapi
-     */
-    async specPretty({ response }: HttpContext) {
-        const specJson = swaggerService.getSpecJson()
-        response.header('Content-Type', 'application/json')
-        return specJson
-    }
-
-    /**
-     * Redirect root docs URL to the UI
-     * GET /api-docs/
-     */
-    async redirect({ response }: HttpContext) {
-        return response.redirect('/docs')
-    }
+  /**
+   * Redirect root docs URL to the UI
+   * GET /api-docs/
+   */
+  async redirect({ response }: HttpContext) {
+    return response.redirect('/docs')
+  }
 }

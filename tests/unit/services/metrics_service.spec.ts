@@ -9,7 +9,7 @@ test.group('Metrics Service', (group) => {
   group.each.setup(async () => {
     metricsService = new MetricsService()
     redis = getCentralRedisManager().getClient()
-    
+
     // Clean up any existing test metrics before each test
     const keys = await redis.keys('metrics:*')
     if (keys.length > 0) {
@@ -36,7 +36,7 @@ test.group('Metrics Service', (group) => {
     // Check that the counter was incremented
     const key = `metrics:counter:test_counter_${uniqueId}:method=GET,status=200`
     const value = await redis.get(key)
-    
+
     assert.equal(parseInt(value), 3)
 
     // Check TTL is set
@@ -54,7 +54,7 @@ test.group('Metrics Service', (group) => {
     // Check that the gauge was set
     const key = 'metrics:gauge:test_gauge:component=queue'
     const storedValue = await redis.get(key)
-    
+
     assert.equal(parseFloat(storedValue), value)
 
     // Check TTL is set
@@ -81,10 +81,13 @@ test.group('Metrics Service', (group) => {
     // Check statistics
     const statsKey = `${key}:stats`
     const stats = await redis.hmget(statsKey, 'count', 'sum', 'sum_squares')
-    
+
     assert.equal(parseInt(stats[0]), values.length)
-    assert.equal(parseFloat(stats[1]), values.reduce((a, b) => a + b, 0))
-    
+    assert.equal(
+      parseFloat(stats[1]),
+      values.reduce((a, b) => a + b, 0)
+    )
+
     // Check TTL is set
     const ttl = await redis.ttl(key)
     assert.isTrue(ttl > 0)
@@ -96,10 +99,10 @@ test.group('Metrics Service', (group) => {
     const labels = { operation: 'test' }
 
     const stopTimer = metricsService.startTimer(metricName, labels)
-    
+
     // Simulate some work
-    await new Promise(resolve => setTimeout(resolve, 10))
-    
+    await new Promise((resolve) => setTimeout(resolve, 10))
+
     await stopTimer()
 
     // Check that histogram was recorded
@@ -255,7 +258,7 @@ test.group('Metrics Service', (group) => {
   test('should handle errors gracefully', async ({ assert }) => {
     // This test verifies that metric operations don't throw errors
     // even if Redis operations fail (they should log errors instead)
-    
+
     // These operations should not throw
     await assert.doesNotReject(async () => {
       await metricsService.incrementCounter('test_error_counter', 1)
@@ -273,11 +276,11 @@ test.group('Metrics Service', (group) => {
     // Test with specific cache metrics
     await metricsService.incrementCounter('cache_hits_test', 10)
     await metricsService.incrementCounter('cache_misses_test', 5)
-    
+
     // Since we can't easily test the exact calculation due to shared state,
     // let's just verify the metrics structure is correct
     const metrics = await metricsService.getProcessingMetrics()
-    
+
     assert.isNumber(metrics.cacheHitRate)
     assert.isTrue(metrics.cacheHitRate >= 0)
     assert.isTrue(metrics.cacheHitRate <= 100)
@@ -286,7 +289,7 @@ test.group('Metrics Service', (group) => {
   test('should calculate error rate correctly', async ({ assert }) => {
     // Test error rate calculation structure
     const metrics = await metricsService.getRequestMetrics()
-    
+
     assert.isNumber(metrics.errorRate)
     assert.isTrue(metrics.errorRate >= 0)
     assert.isTrue(metrics.errorRate <= 100)

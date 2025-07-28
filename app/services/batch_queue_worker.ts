@@ -110,7 +110,7 @@ export class BatchQueueWorker {
       await job.updateProgress(100)
 
       const totalProcessingTime = Date.now() - startTime
-      const completedItems = results.filter(r => r.success).length
+      const completedItems = results.filter((r) => r.success).length
       const failedItems = results.length - completedItems
 
       const batchResult: BatchResult = {
@@ -189,8 +189,8 @@ export class BatchQueueWorker {
       })
 
       // Update progress as we create jobs (10% to 20% range)
-      const progress = 10 + Math.floor((i + 1) / items.length * 10)
-      await parentJob.updateProgress(progress).catch(() => { }) // Don't fail on progress update error
+      const progress = 10 + Math.floor(((i + 1) / items.length) * 10)
+      await parentJob.updateProgress(progress).catch(() => {}) // Don't fail on progress update error
     }
 
     logger.info('Created screenshot jobs for batch', {
@@ -225,7 +225,7 @@ export class BatchQueueWorker {
     // Helper function to start a job
     const startJob = (jobInfo: { itemId: string; jobId: string }) => {
       const promise = this.waitForScreenshotJob(jobInfo.jobId)
-        .then(result => {
+        .then((result) => {
           completedCount++
           results.push({
             itemId: jobInfo.itemId,
@@ -244,7 +244,7 @@ export class BatchQueueWorker {
 
           return result
         })
-        .catch(error => {
+        .catch((error) => {
           failedCount++
           results.push({
             itemId: jobInfo.itemId,
@@ -262,8 +262,8 @@ export class BatchQueueWorker {
           activeJobs.delete(jobInfo.jobId)
 
           // Update parent job progress
-          const progress = 20 + Math.floor((completedCount + failedCount) / jobs.length * 70)
-          parentJob.updateProgress(progress).catch(() => { }) // Don't fail batch on progress update error
+          const progress = 20 + Math.floor(((completedCount + failedCount) / jobs.length) * 70)
+          parentJob.updateProgress(progress).catch(() => {}) // Don't fail batch on progress update error
         })
 
       activeJobs.set(jobInfo.jobId, promise)
@@ -306,7 +306,7 @@ export class BatchQueueWorker {
         })
 
         for (const [jobId] of activeJobs) {
-          await queueService.cancelJob(jobId, 'screenshot').catch(() => { }) // Don't fail on cancel errors
+          await queueService.cancelJob(jobId, 'screenshot').catch(() => {}) // Don't fail on cancel errors
         }
       }
 
@@ -343,7 +343,7 @@ export class BatchQueueWorker {
       }
 
       // Job still processing, wait and check again
-      await new Promise(resolve => setTimeout(resolve, pollInterval))
+      await new Promise((resolve) => setTimeout(resolve, pollInterval))
     }
 
     throw new Error(`Screenshot job ${jobId} timed out after ${maxWaitTime}ms`)
@@ -360,23 +360,23 @@ export class BatchQueueWorker {
   ): Promise<boolean> {
     try {
       const webhookService = (await import('#services/webhook_service')).default
-      
+
       // Create webhook payload using the webhook service
       const payload = webhookService.createBatchCompletionPayload(
         batchId,
         'completed',
         results.length,
-        results.filter(r => r.success).length,
-        results.filter(r => !r.success).length,
+        results.filter((r) => r.success).length,
+        results.filter((r) => !r.success).length,
         new Date(Date.now() - 60000), // Approximate start time
         new Date(),
-        results.map(r => ({
+        results.map((r) => ({
           itemId: r.itemId,
-          status: r.success ? 'success' as const : 'error' as const,
+          status: r.success ? ('success' as const) : ('error' as const),
           url: r.imageUrl,
           error: r.error,
           cached: false, // This would need to be tracked from the screenshot job
-          processingTime: r.processingTime
+          processingTime: r.processingTime,
         }))
       )
 
@@ -385,7 +385,7 @@ export class BatchQueueWorker {
         url: webhookUrl,
         payload,
         auth: authHeader,
-        maxRetries: 3
+        maxRetries: 3,
       }
 
       const result = await webhookService.deliverWebhook(webhookData)
@@ -394,7 +394,7 @@ export class BatchQueueWorker {
         batchId,
         webhookUrl,
         success: result.success,
-        attempt: result.attempt
+        attempt: result.attempt,
       })
 
       return result.success

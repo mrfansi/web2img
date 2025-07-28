@@ -8,7 +8,7 @@ export type RedisConnection = ReturnType<typeof redis.connection>
 
 /**
  * CentralRedisManager - A singleton class for managing Redis connections
- * 
+ *
  * Provides a centralized way to manage Redis connections with:
  * - Lazy initialization of a shared ioredis instance
  * - Connection duplication for BullMQ and other use cases
@@ -22,7 +22,7 @@ export class CentralRedisManager {
   private isShuttingDown = false
   private openConnections: Set<RedisConnection | Redis> = new Set()
 
-  private constructor() { }
+  private constructor() {}
 
   /**
    * Get the singleton instance of CentralRedisManager
@@ -118,8 +118,8 @@ export class CentralRedisManager {
    * Get a list of open connection statuses for debugging
    */
   public getOpenConnectionsInfo(): Array<{ status: string }> {
-    return Array.from(this.openConnections).map(client => ({
-      status: client.status
+    return Array.from(this.openConnections).map((client) => ({
+      status: client.status,
     }))
   }
 
@@ -141,12 +141,14 @@ export class CentralRedisManager {
         await connection.quit()
         logger.info('CentralRedisManager: Connection gracefully quit')
       } catch (error) {
-        logger.warn('CentralRedisManager: Error during connection quit, forcing disconnect', { error })
+        logger.warn('CentralRedisManager: Error during connection quit, forcing disconnect', {
+          error,
+        })
         try {
           connection.disconnect()
         } catch (disconnectError) {
           logger.error('CentralRedisManager: Error during forced disconnect', {
-            error: disconnectError
+            error: disconnectError,
           })
         }
       }
@@ -190,7 +192,7 @@ export class CentralRedisManager {
         return {
           healthy: false,
           error: 'Redis ping failed',
-          details: { pingResult, responseTime }
+          details: { pingResult, responseTime },
         }
       }
 
@@ -204,7 +206,7 @@ export class CentralRedisManager {
         return {
           healthy: false,
           error: 'Redis read/write test failed',
-          details: { testValue, responseTime }
+          details: { testValue, responseTime },
         }
       }
 
@@ -213,8 +215,8 @@ export class CentralRedisManager {
         details: {
           responseTime,
           openConnections: this.getOpenConnectionsCount(),
-          connectionInfo: this.getOpenConnectionsInfo()
-        }
+          connectionInfo: this.getOpenConnectionsInfo(),
+        },
       }
     } catch (error) {
       return {
@@ -222,13 +224,11 @@ export class CentralRedisManager {
         error: error.message || 'Redis health check failed',
         details: {
           openConnections: this.getOpenConnectionsCount(),
-          isShuttingDown: this.isShuttingDown
-        }
+          isShuttingDown: this.isShuttingDown,
+        },
       }
     }
   }
-
-
 
   /**
    * Track a Redis connection for leak detection
@@ -243,7 +243,9 @@ export class CentralRedisManager {
    */
   private untrackConnection(client: RedisConnection | Redis): void {
     this.openConnections.delete(client)
-    logger.info(`CentralRedisManager: Stopped tracking connection (total: ${this.openConnections.size})`)
+    logger.info(
+      `CentralRedisManager: Stopped tracking connection (total: ${this.openConnections.size})`
+    )
   }
 
   /**
@@ -261,7 +263,7 @@ export class CentralRedisManager {
     client.on('error', (error: any) => {
       logger.error(`CentralRedisManager: Redis ${clientType} client error`, {
         error: error?.message || String(error),
-        stack: error?.stack || undefined
+        stack: error?.stack || undefined,
       })
     })
 
@@ -295,7 +297,7 @@ export class CentralRedisManager {
     client.on('error', (error: any) => {
       logger.error(`CentralRedisManager: Redis ${clientType} client error`, {
         error: error?.message || String(error),
-        stack: error?.stack || undefined
+        stack: error?.stack || undefined,
       })
     })
 

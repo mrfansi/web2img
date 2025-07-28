@@ -16,6 +16,7 @@ Web2Img is a high-performance website screenshot service that provides REST APIs
 ## Architecture
 
 Modern, scalable architecture with:
+
 - Background job processing for screenshot generation
 - Redis for caching and queue management
 - MySQL for persistent data storage

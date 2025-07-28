@@ -44,14 +44,18 @@ export default class ApiKey extends BaseModel {
   /**
    * Create a new API key for a user
    */
-  static async createForUser(userId: number, name: string, rateLimit: number = 1000): Promise<ApiKey> {
+  static async createForUser(
+    userId: number,
+    name: string,
+    rateLimit: number = 1000
+  ): Promise<ApiKey> {
     const apiKey = new ApiKey()
     apiKey.key = this.generateKey()
     apiKey.name = name
     apiKey.userId = userId
     apiKey.rateLimit = rateLimit
     apiKey.isActive = true
-    
+
     await apiKey.save()
     return apiKey
   }
@@ -60,11 +64,7 @@ export default class ApiKey extends BaseModel {
    * Find an active API key by key string
    */
   static async findByKey(key: string): Promise<ApiKey | null> {
-    return await ApiKey.query()
-      .where('key', key)
-      .where('is_active', true)
-      .preload('user')
-      .first()
+    return await ApiKey.query().where('key', key).where('is_active', true).preload('user').first()
   }
 
   /**

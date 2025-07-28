@@ -23,7 +23,11 @@ class TestFileStorageService {
     await this.ensureDirectoryExists(join(this.basePath, 'cache'))
   }
 
-  async saveFile(buffer: Buffer, filename: string, category: string = 'screenshots'): Promise<string> {
+  async saveFile(
+    buffer: Buffer,
+    filename: string,
+    category: string = 'screenshots'
+  ): Promise<string> {
     const now = new Date()
     const year = now.getFullYear().toString()
     const month = (now.getMonth() + 1).toString().padStart(2, '0')
@@ -71,7 +75,7 @@ class TestFileStorageService {
         size: stats.size,
         createdAt: stats.birthtime,
         lastAccessed: stats.atime,
-        hash
+        hash,
       }
     } catch {
       return null
@@ -109,7 +113,7 @@ class TestFileStorageService {
       totalSize: 0,
       availableSpace: 0,
       usedSpace: 0,
-      directories: {} as any
+      directories: {} as any,
     }
 
     const diskStats = await fs.statfs(this.basePath)
@@ -137,10 +141,10 @@ class TestFileStorageService {
       availableSpace: 0,
       usedSpace: 0,
       warnings: [] as string[],
-      errors: [] as string[]
+      errors: [] as string[],
     }
 
-    if (!await this.directoryExists(this.basePath)) {
+    if (!(await this.directoryExists(this.basePath))) {
       health.errors.push('Storage base directory does not exist')
       health.healthy = false
     }
@@ -394,11 +398,12 @@ test.group('FileStorageService', (group) => {
 
   test('should handle storage errors gracefully', async ({ assert }) => {
     // Test with invalid path
-    const invalidService = new TestFileStorageService('/invalid/path/that/does/not/exist', 'http://localhost')
-
-    await assert.rejects(
-      () => invalidService.saveFile(Buffer.from('test'), 'test.png')
+    const invalidService = new TestFileStorageService(
+      '/invalid/path/that/does/not/exist',
+      'http://localhost'
     )
+
+    await assert.rejects(() => invalidService.saveFile(Buffer.from('test'), 'test.png'))
   })
 })
 

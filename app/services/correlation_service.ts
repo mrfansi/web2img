@@ -21,7 +21,7 @@ export class CorrelationService {
   public static getOrCreateCorrelationId(ctx: HttpContext): string {
     // Check if correlation ID is already in the request headers
     let correlationId = ctx.request.header(this.CORRELATION_ID_HEADER)
-    
+
     if (!correlationId) {
       // Check if there's a request ID we can use
       correlationId = ctx.request.header(this.REQUEST_ID_HEADER)
@@ -34,7 +34,7 @@ export class CorrelationService {
 
     // Store in response headers for client tracking
     ctx.response.header(this.CORRELATION_ID_HEADER, correlationId)
-    
+
     return correlationId
   }
 
@@ -49,8 +49,9 @@ export class CorrelationService {
    * Get correlation ID from HTTP context
    */
   public static getCorrelationId(ctx: HttpContext): string | undefined {
-    return ctx.request.header(this.CORRELATION_ID_HEADER) || 
-           ctx.request.header(this.REQUEST_ID_HEADER)
+    return (
+      ctx.request.header(this.CORRELATION_ID_HEADER) || ctx.request.header(this.REQUEST_ID_HEADER)
+    )
   }
 
   /**
@@ -58,7 +59,7 @@ export class CorrelationService {
    */
   public static createErrorContext(ctx: HttpContext, additionalContext?: Record<string, any>) {
     const correlationId = this.getOrCreateCorrelationId(ctx)
-    
+
     return {
       correlationId,
       requestId: correlationId, // Use correlation ID as request ID if not provided
@@ -67,7 +68,7 @@ export class CorrelationService {
       userAgent: ctx.request.header('user-agent'),
       ip: ctx.request.ip(),
       timestamp: new Date(),
-      ...additionalContext
+      ...additionalContext,
     }
   }
 }

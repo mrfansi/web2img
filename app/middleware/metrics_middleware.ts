@@ -30,7 +30,6 @@ export default class MetricsMiddleware {
 
       // Record API key usage if API key is present
       await this.recordApiKeyUsage(ctx, method, route, statusCode, duration)
-
     } catch (error) {
       // Record error metrics
       const duration = Date.now() - startTime
@@ -60,7 +59,7 @@ export default class MetricsMiddleware {
     const labels = {
       method,
       route,
-      status: statusCode.toString()
+      status: statusCode.toString(),
     }
 
     // Record total requests
@@ -75,7 +74,9 @@ export default class MetricsMiddleware {
     }
 
     // Record status code specific metrics
-    await this.metricsService.incrementCounter('http_requests_total', 1, { status: statusCode.toString() })
+    await this.metricsService.incrementCounter('http_requests_total', 1, {
+      status: statusCode.toString(),
+    })
 
     // Update active requests gauge (approximate)
     await this.metricsService.setGauge('http_active_requests', 0) // Would need more sophisticated tracking

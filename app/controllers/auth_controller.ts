@@ -87,19 +87,13 @@ export default class AuthController extends BaseController {
       const { token } = await this.authService.authenticateUser(credentials!)
 
       // Set authentication cookie
-      response.cookie(
-        'auth_token',
-        token.value!.release(),
-        this.authService.createCookieConfig()
-      )
+      response.cookie('auth_token', token.value!.release(), this.authService.createCookieConfig())
 
       // Redirect to dashboard
       return response.redirect(this.authService.getDashboardUrl())
     } catch (error) {
       // Handle authentication failure
-      return response.redirect(
-        this.authService.getLoginErrorUrl('Invalid email or password')
-      )
+      return response.redirect(this.authService.getLoginErrorUrl('Invalid email or password'))
     }
   }
 

@@ -36,7 +36,9 @@ test.group('WebhookService', (group) => {
     // Valid URLs
     assert.isTrue(webhookService.validateWebhookUrl('https://example.com/webhook'))
     assert.isTrue(webhookService.validateWebhookUrl('http://api.example.com/hooks'))
-    assert.isTrue(webhookService.validateWebhookUrl('https://subdomain.example.org/path/to/webhook'))
+    assert.isTrue(
+      webhookService.validateWebhookUrl('https://subdomain.example.org/path/to/webhook')
+    )
 
     // Invalid URLs
     assert.isFalse(webhookService.validateWebhookUrl('ftp://example.com/webhook'))
@@ -62,14 +64,14 @@ test.group('WebhookService', (group) => {
         status: 'success' as const,
         url: 'https://example.com/image1.png',
         cached: false,
-        processingTime: 2000
+        processingTime: 2000,
       },
       {
         itemId: 'item-2',
         status: 'error' as const,
         error: 'Failed to capture screenshot',
-        processingTime: 1500
-      }
+        processingTime: 1500,
+      },
     ]
 
     const payload = webhookService.createBatchCompletionPayload(
@@ -96,11 +98,12 @@ test.group('WebhookService', (group) => {
 
   test('should send webhook successfully', async ({ assert }) => {
     // Mock successful response
-    global.fetch = async () => ({
-      ok: true,
-      status: 200,
-      text: async () => 'OK'
-    }) as any
+    global.fetch = async () =>
+      ({
+        ok: true,
+        status: 200,
+        text: async () => 'OK',
+      }) as any
 
     const payload: WebhookPayload = {
       job_id: 'test-job',
@@ -111,13 +114,10 @@ test.group('WebhookService', (group) => {
       created_at: '2024-01-01T10:00:00Z',
       completed_at: '2024-01-01T10:01:00Z',
       processing_time: 60000,
-      results: []
+      results: [],
     }
 
-    const result = await webhookService.sendWebhook(
-      'https://example.com/webhook',
-      payload
-    )
+    const result = await webhookService.sendWebhook('https://example.com/webhook', payload)
 
     assert.isTrue(result.success)
     assert.equal(result.statusCode, 200)
@@ -135,7 +135,7 @@ test.group('WebhookService', (group) => {
       return {
         ok: true,
         status: 200,
-        text: async () => 'OK'
+        text: async () => 'OK',
       } as Response
     }
 
@@ -148,14 +148,10 @@ test.group('WebhookService', (group) => {
       created_at: '2024-01-01T10:00:00Z',
       completed_at: '2024-01-01T10:01:00Z',
       processing_time: 60000,
-      results: []
+      results: [],
     }
 
-    await webhookService.sendWebhook(
-      'https://example.com/webhook',
-      payload,
-      'Bearer secret-token'
-    )
+    await webhookService.sendWebhook('https://example.com/webhook', payload, 'Bearer secret-token')
 
     assert.equal(capturedHeaders['Authorization'], 'Bearer secret-token')
     assert.equal(capturedHeaders['Content-Type'], 'application/json')
@@ -164,11 +160,12 @@ test.group('WebhookService', (group) => {
 
   test('should handle webhook delivery failure', async ({ assert }) => {
     // Mock failed response
-    global.fetch = async () => ({
-      ok: false,
-      status: 500,
-      text: async () => 'Internal Server Error'
-    }) as any
+    global.fetch = async () =>
+      ({
+        ok: false,
+        status: 500,
+        text: async () => 'Internal Server Error',
+      }) as any
 
     const payload: WebhookPayload = {
       job_id: 'test-job',
@@ -179,13 +176,10 @@ test.group('WebhookService', (group) => {
       created_at: '2024-01-01T10:00:00Z',
       completed_at: '2024-01-01T10:01:00Z',
       processing_time: 60000,
-      results: []
+      results: [],
     }
 
-    const result = await webhookService.sendWebhook(
-      'https://example.com/webhook',
-      payload
-    )
+    const result = await webhookService.sendWebhook('https://example.com/webhook', payload)
 
     assert.isFalse(result.success)
     assert.equal(result.statusCode, 500)
@@ -208,13 +202,10 @@ test.group('WebhookService', (group) => {
       created_at: '2024-01-01T10:00:00Z',
       completed_at: '2024-01-01T10:01:00Z',
       processing_time: 60000,
-      results: []
+      results: [],
     }
 
-    const result = await webhookService.sendWebhook(
-      'https://example.com/webhook',
-      payload
-    )
+    const result = await webhookService.sendWebhook('https://example.com/webhook', payload)
 
     assert.isFalse(result.success)
     assert.isUndefined(result.statusCode)
@@ -231,7 +222,7 @@ test.group('WebhookService', (group) => {
       created_at: '2024-01-01T10:00:00Z',
       completed_at: '2024-01-01T10:01:00Z',
       processing_time: 60000,
-      results: []
+      results: [],
     }
 
     const result = await webhookService.sendWebhook('invalid-url', payload)
@@ -258,14 +249,14 @@ test.group('WebhookService', (group) => {
         return {
           ok: false,
           status: 500,
-          text: async () => 'Server Error'
+          text: async () => 'Server Error',
         } as any
       }
 
       return {
         ok: true,
         status: 200,
-        text: async () => 'OK'
+        text: async () => 'OK',
       } as any
     }
 
@@ -280,9 +271,9 @@ test.group('WebhookService', (group) => {
         created_at: '2024-01-01T10:00:00Z',
         completed_at: '2024-01-01T10:01:00Z',
         processing_time: 60000,
-        results: []
+        results: [],
       },
-      maxRetries: 5
+      maxRetries: 5,
     }
 
     const result = await webhookService.retryWebhook(webhookData, 1)
@@ -307,7 +298,7 @@ test.group('WebhookService', (group) => {
       return {
         ok: false,
         status: 500,
-        text: async () => 'Server Error'
+        text: async () => 'Server Error',
       } as any
     }
 
@@ -322,9 +313,9 @@ test.group('WebhookService', (group) => {
         created_at: '2024-01-01T10:00:00Z',
         completed_at: '2024-01-01T10:01:00Z',
         processing_time: 60000,
-        results: []
+        results: [],
       },
-      maxRetries: 3
+      maxRetries: 3,
     }
 
     const result = await webhookService.retryWebhook(webhookData, 4) // Start at attempt 4
@@ -345,14 +336,14 @@ test.group('WebhookService', (group) => {
         return {
           ok: false,
           status: 503,
-          text: async () => 'Service Unavailable'
+          text: async () => 'Service Unavailable',
         } as any
       }
 
       return {
         ok: true,
         status: 200,
-        text: async () => 'OK'
+        text: async () => 'OK',
       } as any
     }
 
@@ -367,9 +358,9 @@ test.group('WebhookService', (group) => {
         created_at: '2024-01-01T10:00:00Z',
         completed_at: '2024-01-01T10:01:00Z',
         processing_time: 60000,
-        results: []
+        results: [],
       },
-      maxRetries: 3
+      maxRetries: 3,
     }
 
     const result = await webhookService.deliverWebhook(webhookData)
@@ -388,7 +379,7 @@ test.group('WebhookService', (group) => {
       return {
         ok: false,
         status: 500,
-        text: async () => 'Server Error'
+        text: async () => 'Server Error',
       } as any
     }
 
@@ -403,9 +394,9 @@ test.group('WebhookService', (group) => {
         created_at: '2024-01-01T10:00:00Z',
         completed_at: '2024-01-01T10:01:00Z',
         processing_time: 60000,
-        results: []
+        results: [],
       },
-      maxRetries: 1
+      maxRetries: 1,
     }
 
     const result = await webhookService.deliverWebhook(webhookData)

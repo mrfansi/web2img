@@ -25,6 +25,20 @@ export interface CacheStats {
 }
 
 /**
+ * Enhanced cache statistics interface for Postman collection
+ */
+export interface EnhancedCacheStats {
+  enabled: boolean
+  size: number
+  max_size: number
+  ttl: number
+  hits: number
+  misses: number
+  hit_rate: number
+  cleanup_interval: number
+}
+
+/**
  * Cache service for managing screenshot caching with Redis
  * Provides get, set, delete operations with TTL management
  */
@@ -32,6 +46,7 @@ export class CacheService {
   private static instance: CacheService
   private readonly keyPrefix = 'screenshot:cache:'
   private readonly lockPrefix = 'screenshot:lock:'
+  private readonly statsPrefix = 'cache:stats:'
   private readonly defaultTtl: number
 
   constructor() {
@@ -55,18 +70,17 @@ export class CacheService {
     try {
       const fullKey = this.keyPrefix + key
 
-      return await redisService.executeCommand(
-        async () => {
-          const result = await redisService.getClient().get(fullKey)
-          if (result) {
-            logger.debug('Cache hit', { key: fullKey })
-          } else {
-            logger.debug('Cache miss', { key: fullKey })
-          }
-          return result
-        },
-        'cache get'
-      )
+      return await redisService.executeCommand(async () => {
+        const result = await redisService.getClient().get(fullKey)
+        if (result) {
+          logger.debug('Cache hit', { key: fullKey })
+          await this.trackHit()
+        } else {
+          logger.debug('Cache miss', { key: fullKey })
+          await this.trackMiss()
+        }
+        return result
+      }, 'cache get')
     } catch (error) {
       logger.error('Cache get operation failed', { key, error })
       return null // Return null on cache errors to allow fallback
@@ -80,16 +94,13 @@ export class CacheService {
     try {
       const fullKey = this.keyPrefix + key
 
-      return await redisService.executeCommand(
-        async () => {
-          const ttl = await redisService.getClient().ttl(fullKey)
-          if (ttl > 0) {
-            return new Date(Date.now() + (ttl * 1000))
-          }
-          return null
-        },
-        'cache get expiration'
-      )
+      return await redisService.executeCommand(async () => {
+        const ttl = await redisService.getClient().ttl(fullKey)
+        if (ttl > 0) {
+          return new Date(Date.now() + ttl * 1000)
+        }
+        return null
+      }, 'cache get expiration')
     } catch (error) {
       logger.error('Cache expiration check failed', { key, error })
       return null
@@ -111,13 +122,10 @@ export class CacheService {
       const fullKey = this.keyPrefix + key
       const cacheTtl = ttl || this.defaultTtl
 
-      await redisService.executeCommand(
-        async () => {
-          await redisService.getClient().setex(fullKey, cacheTtl, value)
-          logger.debug('Cache set', { key: fullKey, ttl: cacheTtl })
-        },
-        'cache set'
-      )
+      await redisService.executeCommand(async () => {
+        await redisService.getClient().setex(fullKey, cacheTtl, value)
+        logger.debug('Cache set', { key: fullKey, ttl: cacheTtl })
+      }, 'cache set')
     } catch (error) {
       logger.error('Cache set operation failed', { key, value, ttl, error })
       // Don't throw error for cache set failures to avoid breaking the main flow
@@ -131,13 +139,10 @@ export class CacheService {
     try {
       const fullKey = this.keyPrefix + key
 
-      await redisService.executeCommand(
-        async () => {
-          const result = await redisService.getClient().del(fullKey)
-          logger.debug('Cache delete', { key: fullKey, deleted: result > 0 })
-        },
-        'cache delete'
-      )
+      await redisService.executeCommand(async () => {
+        const result = await redisService.getClient().del(fullKey)
+        logger.debug('Cache delete', { key: fullKey, deleted: result > 0 })
+      }, 'cache delete')
     } catch (error) {
       logger.error('Cache delete operation failed', { key, error })
       // Don't throw error for cache delete failures
@@ -157,7 +162,7 @@ export class CacheService {
       url: normalizedUrl,
       format: options.format,
       width: options.width,
-      height: options.height
+      height: options.height,
       // Note: timeout is not included in cache key as it doesn't affect the result
     })
 
@@ -167,7 +172,7 @@ export class CacheService {
     logger.debug('Generated cache key', {
       url: normalizedUrl,
       options,
-      key: hash.substring(0, 16) + '...'
+      key: hash.substring(0, 16) + '...',
     })
 
     return hash
@@ -180,13 +185,10 @@ export class CacheService {
     try {
       const lockKey = this.lockPrefix + this.normalizeUrl(url)
 
-      return await redisService.executeCommand(
-        async () => {
-          const result = await redisService.getClient().exists(lockKey)
-          return result === 1
-        },
-        'check processing lock'
-      )
+      return await redisService.executeCommand(async () => {
+        const result = await redisService.getClient().exists(lockKey)
+        return result === 1
+      }, 'check processing lock')
     } catch (error) {
       logger.error('Failed to check processing lock', { url, error })
       return false // Assume not processing on error
@@ -201,13 +203,10 @@ export class CacheService {
       const lockKey = this.lockPrefix + this.normalizeUrl(url)
       const timestamp = Date.now().toString()
 
-      await redisService.executeCommand(
-        async () => {
-          await redisService.getClient().setex(lockKey, ttl, timestamp)
-          logger.debug('Set processing lock', { url, lockKey, ttl })
-        },
-        'set processing lock'
-      )
+      await redisService.executeCommand(async () => {
+        await redisService.getClient().setex(lockKey, ttl, timestamp)
+        logger.debug('Set processing lock', { url, lockKey, ttl })
+      }, 'set processing lock')
     } catch (error) {
       logger.error('Failed to set processing lock', { url, error })
       // Don't throw error for lock failures
@@ -221,13 +220,10 @@ export class CacheService {
     try {
       const lockKey = this.lockPrefix + this.normalizeUrl(url)
 
-      await redisService.executeCommand(
-        async () => {
-          await redisService.getClient().del(lockKey)
-          logger.debug('Removed processing lock', { url, lockKey })
-        },
-        'remove processing lock'
-      )
+      await redisService.executeCommand(async () => {
+        await redisService.getClient().del(lockKey)
+        logger.debug('Removed processing lock', { url, lockKey })
+      }, 'remove processing lock')
     } catch (error) {
       logger.error('Failed to remove processing lock', { url, error })
       // Don't throw error for lock removal failures
@@ -239,28 +235,56 @@ export class CacheService {
    */
   public async clearExpired(): Promise<number> {
     try {
-      return await redisService.executeCommand(
-        async () => {
-          const pattern = this.keyPrefix + '*'
-          const keys = await redisService.getClient().keys(pattern)
+      return await redisService.executeCommand(async () => {
+        const pattern = this.keyPrefix + '*'
+        const keys = await redisService.getClient().keys(pattern)
 
-          let expiredCount = 0
-          for (const key of keys) {
-            const ttl = await redisService.getClient().ttl(key)
-            if (ttl === -1) { // Key exists but has no TTL
-              await redisService.getClient().del(key)
-              expiredCount++
-            }
+        let expiredCount = 0
+        for (const key of keys) {
+          const ttl = await redisService.getClient().ttl(key)
+          if (ttl === -1) {
+            // Key exists but has no TTL
+            await redisService.getClient().del(key)
+            expiredCount++
           }
+        }
 
-          logger.info('Cleared expired cache entries', { count: expiredCount })
-          return expiredCount
-        },
-        'clear expired cache'
-      )
+        logger.info('Cleared expired cache entries', { count: expiredCount })
+        return expiredCount
+      }, 'clear expired cache')
     } catch (error) {
       logger.error('Failed to clear expired cache entries', { error })
       return 0
+    }
+  }
+
+  /**
+   * Track cache hit
+   */
+  private async trackHit(): Promise<void> {
+    try {
+      const hitKey = this.statsPrefix + 'hits'
+      await redisService.executeCommand(async () => {
+        await redisService.getClient().incr(hitKey)
+      }, 'track cache hit')
+    } catch (error) {
+      logger.error('Failed to track cache hit', { error })
+      // Don't throw error for stats tracking failures
+    }
+  }
+
+  /**
+   * Track cache miss
+   */
+  private async trackMiss(): Promise<void> {
+    try {
+      const missKey = this.statsPrefix + 'misses'
+      await redisService.executeCommand(async () => {
+        await redisService.getClient().incr(missKey)
+      }, 'track cache miss')
+    } catch (error) {
+      logger.error('Failed to track cache miss', { error })
+      // Don't throw error for stats tracking failures
     }
   }
 
@@ -269,25 +293,68 @@ export class CacheService {
    */
   public async getStats(): Promise<CacheStats> {
     try {
-      return await redisService.executeCommand(
-        async () => {
-          const pattern = this.keyPrefix + '*'
-          const keys = await redisService.getClient().keys(pattern)
-          const info = await redisService.getConnectionInfo()
+      return await redisService.executeCommand(async () => {
+        const pattern = this.keyPrefix + '*'
+        const keys = await redisService.getClient().keys(pattern)
+        const info = await redisService.getConnectionInfo()
 
-          return {
-            totalKeys: keys.length,
-            memoryUsage: info.usedMemory
-          }
-        },
-        'get cache stats'
-      )
+        return {
+          totalKeys: keys.length,
+          memoryUsage: info.usedMemory,
+        }
+      }, 'get cache stats')
     } catch (error) {
       logger.error('Failed to get cache stats', { error })
       throw new Exception('Failed to get cache statistics', {
         status: 500,
         code: 'CACHE_STATS_FAILED',
-        cause: error
+        cause: error,
+      })
+    }
+  }
+
+  /**
+   * Get enhanced cache statistics for Postman collection format
+   */
+  public async getEnhancedStats(): Promise<EnhancedCacheStats> {
+    try {
+      return await redisService.executeCommand(async () => {
+        const pattern = this.keyPrefix + '*'
+        const keys = await redisService.getClient().keys(pattern)
+
+        // Get hit/miss counts
+        const hitKey = this.statsPrefix + 'hits'
+        const missKey = this.statsPrefix + 'misses'
+        const hits = parseInt((await redisService.getClient().get(hitKey)) || '0')
+        const misses = parseInt((await redisService.getClient().get(missKey)) || '0')
+
+        // Calculate hit rate
+        const totalRequests = hits + misses
+        const hitRate = totalRequests > 0 ? hits / totalRequests : 0
+
+        // Get cleanup interval from environment (default 3600 seconds = 1 hour)
+        const cleanupInterval = parseInt(env.get('CACHE_CLEANUP_INTERVAL', '3600'))
+
+        // Get max cache size from environment (default 1GB in bytes)
+        const maxSize = parseInt(env.get('CACHE_MAX_SIZE', '1073741824'))
+
+        return {
+          enabled: true, // Cache is enabled if we can get stats
+          size: keys.length,
+          max_size: maxSize,
+          ttl: this.defaultTtl,
+          hits,
+          misses,
+          hit_rate: Math.round(hitRate * 10000) / 10000, // Round to 4 decimal places
+          cleanup_interval: cleanupInterval,
+        }
+      }, 'get enhanced cache stats')
+    } catch (error) {
+      logger.error('Failed to get enhanced cache stats', { error })
+      throw new Exception('Failed to get enhanced cache statistics', {
+        status: 500,
+        code: 'CACHE_STATS_FAILED',
+        cause: error,
       })
     }
   }
@@ -297,24 +364,89 @@ export class CacheService {
    */
   public async flush(): Promise<void> {
     try {
-      await redisService.executeCommand(
-        async () => {
-          const pattern = this.keyPrefix + '*'
-          const keys = await redisService.getClient().keys(pattern)
+      await redisService.executeCommand(async () => {
+        const pattern = this.keyPrefix + '*'
+        const keys = await redisService.getClient().keys(pattern)
 
-          if (keys.length > 0) {
-            await redisService.getClient().del(...keys)
-            logger.info('Flushed cache entries', { count: keys.length })
-          }
-        },
-        'flush cache'
-      )
+        if (keys.length > 0) {
+          await redisService.getClient().del(...keys)
+          logger.info('Flushed cache entries', { count: keys.length })
+        }
+      }, 'flush cache')
     } catch (error) {
       logger.error('Failed to flush cache', { error })
       throw new Exception('Failed to flush cache', {
         status: 500,
         code: 'CACHE_FLUSH_FAILED',
-        cause: error
+        cause: error,
+      })
+    }
+  }
+
+  /**
+   * Invalidate cache entries for a specific URL
+   */
+  public async invalidateByUrl(url: string): Promise<number> {
+    try {
+      return await redisService.executeCommand(async () => {
+        // Normalize the URL for consistent cache key generation
+        const normalizedUrl = this.normalizeUrl(url)
+
+        // Generate cache keys for all possible variations of this URL
+        // We need to check different format/dimension combinations
+        const formats = ['png', 'jpeg', 'webp'] as const
+        const commonDimensions = [
+          { width: 1280, height: 720 },
+          { width: 1920, height: 1080 },
+          { width: 800, height: 600 },
+          { width: 1024, height: 768 },
+          { width: 1366, height: 768 },
+          { width: 1440, height: 900 },
+        ]
+
+        const keysToDelete: string[] = []
+
+        // Generate cache keys for common format/dimension combinations
+        for (const format of formats) {
+          for (const dimensions of commonDimensions) {
+            const cacheKey = this.generateCacheKey(normalizedUrl, {
+              format,
+              width: dimensions.width,
+              height: dimensions.height,
+            })
+            keysToDelete.push(this.keyPrefix + cacheKey)
+          }
+        }
+
+        // Check which of the generated keys actually exist in cache
+        const existingKeys = []
+        for (const key of keysToDelete) {
+          const exists = await redisService.getClient().exists(key)
+          if (exists) {
+            existingKeys.push(key)
+          }
+        }
+
+        let deletedCount = 0
+        if (existingKeys.length > 0) {
+          deletedCount = await redisService.getClient().del(...existingKeys)
+          logger.info('Invalidated cache entries for URL', {
+            url: normalizedUrl,
+            deletedCount,
+            keysChecked: keysToDelete.length,
+          })
+        } else {
+          logger.debug('No cache entries found for URL', { url: normalizedUrl })
+        }
+
+        return deletedCount
+      }, 'invalidate cache by URL')
+    } catch (error) {
+      logger.error('Failed to invalidate cache by URL', { url, error })
+      throw new Exception('Failed to invalidate cache entries', {
+        status: 500,
+        code: 'CACHE_INVALIDATION_FAILED',
+        cause: error,
       })
     }
   }
@@ -348,8 +480,8 @@ export class CacheService {
           details: {
             expected: testValue,
             retrieved: retrievedValue,
-            responseTime
-          }
+            responseTime,
+          },
         }
       }
 
@@ -362,16 +494,16 @@ export class CacheService {
           responseTime,
           cacheStats: stats,
           redisHealthy: redisService.isConnectionHealthy(),
-          defaultTtl: this.defaultTtl
-        }
+          defaultTtl: this.defaultTtl,
+        },
       }
     } catch (error) {
       return {
         healthy: false,
         error: error.message || 'Cache health check failed',
         details: {
-          redisHealthy: redisService.isConnectionHealthy()
-        }
+          redisHealthy: redisService.isConnectionHealthy(),
+        },
       }
     }
   }
@@ -386,11 +518,20 @@ export class CacheService {
 
       // Remove common tracking parameters that don't affect content
       const paramsToRemove = [
-        'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content',
-        'fbclid', 'gclid', 'ref', 'source', '_ga', '_gid'
+        'utm_source',
+        'utm_medium',
+        'utm_campaign',
+        'utm_term',
+        'utm_content',
+        'fbclid',
+        'gclid',
+        'ref',
+        'source',
+        '_ga',
+        '_gid',
       ]
 
-      paramsToRemove.forEach(param => {
+      paramsToRemove.forEach((param) => {
         urlObj.searchParams.delete(param)
       })
 

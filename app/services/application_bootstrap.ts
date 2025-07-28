@@ -12,7 +12,7 @@ import webhookService from '#services/webhook_service'
 
 /**
  * Application Bootstrap Service
- * 
+ *
  * This service is responsible for initializing and wiring together all the
  * services required for the screenshot system to function properly.
  */
@@ -75,7 +75,7 @@ export class ApplicationBootstrap {
         const browserHealth = await browserService.healthCheck()
         if (!browserHealth.healthy) {
           logger.warn('Browser service health check failed, but continuing startup', {
-            details: browserHealth.details
+            details: browserHealth.details,
           })
           // Don't throw error - allow application to start and retry later
         } else {
@@ -83,7 +83,7 @@ export class ApplicationBootstrap {
         }
       } catch (error) {
         logger.warn('Browser service health check threw error, but continuing startup', {
-          error: error.message
+          error: error.message,
         })
         // Don't throw error - allow application to start and retry later
       }
@@ -95,7 +95,7 @@ export class ApplicationBootstrap {
       const batchMetrics = await queueService.getQueueMetrics('batch')
       logger.info('Queue service initialized successfully', {
         screenshotQueue: screenshotMetrics,
-        batchQueue: batchMetrics
+        batchQueue: batchMetrics,
       })
 
       // Step 7: Initialize job scheduler service
@@ -117,11 +117,10 @@ export class ApplicationBootstrap {
 
       this.isInitialized = true
       logger.info('Application bootstrap initialization completed successfully')
-
     } catch (error) {
       logger.error('Application bootstrap initialization failed', {
         error: error.message,
-        stack: error.stack
+        stack: error.stack,
       })
       throw error
     }
@@ -173,7 +172,7 @@ export class ApplicationBootstrap {
         services.imgProxy = {
           healthy: true,
           configured: imgProxyService.isAvailable(),
-          timestamp
+          timestamp,
         }
       } catch (error) {
         services.imgProxy = { healthy: false, error: error.message }
@@ -197,7 +196,7 @@ export class ApplicationBootstrap {
           healthy: true,
           screenshot: screenshotMetrics,
           batch: batchMetrics,
-          timestamp
+          timestamp,
         }
       } catch (error) {
         services.queue = { healthy: false, error: error.message }
@@ -213,13 +212,13 @@ export class ApplicationBootstrap {
           healthy: true,
           screenshot: {
             running: screenshotWorker.getWorker().isRunning(),
-            paused: screenshotWorker.getWorker().isPaused()
+            paused: screenshotWorker.getWorker().isPaused(),
           },
           batch: {
             running: batchWorker.getWorker().isRunning(),
-            paused: batchWorker.getWorker().isPaused()
+            paused: batchWorker.getWorker().isPaused(),
           },
-          timestamp
+          timestamp,
         }
       } catch (error) {
         services.workers = { healthy: false, error: error.message }
@@ -229,17 +228,16 @@ export class ApplicationBootstrap {
       return {
         healthy: overallHealthy,
         services,
-        timestamp
+        timestamp,
       }
-
     } catch (error) {
       logger.error('Health check failed', { error: error.message })
       return {
         healthy: false,
         services: {
-          error: error.message
+          error: error.message,
         },
-        timestamp
+        timestamp,
       }
     }
   }
@@ -258,35 +256,30 @@ export class ApplicationBootstrap {
     timestamp: string
   }> {
     try {
-      const [
-        screenshotMetrics,
-        batchMetrics,
-        scheduledJobs,
-        cacheStats,
-        browserHealth
-      ] = await Promise.all([
-        queueService.getQueueMetrics('screenshot'),
-        queueService.getQueueMetrics('batch'),
-        jobSchedulerService.listScheduledJobs(),
-        cacheService.getStats(),
-        browserService.healthCheck()
-      ])
+      const [screenshotMetrics, batchMetrics, scheduledJobs, cacheStats, browserHealth] =
+        await Promise.all([
+          queueService.getQueueMetrics('screenshot'),
+          queueService.getQueueMetrics('batch'),
+          jobSchedulerService.listScheduledJobs(),
+          cacheService.getStats(),
+          browserService.healthCheck(),
+        ])
 
       return {
         queues: {
           screenshot: screenshotMetrics,
-          batch: batchMetrics
+          batch: batchMetrics,
         },
-        scheduledJobs: scheduledJobs.map(job => ({
+        scheduledJobs: scheduledJobs.map((job) => ({
           id: job.id,
           type: job.type,
           status: job.status.status,
           nextRun: job.status.nextRun,
-          runCount: job.status.runCount
+          runCount: job.status.runCount,
         })),
         cache: cacheStats,
         browser: browserHealth,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       }
     } catch (error) {
       logger.error('Failed to get system metrics', { error: error.message })
@@ -328,14 +321,14 @@ export class ApplicationBootstrap {
         step: 'URL Transformation',
         success: true,
         duration: Date.now() - stepStart,
-        result: urlResult
+        result: urlResult,
       })
     } catch (error) {
       steps.push({
         step: 'URL Transformation',
         success: false,
         duration: Date.now() - stepStart,
-        error: error.message
+        error: error.message,
       })
     }
 
@@ -345,21 +338,21 @@ export class ApplicationBootstrap {
       const cacheKey = cacheService.generateCacheKey(testUrl, {
         format: 'png',
         width: 1280,
-        height: 720
+        height: 720,
       })
       const cachedResult = await cacheService.get(cacheKey)
       steps.push({
         step: 'Cache Check',
         success: true,
         duration: Date.now() - stepStart,
-        result: { cacheKey: cacheKey.substring(0, 16) + '...', cached: !!cachedResult }
+        result: { cacheKey: cacheKey.substring(0, 16) + '...', cached: !!cachedResult },
       })
     } catch (error) {
       steps.push({
         step: 'Cache Check',
         success: false,
         duration: Date.now() - stepStart,
-        error: error.message
+        error: error.message,
       })
     }
 
@@ -373,8 +366,8 @@ export class ApplicationBootstrap {
           format: 'png',
           width: 1280,
           height: 720,
-          timeout: 30000
-        }
+          timeout: 30000,
+        },
       })
       steps.push({
         step: 'Screenshot Capture',
@@ -383,15 +376,15 @@ export class ApplicationBootstrap {
         result: {
           format: screenshotResult.format,
           size: screenshotResult.buffer.length,
-          processingTime: screenshotResult.processingTime
-        }
+          processingTime: screenshotResult.processingTime,
+        },
       })
     } catch (error) {
       steps.push({
         step: 'Screenshot Capture',
         success: false,
         duration: Date.now() - stepStart,
-        error: error.message
+        error: error.message,
       })
     }
 
@@ -407,17 +400,17 @@ export class ApplicationBootstrap {
         step: 'File Storage',
         success: true,
         duration: Date.now() - stepStart,
-        result: { storagePath, directUrl: directUrl.substring(0, 50) + '...' }
+        result: { storagePath, directUrl: directUrl.substring(0, 50) + '...' },
       })
 
       // Clean up test file
-      await fileStorageService.deleteFile(storagePath).catch(() => { })
+      await fileStorageService.deleteFile(storagePath).catch(() => {})
     } catch (error) {
       steps.push({
         step: 'File Storage',
         success: false,
         duration: Date.now() - stepStart,
-        error: error.message
+        error: error.message,
       })
     }
 
@@ -428,7 +421,7 @@ export class ApplicationBootstrap {
       const imgProxyUrl = imgProxyService.generateUrlWithFallback(testImagePath, {
         format: 'png',
         width: 1280,
-        height: 720
+        height: 720,
       })
       steps.push({
         step: 'ImgProxy URL Generation',
@@ -436,39 +429,42 @@ export class ApplicationBootstrap {
         duration: Date.now() - stepStart,
         result: {
           configured: imgProxyService.isAvailable(),
-          url: imgProxyUrl.substring(0, 50) + '...'
-        }
+          url: imgProxyUrl.substring(0, 50) + '...',
+        },
       })
     } catch (error) {
       steps.push({
         step: 'ImgProxy URL Generation',
         success: false,
         duration: Date.now() - stepStart,
-        error: error.message
+        error: error.message,
       })
     }
 
     const totalDuration = Date.now() - startTime
-    const success = steps.every(step => step.success)
+    const success = steps.every((step) => step.success)
 
     logger.info('Complete workflow test finished', {
       success,
       totalDuration,
       stepCount: steps.length,
-      failedSteps: steps.filter(s => !s.success).length
+      failedSteps: steps.filter((s) => !s.success).length,
     })
 
     return {
       success,
       steps,
-      totalDuration
+      totalDuration,
     }
   }
 
   /**
    * Test webhook delivery for batch job completions
    */
-  async testWebhookDelivery(webhookUrl: string, testJobId: string = 'test-job-123'): Promise<{
+  async testWebhookDelivery(
+    webhookUrl: string,
+    testJobId: string = 'test-job-123'
+  ): Promise<{
     success: boolean
     result: any
     duration: number
@@ -488,11 +484,31 @@ export class ApplicationBootstrap {
         new Date(Date.now() - 60000), // 1 minute ago
         new Date(),
         [
-          { itemId: 'item-1', status: 'success', url: 'https://example.com/image1.png', cached: false },
-          { itemId: 'item-2', status: 'success', url: 'https://example.com/image2.png', cached: true },
-          { itemId: 'item-3', status: 'success', url: 'https://example.com/image3.png', cached: false },
-          { itemId: 'item-4', status: 'success', url: 'https://example.com/image4.png', cached: false },
-          { itemId: 'item-5', status: 'error', error: 'Failed to capture screenshot' }
+          {
+            itemId: 'item-1',
+            status: 'success',
+            url: 'https://example.com/image1.png',
+            cached: false,
+          },
+          {
+            itemId: 'item-2',
+            status: 'success',
+            url: 'https://example.com/image2.png',
+            cached: true,
+          },
+          {
+            itemId: 'item-3',
+            status: 'success',
+            url: 'https://example.com/image3.png',
+            cached: false,
+          },
+          {
+            itemId: 'item-4',
+            status: 'success',
+            url: 'https://example.com/image4.png',
+            cached: false,
+          },
+          { itemId: 'item-5', status: 'error', error: 'Failed to capture screenshot' },
         ]
       )
 
@@ -504,26 +520,26 @@ export class ApplicationBootstrap {
       logger.info('Webhook delivery test completed', {
         success: result.success,
         statusCode: result.statusCode,
-        duration
+        duration,
       })
 
       return {
         success: result.success,
         result,
-        duration
+        duration,
       }
     } catch (error) {
       const duration = Date.now() - startTime
 
       logger.error('Webhook delivery test failed', {
         error: error.message,
-        duration
+        duration,
       })
 
       return {
         success: false,
         result: { error: error.message },
-        duration
+        duration,
       }
     }
   }
@@ -548,56 +564,63 @@ export class ApplicationBootstrap {
       const oneTimeJobId = `test-onetime-${Date.now()}`
       const executeAt = new Date(Date.now() + 5000) // 5 seconds from now
 
-      const oneTimeResult = await jobSchedulerService.scheduleOnceJob({
-        id: oneTimeJobId,
-        type: 'screenshot',
-        data: {
-          url: 'https://example.com',
-          format: 'png',
-          width: 1280,
-          height: 720,
-          timeout: 30000,
-          cacheKey: '',
-          apiKeyId: 'test-api-key'
+      const oneTimeResult = await jobSchedulerService.scheduleOnceJob(
+        {
+          id: oneTimeJobId,
+          type: 'screenshot',
+          data: {
+            url: 'https://example.com',
+            format: 'png',
+            width: 1280,
+            height: 720,
+            timeout: 30000,
+            cacheKey: '',
+            apiKeyId: 'test-api-key',
+          },
+          schedule: {
+            type: 'once',
+            executeAt,
+          },
+          metadata: {
+            createdAt: new Date(),
+            createdBy: 'system-test',
+            description: 'Test one-time scheduled job',
+          },
         },
-        schedule: {
-          type: 'once',
-          executeAt
-        },
-        metadata: {
-          createdAt: new Date(),
-          createdBy: 'system-test',
-          description: 'Test one-time scheduled job'
-        }
-      }, executeAt)
+        executeAt
+      )
 
       // Test recurring job (every minute, max 2 runs)
       const recurringJobId = `test-recurring-${Date.now()}`
-      const recurringResult = await jobSchedulerService.scheduleRecurringJob({
-        id: recurringJobId,
-        type: 'screenshot',
-        data: {
-          url: 'https://example.com',
-          format: 'png',
-          width: 1280,
-          height: 720,
-          timeout: 30000,
-          cacheKey: '',
-          apiKeyId: 'test-api-key'
+      const recurringResult = await jobSchedulerService.scheduleRecurringJob(
+        {
+          id: recurringJobId,
+          type: 'screenshot',
+          data: {
+            url: 'https://example.com',
+            format: 'png',
+            width: 1280,
+            height: 720,
+            timeout: 30000,
+            cacheKey: '',
+            apiKeyId: 'test-api-key',
+          },
+          schedule: {
+            type: 'recurring',
+            cronExpression: '*/1 * * * *', // Every minute
+          },
+          metadata: {
+            createdAt: new Date(),
+            createdBy: 'system-test',
+            description: 'Test recurring job',
+          },
         },
-        schedule: {
-          type: 'recurring',
-          cronExpression: '*/1 * * * *' // Every minute
-        },
-        metadata: {
-          createdAt: new Date(),
-          createdBy: 'system-test',
-          description: 'Test recurring job'
-        }
-      }, '*/1 * * * *', { maxRuns: 2 })
+        '*/1 * * * *',
+        { maxRuns: 2 }
+      )
 
       // Wait a moment then check status
-      await new Promise(resolve => setTimeout(resolve, 1000))
+      await new Promise((resolve) => setTimeout(resolve, 1000))
 
       const oneTimeStatus = await jobSchedulerService.getScheduledJobStatus(oneTimeJobId)
       const recurringStatus = await jobSchedulerService.getScheduledJobStatus(recurringJobId)
@@ -611,32 +634,32 @@ export class ApplicationBootstrap {
       logger.info('Scheduled job execution test completed', {
         oneTimeJob: oneTimeStatus,
         recurringJob: recurringStatus,
-        duration
+        duration,
       })
 
       return {
         success: true,
         results: {
           oneTimeJob: { ...oneTimeResult, status: oneTimeStatus },
-          recurringJob: { ...recurringResult, status: recurringStatus }
+          recurringJob: { ...recurringResult, status: recurringStatus },
         },
-        duration
+        duration,
       }
     } catch (error) {
       const duration = Date.now() - startTime
 
       logger.error('Scheduled job execution test failed', {
         error: error.message,
-        duration
+        duration,
       })
 
       return {
         success: false,
         results: {
           oneTimeJob: { error: error.message },
-          recurringJob: { error: error.message }
+          recurringJob: { error: error.message },
         },
-        duration
+        duration,
       }
     }
   }
@@ -712,10 +735,10 @@ export class ApplicationBootstrap {
 
         logger.info('Waiting for active jobs to complete', {
           screenshot: screenshotMetrics.active,
-          batch: batchMetrics.active
+          batch: batchMetrics.active,
         })
 
-        await new Promise(resolve => setTimeout(resolve, 1000))
+        await new Promise((resolve) => setTimeout(resolve, 1000))
       }
 
       // Step 3: Stop workers
@@ -741,11 +764,10 @@ export class ApplicationBootstrap {
       await redisManager.shutdown()
 
       logger.info('Application shutdown completed successfully')
-
     } catch (error) {
       logger.error('Error during application shutdown', {
         error: error.message,
-        stack: error.stack
+        stack: error.stack,
       })
       throw error
     }

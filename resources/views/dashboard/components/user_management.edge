@@ -1,27 +1,40 @@
 <!-- User Management -->
 <div class="bg-white overflow-hidden shadow rounded-lg mb-6">
-    <div class="px-4 py-5 sm:p-6">
-        <div class="flex justify-between items-center mb-4">
-            <h3 class="text-lg leading-6 font-medium text-gray-900">User Management</h3>
-            <button onclick="showNewUserModal()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm font-medium">
-                Create New User
+  <div class="px-4 py-5 sm:p-6">
+    <div class="flex justify-between items-center mb-4">
+      <h3 class="text-lg leading-6 font-medium text-gray-900">
+        User Management
+      </h3>
+      <button
+        onclick="showNewUserModal()"
+        class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm font-medium"
+      >
+        Create New User
             </button>
-        </div>
-        
-        <div class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-gray-200">
-                <thead class="bg-gray-50">
-                    <tr>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                    </tr>
-                </thead>
-                <tbody id="users-table" class="bg-white divide-y divide-gray-200">
-                    <!-- Users will be loaded here -->
-                </tbody>
-            </table>
-        </div>
     </div>
+
+    <div class="overflow-x-auto">
+      <table class="min-w-full divide-y divide-gray-200">
+        <thead class="bg-gray-50">
+          <tr>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              Name
+            </th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              Email
+            </th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              Created
+            </th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              Actions
+            </th>
+          </tr>
+        </thead>
+        <tbody id="users-table" class="bg-white divide-y divide-gray-200">
+          <!-- Users will be loaded here -->
+        </tbody>
+      </table>
+    </div>
+  </div>
 </div>

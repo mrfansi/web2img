@@ -25,12 +25,13 @@ test.group('JobSchedulerService', (group) => {
   test('should schedule a one-time job', async ({ assert }) => {
     // Mock queue service
     const originalAddScreenshotJob = queueService.addScreenshotJob
-    queueService.addScreenshotJob = async (data, options) => ({
-      id: `scheduled-${options?.jobId}`,
-      name: 'screenshot',
-      data,
-      opts: options,
-    } as any)
+    queueService.addScreenshotJob = async (data, options) =>
+      ({
+        id: `scheduled-${options?.jobId}`,
+        name: 'screenshot',
+        data,
+        opts: options,
+      }) as any
 
     const screenshotData: ScreenshotJobData = {
       url: 'https://example.com',
@@ -181,12 +182,9 @@ test.group('JobSchedulerService', (group) => {
 
     const invalidCronExpression = 'invalid-cron'
 
-    await assert.rejects(
-      async () => {
-        await scheduler.scheduleRecurringJob(scheduledJobData, invalidCronExpression)
-      },
-      /Invalid cron expression/
-    )
+    await assert.rejects(async () => {
+      await scheduler.scheduleRecurringJob(scheduledJobData, invalidCronExpression)
+    }, /Invalid cron expression/)
   })
 
   test('should cancel scheduled job', async ({ assert }) => {
@@ -194,7 +192,7 @@ test.group('JobSchedulerService', (group) => {
     const originalAddScreenshotJob = queueService.addScreenshotJob
     const originalCancelJob = queueService.cancelJob
 
-    queueService.addScreenshotJob = async () => ({ id: 'mock-job-1' } as any)
+    queueService.addScreenshotJob = async () => ({ id: 'mock-job-1' }) as any
     queueService.cancelJob = async () => true
 
     const screenshotData: ScreenshotJobData = {
@@ -279,7 +277,7 @@ test.group('JobSchedulerService', (group) => {
   test('should list scheduled jobs with filters', async ({ assert }) => {
     // Mock queue service
     const originalAddScreenshotJob = queueService.addScreenshotJob
-    queueService.addScreenshotJob = async () => ({ id: 'mock-job' } as any)
+    queueService.addScreenshotJob = async () => ({ id: 'mock-job' }) as any
 
     try {
       const screenshotData: ScreenshotJobData = {
@@ -329,7 +327,7 @@ test.group('JobSchedulerService', (group) => {
 
       // Filter by type
       const screenshotJobs = await scheduler.listScheduledJobs({ type: 'screenshot' })
-      const screenshotJob = screenshotJobs.find(j => j.id === 'list-job-1')
+      const screenshotJob = screenshotJobs.find((j) => j.id === 'list-job-1')
       assert.isNotNull(screenshotJob)
       assert.equal(screenshotJob!.type, 'screenshot')
 
@@ -339,7 +337,7 @@ test.group('JobSchedulerService', (group) => {
 
       // Filter by creator
       const user1Jobs = await scheduler.listScheduledJobs({ createdBy: 'user1' })
-      const user1Job = user1Jobs.find(j => j.id === 'list-job-1')
+      const user1Job = user1Jobs.find((j) => j.id === 'list-job-1')
       assert.isNotNull(user1Job)
       assert.equal(user1Job!.metadata.createdBy, 'user1')
 

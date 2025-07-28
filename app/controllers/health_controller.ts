@@ -53,7 +53,7 @@ export default class HealthController {
     return {
       status: health.status,
       timestamp: health.timestamp,
-      uptime: health.uptime
+      uptime: health.uptime,
     }
   }
 
@@ -144,7 +144,7 @@ export default class HealthController {
         response.status(404)
         return {
           error: 'Component not found',
-          availableComponents: ['database', 'redis', 'browser', 'storage', 'imgproxy']
+          availableComponents: ['database', 'redis', 'browser', 'storage', 'imgproxy'],
         }
     }
 
@@ -154,7 +154,7 @@ export default class HealthController {
     return {
       component,
       ...componentHealth,
-      timestamp: new Date()
+      timestamp: new Date(),
     }
   }
 
@@ -175,14 +175,14 @@ export default class HealthController {
         status: health.status,
         unhealthyComponents: Object.entries(health.components)
           .filter(([, component]) => component.status === HealthStatus.UNHEALTHY)
-          .map(([name]) => name)
+          .map(([name]) => name),
       }
     }
 
     return {
       ready: true,
       status: health.status,
-      timestamp: new Date()
+      timestamp: new Date(),
     }
   }
 
@@ -202,16 +202,16 @@ export default class HealthController {
         memoryUsage: {
           heapUsed: memoryUsage.heapUsed,
           heapTotal: memoryUsage.heapTotal,
-          external: memoryUsage.external
+          external: memoryUsage.external,
         },
-        timestamp: new Date()
+        timestamp: new Date(),
       }
     } catch (error) {
       response.status(500)
       return {
         alive: false,
         error: error.message,
-        timestamp: new Date()
+        timestamp: new Date(),
       }
     }
   }
@@ -229,7 +229,7 @@ export default class HealthController {
       return {
         error: 'Failed to retrieve metrics',
         message: error.message,
-        timestamp: new Date()
+        timestamp: new Date(),
       }
     }
   }
@@ -243,14 +243,14 @@ export default class HealthController {
       const metrics = await this.metricsService.getRequestMetrics()
       return {
         ...metrics,
-        timestamp: new Date()
+        timestamp: new Date(),
       }
     } catch (error) {
       response.status(500)
       return {
         error: 'Failed to retrieve request metrics',
         message: error.message,
-        timestamp: new Date()
+        timestamp: new Date(),
       }
     }
   }
@@ -264,14 +264,14 @@ export default class HealthController {
       const metrics = await this.metricsService.getProcessingMetrics()
       return {
         ...metrics,
-        timestamp: new Date()
+        timestamp: new Date(),
       }
     } catch (error) {
       response.status(500)
       return {
         error: 'Failed to retrieve processing metrics',
         message: error.message,
-        timestamp: new Date()
+        timestamp: new Date(),
       }
     }
   }
@@ -285,14 +285,14 @@ export default class HealthController {
       const metrics = await this.metricsService.getSystemMetrics()
       return {
         ...metrics,
-        timestamp: new Date()
+        timestamp: new Date(),
       }
     } catch (error) {
       response.status(500)
       return {
         error: 'Failed to retrieve system metrics',
         message: error.message,
-        timestamp: new Date()
+        timestamp: new Date(),
       }
     }
   }

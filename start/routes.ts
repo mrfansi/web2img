@@ -23,15 +23,14 @@ router.get('/', async ({ response }) => {
 |
 */
 
-router.group(() => {
-  // Login page and logout
-  router.get('/auth/login', '#controllers/auth_controller.showLogin')
-  router.post('/auth/login', '#controllers/auth_controller.login')
-  router.post('/auth/logout', '#controllers/auth_controller.logout')
-}).middleware([
-  middleware.requestLogging(),
-  middleware.metrics()
-])
+router
+  .group(() => {
+    // Login page and logout
+    router.get('/auth/login', '#controllers/auth_controller.showLogin')
+    router.post('/auth/login', '#controllers/auth_controller.login')
+    router.post('/auth/logout', '#controllers/auth_controller.logout')
+  })
+  .middleware([middleware.requestLogging(), middleware.metrics()])
 
 /*
 |--------------------------------------------------------------------------
@@ -42,40 +41,44 @@ router.group(() => {
 |
 */
 
-router.group(() => {
-  // Dashboard web interface
-  router.get('/dashboard', '#controllers/dashboard_controller.index')
+router
+  .group(() => {
+    // Dashboard web interface
+    router.get('/dashboard', '#controllers/dashboard_controller.index')
 
-  // Dashboard API endpoints
-  router.get('/dashboard/api/data', '#controllers/dashboard_controller.getDashboardData')
-  router.get('/dashboard/api/keys', '#controllers/dashboard_controller.getApiKeys')
-  router.post('/dashboard/api/keys', '#controllers/dashboard_controller.createApiKey')
-  router.patch('/dashboard/api/keys/:id/toggle', '#controllers/dashboard_controller.toggleApiKey')
-  router.delete('/dashboard/api/keys/:id', '#controllers/dashboard_controller.deleteApiKey')
+    // Dashboard API endpoints
+    router.get('/dashboard/api/data', '#controllers/dashboard_controller.getDashboardData')
+    router.get('/dashboard/api/keys', '#controllers/dashboard_controller.getApiKeys')
+    router.post('/dashboard/api/keys', '#controllers/dashboard_controller.createApiKey')
+    router.patch('/dashboard/api/keys/:id/toggle', '#controllers/dashboard_controller.toggleApiKey')
+    router.delete('/dashboard/api/keys/:id', '#controllers/dashboard_controller.deleteApiKey')
 
-  // API Usage tracking endpoints
-  router.get('/dashboard/api/usage-overview', '#controllers/dashboard_controller.getUsageOverview')
-  router.get('/dashboard/api/usage/:id', '#controllers/dashboard_controller.getApiKeyUsage')
+    // API Usage tracking endpoints
+    router.get(
+      '/dashboard/api/usage-overview',
+      '#controllers/dashboard_controller.getUsageOverview'
+    )
+    router.get('/dashboard/api/usage/:id', '#controllers/dashboard_controller.getApiKeyUsage')
 
-  // Error logging endpoints
-  router.get('/dashboard/api/errors', '#controllers/dashboard_controller.getErrorLogs')
-  router.post('/dashboard/api/errors', '#controllers/dashboard_controller.createTestError')
+    // Error logging endpoints
+    router.get('/dashboard/api/errors', '#controllers/dashboard_controller.getErrorLogs')
+    router.post('/dashboard/api/errors', '#controllers/dashboard_controller.createTestError')
 
-  // User management endpoints
-  router.get('/dashboard/api/users', '#controllers/users_controller.index')
-  router.post('/dashboard/api/users', '#controllers/users_controller.store')
-  router.get('/dashboard/api/users/:id', '#controllers/users_controller.show')
-  router.delete('/dashboard/api/users/:id', '#controllers/users_controller.destroy')
+    // User management endpoints
+    router.get('/dashboard/api/users', '#controllers/users_controller.index')
+    router.post('/dashboard/api/users', '#controllers/users_controller.store')
+    router.get('/dashboard/api/users/:id', '#controllers/users_controller.show')
+    router.delete('/dashboard/api/users/:id', '#controllers/users_controller.destroy')
 
-  // Current user endpoints
-  router.get('/dashboard/api/user', '#controllers/dashboard_controller.getCurrentUser')
-  router.post('/dashboard/api/change-password', '#controllers/dashboard_controller.changePassword')
-  router.post('/dashboard/logout', '#controllers/dashboard_controller.logout')
-}).middleware([
-  middleware.dashboardAuth(),
-  middleware.requestLogging(),
-  middleware.metrics()
-])/*
+    // Current user endpoints
+    router.get('/dashboard/api/user', '#controllers/dashboard_controller.getCurrentUser')
+    router.post(
+      '/dashboard/api/change-password',
+      '#controllers/dashboard_controller.changePassword'
+    )
+    router.post('/dashboard/logout', '#controllers/dashboard_controller.logout')
+  })
+  .middleware([middleware.dashboardAuth(), middleware.requestLogging(), middleware.metrics()]) /*
 |--------------------------------------------------------------------------
 | Screenshot API Routes
 |--------------------------------------------------------------------------
@@ -93,23 +96,22 @@ router.group(() => {
 |
 */
 
-router.group(() => {
-  // Basic health checks
-  router.get('/health', '#controllers/health_controller.health')
-  router.get('/health/detailed', '#controllers/health_controller.detailedHealth')
-  router.get('/health/ready', '#controllers/health_controller.ready')
-  router.get('/health/live', '#controllers/health_controller.live')
-  router.get('/health/:component', '#controllers/health_controller.componentHealth')
+router
+  .group(() => {
+    // Basic health checks
+    router.get('/health', '#controllers/health_controller.health')
+    router.get('/health/detailed', '#controllers/health_controller.detailedHealth')
+    router.get('/health/ready', '#controllers/health_controller.ready')
+    router.get('/health/live', '#controllers/health_controller.live')
+    router.get('/health/:component', '#controllers/health_controller.componentHealth')
 
-  // Metrics endpoints
-  router.get('/metrics', '#controllers/health_controller.metrics')
-  router.get('/metrics/requests', '#controllers/health_controller.requestMetrics')
-  router.get('/metrics/processing', '#controllers/health_controller.processingMetrics')
-  router.get('/metrics/system', '#controllers/health_controller.systemMetrics')
-}).middleware([
-  middleware.requestLogging(),
-  middleware.metrics()
-])
+    // Metrics endpoints
+    router.get('/metrics', '#controllers/health_controller.metrics')
+    router.get('/metrics/requests', '#controllers/health_controller.requestMetrics')
+    router.get('/metrics/processing', '#controllers/health_controller.processingMetrics')
+    router.get('/metrics/system', '#controllers/health_controller.systemMetrics')
+  })
+  .middleware([middleware.requestLogging(), middleware.metrics()])
 
 /*
 |--------------------------------------------------------------------------
@@ -120,25 +122,43 @@ router.group(() => {
 |
 */
 
-router.group(() => {
-  // Single screenshot endpoint
-  router.post('/screenshot', '#controllers/screenshot_controller.single')
+router
+  .group(() => {
+    // Single screenshot endpoint
+    router.post('/screenshot', '#controllers/screenshot_controller.single')
 
-  // Batch screenshot endpoints
-  router.post('/batch/screenshots', '#controllers/screenshot_controller.createBatch')
-  router.get('/batch/screenshots/active', '#controllers/screenshot_controller.getActiveBatchJobs')
-  router.post('/batch/screenshots/:job_id/schedule', '#controllers/screenshot_controller.scheduleBatchJob')
-  router.post('/batch/screenshots/:job_id/recurrence', '#controllers/screenshot_controller.setBatchJobRecurrence')
-  router.post('/batch/screenshots/:job_id/cancel', '#controllers/screenshot_controller.cancelBatchJob')
-  router.get('/batch/screenshots/:job_id/results', '#controllers/screenshot_controller.getBatchJobResults')
-  router.get('/batch/screenshots/:job_id', '#controllers/screenshot_controller.getBatchStatus')
+    // Batch screenshot endpoints
+    router.post('/batch/screenshots', '#controllers/screenshot_controller.createBatch')
+    router.get('/batch/screenshots/active', '#controllers/screenshot_controller.getActiveBatchJobs')
+    router.post(
+      '/batch/screenshots/:job_id/schedule',
+      '#controllers/screenshot_controller.scheduleBatchJob'
+    )
+    router.post(
+      '/batch/screenshots/:job_id/recurrence',
+      '#controllers/screenshot_controller.setBatchJobRecurrence'
+    )
+    router.post(
+      '/batch/screenshots/:job_id/cancel',
+      '#controllers/screenshot_controller.cancelBatchJob'
+    )
+    router.get(
+      '/batch/screenshots/:job_id/results',
+      '#controllers/screenshot_controller.getBatchJobResults'
+    )
+    router.get('/batch/screenshots/:job_id', '#controllers/screenshot_controller.getBatchStatus')
 
-}).middleware([
-  middleware.requestLogging(),
-  middleware.apiKeyAuth(),
-  middleware.rateLimit(),
-  middleware.metrics()
-])
+    // Cache management endpoints
+    router.get('/cache/stats', '#controllers/screenshot_controller.getCacheStats')
+    router.delete('/cache', '#controllers/screenshot_controller.clearCache')
+    router.delete('/cache/url', '#controllers/screenshot_controller.invalidateCacheUrl')
+  })
+  .middleware([
+    middleware.requestLogging(),
+    middleware.apiKeyAuth(),
+    middleware.rateLimit(),
+    middleware.metrics(),
+  ])
 
 /*
 |--------------------------------------------------------------------------
@@ -149,7 +169,7 @@ router.group(() => {
 |
 */
 
-// Simple API docs route 
+// Simple API docs route
 router.get('/docs', '#controllers/swagger_controller.ui')
 
 // OpenAPI JSON spec

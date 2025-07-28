@@ -33,7 +33,7 @@ export class RedisService {
       logger.error('Failed to initialize Redis service', { error })
       throw new Exception('Redis initialization failed', {
         status: 500,
-        code: 'REDIS_INIT_FAILED'
+        code: 'REDIS_INIT_FAILED',
       })
     }
   }
@@ -47,7 +47,7 @@ export class RedisService {
       const redisClient = getCentralRedisManager().getClient()
       await redisClient.ping()
       const responseTime = Date.now() - startTime
-      
+
       this.isHealthy = true
       logger.debug('Redis health check passed', { responseTime })
       return true
@@ -91,13 +91,13 @@ export class RedisService {
         uptime: parseInt(serverInfo.uptime_in_seconds || '0'),
         connectedClients: parseInt(clientInfo.connected_clients || '0'),
         usedMemory: memoryInfo.used_memory_human || '0B',
-        totalSystemMemory: memoryInfo.total_system_memory_human || '0B'
+        totalSystemMemory: memoryInfo.total_system_memory_human || '0B',
       }
     } catch (error) {
       logger.error('Failed to get Redis connection info', { error })
       throw new Exception('Failed to get Redis connection info', {
         status: 500,
-        code: 'REDIS_INFO_FAILED'
+        code: 'REDIS_INFO_FAILED',
       })
     }
   }
@@ -112,17 +112,14 @@ export class RedisService {
   /**
    * Execute Redis command with error handling
    */
-  public async executeCommand<T>(
-    operation: () => Promise<T>,
-    operationName: string
-  ): Promise<T> {
+  public async executeCommand<T>(operation: () => Promise<T>, operationName: string): Promise<T> {
     try {
       if (!this.isHealthy) {
         await this.healthCheck()
         if (!this.isHealthy) {
           throw new Exception(`Redis is unhealthy, cannot execute ${operationName}`, {
             status: 503,
-            code: 'REDIS_UNHEALTHY'
+            code: 'REDIS_UNHEALTHY',
           })
         }
       }
@@ -130,7 +127,7 @@ export class RedisService {
       return await operation()
     } catch (error) {
       logger.error(`Redis operation failed: ${operationName}`, { error })
-      
+
       // Mark as unhealthy if connection error
       if (this.isConnectionError(error)) {
         this.isHealthy = false
@@ -139,7 +136,7 @@ export class RedisService {
       throw new Exception(`Redis operation failed: ${operationName}`, {
         status: 500,
         code: 'REDIS_OPERATION_FAILED',
-        cause: error
+        cause: error,
       })
     }
   }
@@ -170,7 +167,7 @@ export class RedisService {
   private parseRedisInfo(info: string): Record<string, string> {
     const result: Record<string, string> = {}
     const lines = info.split('\r\n')
-    
+
     for (const line of lines) {
       if (line && !line.startsWith('#')) {
         const [key, value] = line.split(':')
@@ -179,7 +176,7 @@ export class RedisService {
         }
       }
     }
-    
+
     return result
   }
 
@@ -192,11 +189,11 @@ export class RedisService {
       'ENOTFOUND',
       'ETIMEDOUT',
       'ECONNRESET',
-      'Connection is closed'
+      'Connection is closed',
     ]
-    
+
     const errorMessage = error?.message || ''
-    return connectionErrors.some(errorType => errorMessage.includes(errorType))
+    return connectionErrors.some((errorType) => errorMessage.includes(errorType))
   }
 
   /**
