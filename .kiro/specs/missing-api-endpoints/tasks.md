@@ -85,22 +85,22 @@
   - Add methods: getSuccessfulResults(), getFailedResults() for results endpoint
   - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5, 5.1, 5.2, 5.3, 5.4, 5.5, 5.6, 6.1, 6.2, 6.3, 6.4, 6.5, 6.6, 6.7_
 
-- [ ] 5. Enhance cache service to support Postman collection cache endpoints
-- [ ] 5.1 Add hit/miss tracking for cache statistics endpoint
+- [x] 5. Enhance cache service to support Postman collection cache endpoints
+- [x] 5.1 Add hit/miss tracking for cache statistics endpoint
   - Implement Redis counters for cache:stats:hits and cache:stats:misses
   - Modify existing get() method to increment hit counter
   - Modify existing set() method to increment miss counter (on cache miss)
   - Add getHitRate() method to calculate hits/(hits+misses) ratio
   - _Requirements: 10.1, 10.2, 10.3, 10.4, 10.5_
 
-- [ ] 5.2 Implement URL-specific cache invalidation for DELETE /cache/url
+- [x] 5.2 Implement URL-specific cache invalidation for DELETE /cache/url
   - Add invalidateByUrl(url: string) method to cache service
   - Generate all possible cache key variations for the URL (different formats/dimensions)
   - Use Redis pattern matching to find and delete matching keys
   - Return count of invalidated entries matching Postman collection response
   - _Requirements: 11.1, 11.2, 11.3, 11.4, 11.5, 11.6_
 
-- [ ] 5.3 Enhance cache statistics to match Postman collection format
+- [x] 5.3 Enhance cache statistics to match Postman collection format
   - Extend getStats() method to return {enabled, size, max_size, ttl, hits, misses, hit_rate, cleanup_interval}
   - Add enabled flag based on cache service configuration
   - Include cleanup_interval from environment configuration

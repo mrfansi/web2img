@@ -314,6 +314,26 @@ export class CacheService {
   }
 
   /**
+   * Get hit rate calculation
+   */
+  public async getHitRate(): Promise<number> {
+    try {
+      return await redisService.executeCommand(async () => {
+        const hitKey = this.statsPrefix + 'hits'
+        const missKey = this.statsPrefix + 'misses'
+        const hits = parseInt((await redisService.getClient().get(hitKey)) || '0')
+        const misses = parseInt((await redisService.getClient().get(missKey)) || '0')
+
+        const totalRequests = hits + misses
+        return totalRequests > 0 ? hits / totalRequests : 0
+      }, 'get hit rate')
+    } catch (error) {
+      logger.error('Failed to get hit rate', { error })
+      return 0
+    }
+  }
+
+  /**
    * Get enhanced cache statistics for Postman collection format
    */
   public async getEnhancedStats(): Promise<EnhancedCacheStats> {
@@ -329,8 +349,7 @@ export class CacheService {
         const misses = parseInt((await redisService.getClient().get(missKey)) || '0')
 
         // Calculate hit rate
-        const totalRequests = hits + misses
-        const hitRate = totalRequests > 0 ? hits / totalRequests : 0
+        const hitRate = await this.getHitRate()
 
         // Get cleanup interval from environment (default 3600 seconds = 1 hour)
         const cleanupInterval = parseInt(env.get('CACHE_CLEANUP_INTERVAL', '3600'))
