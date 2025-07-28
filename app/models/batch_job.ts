@@ -10,6 +10,13 @@ export enum BatchJobStatus {
   CANCELLED = 'cancelled',
 }
 
+export interface RecurrenceConfig {
+  pattern: 'hourly' | 'daily' | 'weekly' | 'monthly' | 'custom'
+  interval?: number
+  count?: number
+  cron?: string
+}
+
 export interface BatchConfig {
   parallel?: number
   timeout?: number
@@ -19,10 +26,7 @@ export interface BatchConfig {
   cache?: boolean
   priority?: 'high' | 'normal' | 'low'
   scheduled_time?: string
-  recurrence?: 'hourly' | 'daily' | 'weekly' | 'monthly' | 'custom'
-  recurrence_interval?: number
-  recurrence_count?: number
-  recurrence_cron?: string
+  recurrence?: RecurrenceConfig
   rate_limit?: number
 }
 
@@ -77,6 +81,33 @@ export default class BatchJob extends BaseModel {
   @column.dateTime()
   declare completedAt: DateTime | null
 
+  @column.dateTime()
+  declare nextScheduledTime: DateTime | null
+
+  @column({
+    prepare: (value: RecurrenceConfig) => JSON.stringify(value),
+    consume: (value: string) => value ? JSON.parse(value) : null,
+  })
+  declare recurrenceConfig: RecurrenceConfig | null
+
+  @column()
+  declare webhookUrl: string | null
+
+  @column()
+  declare webhookAuth: string | null
+
+  @column.dateTime()
+  declare processingStartedAt: DateTime | null
+
+  /**
+   * Get all active batch jobs (processing or scheduled)
+   */
+  static async getActiveJobs(): Promise<BatchJob[]> {
+    return await BatchJob.query()
+      .whereIn('status', [BatchJobStatus.PROCESSING, BatchJobStatus.SCHEDULED])
+      .orderBy('created_at', 'desc')
+  }
+
   /**
    * Create a new batch job
    */
@@ -99,10 +130,60 @@ export default class BatchJob extends BaseModel {
   }
 
   /**
+   * Schedule the batch job for future execution
+   */
+  async scheduleJob(scheduledTime: DateTime): Promise<void> {
+    if (this.status === BatchJobStatus.COMPLETED || this.status === BatchJobStatus.PROCESSING) {
+      throw new Error('Cannot schedule a job that is already completed or processing')
+    }
+    
+    this.status = BatchJobStatus.SCHEDULED
+    this.scheduledAt = scheduledTime
+    await this.save()
+  }
+
+  /**
+   * Set recurrence configuration for the batch job
+   */
+  async setRecurrence(recurrenceConfig: RecurrenceConfig): Promise<void> {
+    this.recurrenceConfig = recurrenceConfig
+    this.nextScheduledTime = this.calculateNextExecution(recurrenceConfig)
+    await this.save()
+  }
+
+  /**
+   * Calculate next execution time based on recurrence config
+   */
+  private calculateNextExecution(config: RecurrenceConfig): DateTime | null {
+    if (!this.scheduledAt) return null
+
+    const baseTime = this.scheduledAt
+    const interval = config.interval || 1
+
+    switch (config.pattern) {
+      case 'hourly':
+        return baseTime.plus({ hours: interval })
+      case 'daily':
+        return baseTime.plus({ days: interval })
+      case 'weekly':
+        return baseTime.plus({ weeks: interval })
+      case 'monthly':
+        return baseTime.plus({ months: interval })
+      case 'custom':
+        // For custom cron expressions, we would need a cron parser
+        // For now, return null as this requires additional implementation
+        return null
+      default:
+        return null
+    }
+  }
+
+  /**
    * Start processing the batch job
    */
   async startProcessing(): Promise<void> {
     this.status = BatchJobStatus.PROCESSING
+    this.processingStartedAt = DateTime.now()
     await this.save()
   }
 
@@ -127,9 +208,21 @@ export default class BatchJob extends BaseModel {
   /**
    * Cancel the batch job
    */
-  async cancel(): Promise<void> {
+  async cancelJob(): Promise<void> {
+    if (this.status === BatchJobStatus.COMPLETED || this.status === BatchJobStatus.FAILED) {
+      throw new Error('Cannot cancel a job that is already completed or failed')
+    }
+    
     this.status = BatchJobStatus.CANCELLED
+    this.completedAt = DateTime.now()
     await this.save()
+  }
+
+  /**
+   * Cancel the batch job (alias for backward compatibility)
+   */
+  async cancel(): Promise<void> {
+    await this.cancelJob()
   }
 
   /**
@@ -210,14 +303,33 @@ export default class BatchJob extends BaseModel {
   }
 
   /**
+   * Get successful results (method version for API endpoints)
+   */
+  getSuccessfulResults(): BatchResult[] {
+    return this.successfulResults
+  }
+
+  /**
+   * Get failed results (method version for API endpoints)
+   */
+  getFailedResults(): BatchResult[] {
+    return this.failedResults
+  }
+
+  /**
    * Get the estimated completion time based on current progress
    */
   get estimatedCompletion(): DateTime | null {
     if (!this.isProcessing || this.completedItems === 0) return null
 
-    const elapsedTime = DateTime.now().diff(this.createdAt).as('milliseconds')
-    const averageTimePerItem = elapsedTime / (this.completedItems + this.failedItems)
-    const remainingItems = this.totalItems - this.completedItems - this.failedItems
+    const startTime = this.processingStartedAt || this.createdAt
+    const elapsedTime = DateTime.now().diff(startTime).as('milliseconds')
+    const processedItems = this.completedItems + this.failedItems
+    
+    if (processedItems === 0) return null
+    
+    const averageTimePerItem = elapsedTime / processedItems
+    const remainingItems = this.totalItems - processedItems
     const estimatedRemainingTime = averageTimePerItem * remainingItems
 
     return DateTime.now().plus({ milliseconds: estimatedRemainingTime })
@@ -226,28 +338,15 @@ export default class BatchJob extends BaseModel {
   /**
    * Get the next scheduled time for recurring jobs
    */
-  get nextScheduledTime(): DateTime | null {
-    if (!this.config.recurrence || !this.scheduledAt) return null
-
-    const baseTime = this.scheduledAt
-    const recurrence = this.config.recurrence
-    const interval = this.config.recurrence_interval || 1
-
-    switch (recurrence) {
-      case 'hourly':
-        return baseTime.plus({ hours: interval })
-      case 'daily':
-        return baseTime.plus({ days: interval })
-      case 'weekly':
-        return baseTime.plus({ weeks: interval })
-      case 'monthly':
-        return baseTime.plus({ months: interval })
-      case 'custom':
-        // For custom cron expressions, we would need a cron parser
-        // For now, return null as this requires additional implementation
-        return null
-      default:
-        return null
+  getNextScheduledTime(): DateTime | null {
+    // Return the stored next scheduled time if available
+    if (this.nextScheduledTime) {
+      return this.nextScheduledTime
     }
+
+    // Calculate next scheduled time if recurrence config exists
+    if (!this.recurrenceConfig || !this.scheduledAt) return null
+
+    return this.calculateNextExecution(this.recurrenceConfig)
   }
 }

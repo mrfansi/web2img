@@ -71,14 +71,14 @@
   - Validate URL parameter and return 422 for validation errors
   - _Requirements: 11.1, 11.2, 11.3, 11.4, 11.5, 11.6_
 
-- [ ] 4. Extend database schema and models to support Postman collection features
-- [ ] 4.1 Create database migration for batch job enhancements
+- [x] 4. Extend database schema and models to support Postman collection features
+- [x] 4.1 Create database migration for batch job enhancements
   - Add next_scheduled_time, recurrence_config, webhook_url, webhook_auth, and processing_started_at columns to batch_jobs table
   - Create indexes for performance: idx_batch_jobs_status_scheduled, idx_batch_jobs_next_scheduled
   - Ensure backward compatibility with existing batch job data
   - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7, 2.8, 5.1, 5.2, 5.3, 5.4, 5.5, 5.6, 6.1, 6.2, 6.3, 6.4, 6.5, 6.6, 6.7_
 
-- [ ] 4.2 Enhance BatchJob model with methods for Postman collection endpoints
+- [x] 4.2 Enhance BatchJob model with methods for Postman collection endpoints
   - Add static method getActiveJobs() to filter jobs by 'processing' or 'scheduled' status
   - Implement scheduleJob(), setRecurrence(), and cancelJob() methods
   - Add calculated properties: progressPercentage, estimatedCompletion, nextScheduledTime

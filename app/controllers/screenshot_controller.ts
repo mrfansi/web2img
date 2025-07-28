@@ -389,10 +389,12 @@ export default class ScreenshotController {
         cache: validatedData.config?.cache !== false, // Default to true
         priority: validatedData.config?.priority || 'normal',
         scheduled_time: validatedData.config?.scheduled_time,
-        recurrence: validatedData.config?.recurrence,
-        recurrence_interval: validatedData.config?.recurrence_interval,
-        recurrence_count: validatedData.config?.recurrence_count,
-        recurrence_cron: validatedData.config?.recurrence_cron,
+        recurrence: validatedData.config?.recurrence ? {
+          pattern: validatedData.config.recurrence,
+          interval: validatedData.config.recurrence_interval,
+          count: validatedData.config.recurrence_count,
+          cron: validatedData.config.recurrence_cron,
+        } : undefined,
         rate_limit: validatedData.config?.rate_limit,
       }
 
