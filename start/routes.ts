@@ -126,6 +126,11 @@ router.group(() => {
 
   // Batch screenshot endpoints
   router.post('/batch/screenshots', '#controllers/screenshot_controller.createBatch')
+  router.get('/batch/screenshots/active', '#controllers/screenshot_controller.getActiveBatchJobs')
+  router.post('/batch/screenshots/:job_id/schedule', '#controllers/screenshot_controller.scheduleBatchJob')
+  router.post('/batch/screenshots/:job_id/recurrence', '#controllers/screenshot_controller.setBatchJobRecurrence')
+  router.post('/batch/screenshots/:job_id/cancel', '#controllers/screenshot_controller.cancelBatchJob')
+  router.get('/batch/screenshots/:job_id/results', '#controllers/screenshot_controller.getBatchJobResults')
   router.get('/batch/screenshots/:job_id', '#controllers/screenshot_controller.getBatchStatus')
 
 }).middleware([

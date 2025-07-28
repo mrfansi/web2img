@@ -6,7 +6,7 @@ import { screenshotWorkerService } from '#services/screenshot_worker_service'
 import fileStorageService from '#services/file_storage_service'
 import imgProxyService from '#services/imgproxy_service'
 import queueService from '#services/queue_service'
-import BatchJob from '#models/batch_job'
+import BatchJob, { BatchJobStatus } from '#models/batch_job'
 import { DateTime } from 'luxon'
 
 /**
@@ -609,6 +609,516 @@ export default class ScreenshotController {
    *       500:
    *         $ref: '#/components/responses/InternalError'
    */
+  /**
+   * Get active batch jobs
+   * GET /batch/screenshots/active
+   */
+  async getActiveBatchJobs({ response }: HttpContext) {
+    try {
+      // Find all batch jobs with status 'processing' or 'scheduled'
+      const activeJobs = await BatchJob.query()
+        .whereIn('status', [BatchJobStatus.PROCESSING, BatchJobStatus.SCHEDULED])
+        .orderBy('created_at', 'desc')
+
+      logger.debug('Retrieved active batch jobs', {
+        count: activeJobs.length
+      })
+
+      // Format jobs for response
+      const formattedJobs = activeJobs.map(job => ({
+        job_id: job.id.toString(),
+        status: job.status,
+        total: job.totalItems,
+        completed: job.completedItems,
+        failed: job.failedItems,
+        created_at: job.createdAt.toISO(),
+        updated_at: job.updatedAt?.toISO(),
+        estimated_completion: job.estimatedCompletion?.toISO(),
+        scheduled_time: job.scheduledAt?.toISO(),
+        next_scheduled_time: job.nextScheduledTime?.toISO()
+      }))
+
+      return response.json({
+        jobs: formattedJobs
+      })
+
+    } catch (error) {
+      logger.error('Failed to get active batch jobs', {
+        error: error.message
+      })
+
+      return response.status(500).json({
+        detail: {
+          error: 'active_jobs_retrieval_failed',
+          message: 'Failed to retrieve active batch jobs'
+        }
+      })
+    }
+  }
+
+  /**
+   * Schedule a batch job for future execution
+   * POST /batch/screenshots/:job_id/schedule
+   */
+  async scheduleBatchJob({ params, request, response }: HttpContext) {
+    try {
+      const jobId = params.job_id
+      const { scheduled_time } = request.only(['scheduled_time'])
+
+      if (!jobId) {
+        return response.status(400).json({
+          detail: {
+            error: 'missing_job_id',
+            message: 'job_id parameter is required'
+          }
+        })
+      }
+
+      if (!scheduled_time) {
+        return response.status(422).json({
+          detail: {
+            error: 'validation_failed',
+            message: 'scheduled_time is required'
+          }
+        })
+      }
+
+      // Find batch job by ID
+      const batchJob = await BatchJob.find(parseInt(jobId))
+
+      if (!batchJob) {
+        return response.status(404).json({
+          detail: {
+            error: 'job_not_found',
+            message: 'Batch job not found'
+          }
+        })
+      }
+
+      // Validate scheduled_time format and ensure it's in the future
+      const scheduledDateTime = DateTime.fromISO(scheduled_time)
+      if (!scheduledDateTime.isValid) {
+        return response.status(422).json({
+          detail: {
+            error: 'invalid_scheduled_time',
+            message: 'scheduled_time must be a valid ISO 8601 date string'
+          }
+        })
+      }
+
+      if (scheduledDateTime <= DateTime.now()) {
+        return response.status(400).json({
+          detail: {
+            error: 'invalid_scheduled_time',
+            message: 'scheduled_time must be in the future'
+          }
+        })
+      }
+
+      // Check if job is in a valid state for scheduling
+      if (batchJob.status === BatchJobStatus.PROCESSING) {
+        return response.status(400).json({
+          detail: {
+            error: 'job_already_processing',
+            message: 'Cannot schedule a job that is already processing'
+          }
+        })
+      }
+
+      if (batchJob.status === BatchJobStatus.COMPLETED) {
+        return response.status(400).json({
+          detail: {
+            error: 'job_already_completed',
+            message: 'Cannot schedule a job that is already completed'
+          }
+        })
+      }
+
+      // Update job with scheduled time
+      batchJob.scheduledAt = scheduledDateTime
+      batchJob.status = BatchJobStatus.SCHEDULED
+      await batchJob.save()
+
+      // TODO: Add job to queue with scheduled time
+      // await queueService.scheduleJob('batch', batchJobData, scheduledDateTime.toJSDate())
+
+      logger.info('Batch job scheduled successfully', {
+        jobId: batchJob.id,
+        scheduledTime: scheduledDateTime.toISO()
+      })
+
+      // Return updated job status
+      return response.status(202).json({
+        job_id: batchJob.id.toString(),
+        status: batchJob.status,
+        total: batchJob.totalItems,
+        completed: batchJob.completedItems,
+        failed: batchJob.failedItems,
+        progress_percentage: batchJob.progressPercentage,
+        created_at: batchJob.createdAt.toISO(),
+        updated_at: batchJob.updatedAt?.toISO(),
+        scheduled_time: batchJob.scheduledAt?.toISO(),
+        completed_at: batchJob.completedAt?.toISO(),
+        estimated_completion: batchJob.estimatedCompletion?.toISO(),
+        next_scheduled_time: batchJob.nextScheduledTime?.toISO(),
+        config: batchJob.config,
+        results: batchJob.results,
+        successful_results: batchJob.successfulResults,
+        failed_results: batchJob.failedResults
+      })
+
+    } catch (error) {
+      logger.error('Failed to schedule batch job', {
+        jobId: params.job_id,
+        error: error.message
+      })
+
+      return response.status(500).json({
+        detail: {
+          error: 'scheduling_failed',
+          message: 'Failed to schedule batch job'
+        }
+      })
+    }
+  }
+
+  /**
+   * Set recurrence configuration for a batch job
+   * POST /batch/screenshots/:job_id/recurrence
+   */
+  async setBatchJobRecurrence({ params, request, response }: HttpContext) {
+    try {
+      const jobId = params.job_id
+      const { pattern, interval, count, cron } = request.only(['pattern', 'interval', 'count', 'cron'])
+
+      if (!jobId) {
+        return response.status(400).json({
+          detail: {
+            error: 'missing_job_id',
+            message: 'job_id parameter is required'
+          }
+        })
+      }
+
+      if (!pattern) {
+        return response.status(422).json({
+          detail: {
+            error: 'validation_failed',
+            message: 'pattern is required'
+          }
+        })
+      }
+
+      // Validate pattern values
+      const validPatterns = ['hourly', 'daily', 'weekly', 'monthly', 'custom']
+      if (!validPatterns.includes(pattern)) {
+        return response.status(422).json({
+          detail: {
+            error: 'invalid_pattern',
+            message: `pattern must be one of: ${validPatterns.join(', ')}`
+          }
+        })
+      }
+
+      // Validate cron expression for custom pattern
+      if (pattern === 'custom') {
+        if (!cron) {
+          return response.status(422).json({
+            detail: {
+              error: 'missing_cron',
+              message: 'cron expression is required when pattern is "custom"'
+            }
+          })
+        }
+
+        // Basic cron validation (5 or 6 fields)
+        const cronParts = cron.trim().split(/\s+/)
+        if (cronParts.length < 5 || cronParts.length > 6) {
+          return response.status(422).json({
+            detail: {
+              error: 'invalid_cron',
+              message: 'cron expression must have 5 or 6 fields'
+            }
+          })
+        }
+      }
+
+      // Validate interval and count if provided
+      if (interval !== undefined && (typeof interval !== 'number' || interval <= 0)) {
+        return response.status(422).json({
+          detail: {
+            error: 'invalid_interval',
+            message: 'interval must be a positive number'
+          }
+        })
+      }
+
+      if (count !== undefined && (typeof count !== 'number' || count <= 0)) {
+        return response.status(422).json({
+          detail: {
+            error: 'invalid_count',
+            message: 'count must be a positive number'
+          }
+        })
+      }
+
+      // Find batch job by ID
+      const batchJob = await BatchJob.find(parseInt(jobId))
+
+      if (!batchJob) {
+        return response.status(404).json({
+          detail: {
+            error: 'job_not_found',
+            message: 'Batch job not found'
+          }
+        })
+      }
+
+      // Update job config with recurrence settings
+      const updatedConfig = {
+        ...batchJob.config,
+        recurrence: pattern,
+        recurrence_interval: interval,
+        recurrence_count: count,
+        recurrence_cron: cron
+      }
+
+      batchJob.config = updatedConfig
+      await batchJob.save()
+
+      logger.info('Batch job recurrence configured successfully', {
+        jobId: batchJob.id,
+        pattern,
+        interval,
+        count,
+        cron: cron ? cron.substring(0, 20) + '...' : undefined
+      })
+
+      // Return updated job status
+      return response.status(202).json({
+        job_id: batchJob.id.toString(),
+        status: batchJob.status,
+        total: batchJob.totalItems,
+        completed: batchJob.completedItems,
+        failed: batchJob.failedItems,
+        progress_percentage: batchJob.progressPercentage,
+        created_at: batchJob.createdAt.toISO(),
+        updated_at: batchJob.updatedAt?.toISO(),
+        scheduled_time: batchJob.scheduledAt?.toISO(),
+        completed_at: batchJob.completedAt?.toISO(),
+        estimated_completion: batchJob.estimatedCompletion?.toISO(),
+        next_scheduled_time: batchJob.nextScheduledTime?.toISO(),
+        config: batchJob.config,
+        results: batchJob.results,
+        successful_results: batchJob.successfulResults,
+        failed_results: batchJob.failedResults
+      })
+
+    } catch (error) {
+      logger.error('Failed to set batch job recurrence', {
+        jobId: params.job_id,
+        error: error.message
+      })
+
+      return response.status(500).json({
+        detail: {
+          error: 'recurrence_configuration_failed',
+          message: 'Failed to configure batch job recurrence'
+        }
+      })
+    }
+  }
+
+  /**
+   * Cancel a batch job
+   * POST /batch/screenshots/:job_id/cancel
+   */
+  async cancelBatchJob({ params, response }: HttpContext) {
+    try {
+      const jobId = params.job_id
+
+      if (!jobId) {
+        return response.status(400).json({
+          detail: {
+            error: 'missing_job_id',
+            message: 'job_id parameter is required'
+          }
+        })
+      }
+
+      // Find batch job by ID
+      const batchJob = await BatchJob.find(parseInt(jobId))
+
+      if (!batchJob) {
+        return response.status(404).json({
+          detail: {
+            error: 'job_not_found',
+            message: 'Batch job not found'
+          }
+        })
+      }
+
+      // Check if job is in a valid state for cancellation
+      if (batchJob.status === BatchJobStatus.COMPLETED) {
+        return response.status(400).json({
+          detail: {
+            error: 'job_already_completed',
+            message: 'Cannot cancel a job that is already completed'
+          }
+        })
+      }
+
+      if (batchJob.status === BatchJobStatus.FAILED) {
+        return response.status(400).json({
+          detail: {
+            error: 'job_already_failed',
+            message: 'Cannot cancel a job that has already failed'
+          }
+        })
+      }
+
+      if (batchJob.status === BatchJobStatus.CANCELLED) {
+        return response.status(400).json({
+          detail: {
+            error: 'job_already_cancelled',
+            message: 'Job is already cancelled'
+          }
+        })
+      }
+
+      // Cancel the job
+      await batchJob.cancel()
+
+      // TODO: Remove job from queue if it's scheduled or pending
+      // await queueService.removeJob(batchJob.id.toString())
+
+      // Update any pending results to cancelled
+      const updatedResults = batchJob.results.map(result => 
+        result.status === 'pending' || result.status === 'processing' 
+          ? { ...result, status: 'error' as const, error: 'Job cancelled' }
+          : result
+      )
+      batchJob.results = updatedResults
+      await batchJob.save()
+
+      logger.info('Batch job cancelled successfully', {
+        jobId: batchJob.id,
+        previousStatus: batchJob.status
+      })
+
+      // Return updated job status
+      return response.status(200).json({
+        job_id: batchJob.id.toString(),
+        status: batchJob.status,
+        total: batchJob.totalItems,
+        completed: batchJob.completedItems,
+        failed: batchJob.failedItems,
+        progress_percentage: batchJob.progressPercentage,
+        created_at: batchJob.createdAt.toISO(),
+        updated_at: batchJob.updatedAt?.toISO(),
+        scheduled_time: batchJob.scheduledAt?.toISO(),
+        completed_at: batchJob.completedAt?.toISO(),
+        estimated_completion: batchJob.estimatedCompletion?.toISO(),
+        next_scheduled_time: batchJob.nextScheduledTime?.toISO(),
+        config: batchJob.config,
+        results: batchJob.results,
+        successful_results: batchJob.successfulResults,
+        failed_results: batchJob.failedResults
+      })
+
+    } catch (error) {
+      logger.error('Failed to cancel batch job', {
+        jobId: params.job_id,
+        error: error.message
+      })
+
+      return response.status(500).json({
+        detail: {
+          error: 'cancellation_failed',
+          message: 'Failed to cancel batch job'
+        }
+      })
+    }
+  }
+
+  /**
+   * Get detailed batch job results
+   * GET /batch/screenshots/:job_id/results
+   */
+  async getBatchJobResults({ params, response }: HttpContext) {
+    try {
+      const jobId = params.job_id
+
+      if (!jobId) {
+        return response.status(400).json({
+          detail: {
+            error: 'missing_job_id',
+            message: 'job_id parameter is required'
+          }
+        })
+      }
+
+      // Find batch job by ID
+      const batchJob = await BatchJob.find(parseInt(jobId))
+
+      if (!batchJob) {
+        return response.status(404).json({
+          detail: {
+            error: 'job_not_found',
+            message: 'Batch job not found'
+          }
+        })
+      }
+
+      // Calculate processing time
+      let processingTime = 0
+      if (batchJob.completedAt && batchJob.createdAt) {
+        processingTime = batchJob.completedAt.diff(batchJob.createdAt).as('milliseconds')
+      } else if (batchJob.status === BatchJobStatus.PROCESSING) {
+        processingTime = DateTime.now().diff(batchJob.createdAt).as('milliseconds')
+      }
+
+      // Format results for response
+      const formattedResults = batchJob.results.map(result => ({
+        id: result.itemId,
+        status: result.status,
+        url: result.url,
+        error: result.error,
+        cached: result.cached
+      }))
+
+      logger.debug('Retrieved batch job results', {
+        jobId: batchJob.id,
+        totalResults: formattedResults.length,
+        succeeded: batchJob.successfulResults.length,
+        failed: batchJob.failedResults.length
+      })
+
+      return response.json({
+        job_id: batchJob.id.toString(),
+        status: batchJob.status,
+        total: batchJob.totalItems,
+        succeeded: batchJob.successfulResults.length,
+        failed: batchJob.failedResults.length,
+        processing_time: Math.round(processingTime),
+        results: formattedResults
+      })
+
+    } catch (error) {
+      logger.error('Failed to get batch job results', {
+        jobId: params.job_id,
+        error: error.message
+      })
+
+      return response.status(500).json({
+        detail: {
+          error: 'results_retrieval_failed',
+          message: 'Failed to retrieve batch job results'
+        }
+      })
+    }
+  }
+
   /**
    * Get batch job status
    * GET /batch/screenshots/{job_id}

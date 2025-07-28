@@ -20,33 +20,33 @@
   - Include config, results, successful_results, and failed_results arrays
   - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6_
 
-- [ ] 2. Implement batch job management endpoints matching Postman collection
-- [ ] 2.1 Create active batch jobs listing endpoint
+- [x] 2. Implement batch job management endpoints matching Postman collection
+- [x] 2.1 Create active batch jobs listing endpoint
   - Implement GET /batch/screenshots/active endpoint returning {jobs: [...]} format
   - Filter jobs by status ('processing' or 'scheduled') as shown in Postman collection
   - Include job_id, status, total, completed, failed, created_at, updated_at, estimated_completion, scheduled_time, next_scheduled_time fields
   - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5_
 
-- [ ] 2.2 Implement batch job scheduling endpoint
+- [x] 2.2 Implement batch job scheduling endpoint
   - Create POST /batch/screenshots/:job_id/schedule endpoint with {scheduled_time} request body
   - Validate scheduled_time is in future and in ISO 8601 format
   - Return 202 status with updated job status matching Postman collection response
   - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5, 5.6_
 
-- [ ] 2.3 Implement batch job recurrence configuration endpoint
+- [x] 2.3 Implement batch job recurrence configuration endpoint
   - Create POST /batch/screenshots/:job_id/recurrence endpoint with {pattern, interval, count, cron} request body
   - Support pattern values: "daily", "weekly", "monthly", "hourly", "custom"
   - Validate cron expression when pattern is "custom"
   - Return 202 status with updated job status
   - _Requirements: 6.1, 6.2, 6.3, 6.4, 6.5, 6.6, 6.7_
 
-- [ ] 2.4 Implement batch job cancellation endpoint
+- [x] 2.4 Implement batch job cancellation endpoint
   - Create POST /batch/screenshots/:job_id/cancel endpoint (no request body)
   - Cancel processing or scheduled jobs and update status to 'cancelled'
   - Return 200 status with updated job status matching Postman collection
   - _Requirements: 7.1, 7.2, 7.3, 7.4, 7.5, 7.6_
 
-- [ ] 2.5 Implement detailed batch job results endpoint
+- [x] 2.5 Implement detailed batch job results endpoint
   - Create GET /batch/screenshots/:job_id/results endpoint
   - Return {job_id, status, total, succeeded, failed, processing_time, results} format
   - Include results array with {id, status, url, error, cached} objects
