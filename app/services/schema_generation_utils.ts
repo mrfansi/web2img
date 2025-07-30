@@ -58,7 +58,7 @@ export class SchemaGenerationUtils {
 
     for (const [name, schema] of Object.entries(schemas)) {
       // Determine category based on schema name
-      let category: keyof typeof schemaRegistry.getRegistry
+      let category: 'requests' | 'responses' | 'errors' | 'components'
 
       if (name.endsWith('Request')) {
         category = 'requests'
@@ -106,7 +106,6 @@ export class SchemaGenerationUtils {
    * Generate schema for a specific validator with custom options
    */
   static generateSchemaForValidator(
-    validatorName: string,
     validator: any,
     options?: {
       includeExamples?: boolean

@@ -1,7 +1,6 @@
 import type { OpenAPIV3 } from 'openapi-types'
 // VineJS types - using any for now due to module resolution issues
-type VineValidator<T = any, U = any> = any
-type VineType = any
+type VineValidator = any
 
 /**
  * Schema generation options
@@ -20,7 +19,7 @@ class VineSchemaGenerator {
    * Generate OpenAPI schema from VineJS validator
    */
   generateFromValidator(
-    validator: VineValidator<any, any>,
+    validator: VineValidator,
     options: SchemaGenerationOptions = {}
   ): OpenAPIV3.SchemaObject {
     const defaultOptions: SchemaGenerationOptions = {
@@ -59,7 +58,7 @@ class VineSchemaGenerator {
   /**
    * Extract schema definition from compiled VineJS validator
    */
-  private extractSchemaFromValidator(validator: VineValidator<any, any>): any {
+  private extractSchemaFromValidator(validator: VineValidator): any {
     // VineJS validators have internal schema structure
     // This is a simplified extraction - in practice, you might need to access
     // the validator's internal structure differently based on VineJS version
@@ -438,7 +437,7 @@ class VineSchemaGenerator {
    */
   generateSchemaForValidator(
     validatorName: string,
-    validator: VineValidator<any, any>,
+    validator: VineValidator,
     options: SchemaGenerationOptions = {}
   ): { name: string; schema: OpenAPIV3.SchemaObject } {
     const schema = this.generateFromValidator(validator, options)
@@ -458,7 +457,7 @@ class VineSchemaGenerator {
    * Batch generate schemas from multiple validators
    */
   generateSchemasFromValidators(
-    validators: Record<string, VineValidator<any, any>>,
+    validators: Record<string, VineValidator>,
     options: SchemaGenerationOptions = {}
   ): Record<string, OpenAPIV3.SchemaObject> {
     const schemas: Record<string, OpenAPIV3.SchemaObject> = {}
