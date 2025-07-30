@@ -7,45 +7,48 @@ export default class extends BaseSchema {
    * Fix corrupted JSON data in batch_jobs table
    */
   public async up() {
-    // Fix corrupted results column
+    // Fix corrupted results column - handle both string and non-string values
     await this.db.rawQuery(`
-      UPDATE ${this.tableName} 
-      SET results = '[]' 
-      WHERE results IS NOT NULL 
-      AND results != '' 
-      AND results != 'null'
-      AND (
-        results = '[object Object]' 
-        OR results LIKE '%[object Object]%'
-        OR (results NOT LIKE '[%' AND results NOT LIKE '{%')
+      UPDATE ${this.tableName}
+      SET results = '[]'
+      WHERE (
+        results IS NOT NULL
+        AND (
+          results = '[object Object]'
+          OR results LIKE '%[object Object]%'
+          OR (results != '' AND results != 'null' AND results NOT LIKE '[%' AND results NOT LIKE '{%')
+          OR results = ''
+        )
       )
     `)
 
-    // Fix corrupted config column
+    // Fix corrupted config column - handle both string and non-string values
     await this.db.rawQuery(`
-      UPDATE ${this.tableName} 
-      SET config = '{}' 
-      WHERE config IS NOT NULL 
-      AND config != '' 
-      AND config != 'null'
-      AND (
-        config = '[object Object]' 
-        OR config LIKE '%[object Object]%'
-        OR (config NOT LIKE '[%' AND config NOT LIKE '{%')
+      UPDATE ${this.tableName}
+      SET config = '{}'
+      WHERE (
+        config IS NOT NULL
+        AND (
+          config = '[object Object]'
+          OR config LIKE '%[object Object]%'
+          OR (config != '' AND config != 'null' AND config NOT LIKE '[%' AND config NOT LIKE '{%')
+          OR config = ''
+        )
       )
     `)
 
-    // Fix corrupted recurrence_config column
+    // Fix corrupted recurrence_config column - handle both string and non-string values
     await this.db.rawQuery(`
-      UPDATE ${this.tableName} 
-      SET recurrence_config = NULL 
-      WHERE recurrence_config IS NOT NULL 
-      AND recurrence_config != '' 
-      AND recurrence_config != 'null'
-      AND (
-        recurrence_config = '[object Object]' 
-        OR recurrence_config LIKE '%[object Object]%'
-        OR (recurrence_config NOT LIKE '[%' AND recurrence_config NOT LIKE '{%')
+      UPDATE ${this.tableName}
+      SET recurrence_config = NULL
+      WHERE (
+        recurrence_config IS NOT NULL
+        AND (
+          recurrence_config = '[object Object]'
+          OR recurrence_config LIKE '%[object Object]%'
+          OR (recurrence_config != '' AND recurrence_config != 'null' AND recurrence_config NOT LIKE '[%' AND recurrence_config NOT LIKE '{%')
+          OR recurrence_config = ''
+        )
       )
     `)
 

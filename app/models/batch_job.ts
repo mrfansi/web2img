@@ -61,14 +61,15 @@ export default class BatchJob extends BaseModel {
   @column({
     prepare: (value: BatchConfig) => JSON.stringify(value || {}),
     consume: (value: string) => {
-      if (!value) return {}
+      if (!value || typeof value !== 'string') return {}
 
       try {
         const parsed = JSON.parse(value)
         return typeof parsed === 'object' && parsed !== null ? parsed : {}
       } catch (error) {
         logger.warn('Failed to parse batch job config from database', {
-          value: value.substring(0, 100),
+          value: typeof value === 'string' ? value.substring(0, 100) : String(value),
+          valueType: typeof value,
           error: error.message
         })
         return {}
@@ -80,7 +81,7 @@ export default class BatchJob extends BaseModel {
   @column({
     prepare: (value: BatchResult[]) => JSON.stringify(value || []),
     consume: (value: string) => {
-      if (!value) return []
+      if (!value || typeof value !== 'string') return []
 
       // Handle invalid JSON data that might exist in the database
       try {
@@ -90,7 +91,8 @@ export default class BatchJob extends BaseModel {
       } catch (error) {
         // Log the error and return empty array for corrupted data
         logger.warn('Failed to parse batch job results from database', {
-          value: value.substring(0, 100), // Log first 100 chars for debugging
+          value: typeof value === 'string' ? value.substring(0, 100) : String(value), // Log first 100 chars for debugging
+          valueType: typeof value,
           error: error.message
         })
         return []
@@ -118,14 +120,15 @@ export default class BatchJob extends BaseModel {
     columnName: 'recurrence_config',
     prepare: (value: RecurrenceConfig) => value ? JSON.stringify(value) : null,
     consume: (value: string) => {
-      if (!value) return null
+      if (!value || typeof value !== 'string') return null
 
       try {
         const parsed = JSON.parse(value)
         return typeof parsed === 'object' && parsed !== null ? parsed : null
       } catch (error) {
         logger.warn('Failed to parse batch job recurrence config from database', {
-          value: value.substring(0, 100),
+          value: typeof value === 'string' ? value.substring(0, 100) : String(value),
+          valueType: typeof value,
           error: error.message
         })
         return null
