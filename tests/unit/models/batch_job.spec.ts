@@ -1,8 +1,17 @@
 import { test } from '@japa/runner'
 import { DateTime } from 'luxon'
 import BatchJob, { BatchJobStatus, BatchConfig, BatchResult } from '#models/batch_job'
+import db from '@adonisjs/lucid/services/db'
 
-test.group('BatchJob Model', () => {
+test.group('BatchJob Model', (group) => {
+  group.each.setup(async () => {
+    // Clean up database before each test
+    try {
+      await db.from('batch_jobs').del()
+    } catch (error) {
+      console.warn('Database cleanup failed in BatchJob tests:', error)
+    }
+  })
   test('should create batch job with default values', async ({ assert }) => {
     const config: BatchConfig = { parallel: 3, timeout: 30000 }
     const batchJob = await BatchJob.createBatchJob(5, config)
@@ -22,7 +31,9 @@ test.group('BatchJob Model', () => {
     const batchJob = await BatchJob.createBatchJob(3, {}, scheduledTime)
 
     assert.equal(batchJob.status, BatchJobStatus.SCHEDULED)
-    assert.equal(batchJob.scheduledAt?.toISO(), scheduledTime.toISO())
+    // Allow for database precision differences (milliseconds may be truncated)
+    const timeDiff = Math.abs(batchJob.scheduledAt!.toMillis() - scheduledTime.toMillis())
+    assert.isTrue(timeDiff < 1000, `Time difference should be less than 1 second, got ${timeDiff}ms`)
   })
 
   test('should start processing', async ({ assert }) => {

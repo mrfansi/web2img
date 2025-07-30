@@ -6,7 +6,29 @@ test.group('CacheService', (group) => {
   let cacheService: CacheService
 
   group.setup(() => {
-    cacheService = CacheService.getInstance()
+    // Create a fresh instance for testing to avoid singleton pollution
+    cacheService = new CacheService()
+  })
+
+  group.teardown(async () => {
+    // Clean up test keys
+    try {
+      const redis = getCentralRedisManager().getClient()
+      const pattern = 'screenshot:cache:*'
+      const keys = await redis.keys(pattern)
+      if (keys.length > 0) {
+        await redis.del(...keys)
+      }
+
+      const lockPattern = 'screenshot:lock:*'
+      const lockKeys = await redis.keys(lockPattern)
+      if (lockKeys.length > 0) {
+        await redis.del(...lockKeys)
+      }
+    } catch (error) {
+      // Ignore cleanup errors
+      console.warn('Cache cleanup failed:', error)
+    }
   })
 
   group.teardown(async () => {
@@ -247,7 +269,8 @@ test.group('CacheService - Key Generation Edge Cases', (group) => {
   let cacheService: CacheService
 
   group.setup(() => {
-    cacheService = CacheService.getInstance()
+    // Create a fresh instance for testing to avoid singleton pollution
+    cacheService = new CacheService()
   })
 
   test('should handle URLs with query parameters consistently', ({ assert }) => {

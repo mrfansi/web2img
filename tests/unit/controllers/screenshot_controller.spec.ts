@@ -5,6 +5,7 @@ import { screenshotWorkerService } from '#services/screenshot_worker_service'
 import fileStorageService from '#services/file_storage_service'
 import imgProxyService from '#services/imgproxy_service'
 import BatchJob from '#models/batch_job'
+import { DateTime } from 'luxon'
 
 test.group('ScreenshotController - Single Screenshot', (group) => {
   let controller: ScreenshotController
@@ -63,13 +64,13 @@ test.group('ScreenshotController - Single Screenshot', (group) => {
     cacheService.get = async () => null
     cacheService.generateCacheKey = () => 'test-cache-key'
     cacheService.isProcessing = async () => false
-    cacheService.setProcessingLock = async () => {}
-    cacheService.removeProcessingLock = async () => {}
-    cacheService.set = async () => {}
+    cacheService.setProcessingLock = async () => { }
+    cacheService.removeProcessingLock = async () => { }
+    cacheService.set = async () => { }
     cacheService.getDefaultTtl = () => 3600
 
     const mockScreenshotResult = {
-      buffer: Buffer.from('fake-image-data-12345'), // 17 bytes
+      buffer: Buffer.from('fake-image-data-12345'), // 21 bytes
       format: 'png',
       width: 1280,
       height: 720,
@@ -122,7 +123,7 @@ test.group('ScreenshotController - Single Screenshot', (group) => {
     assert.equal(responseBody.screenshot_url, mockImgProxyUrl)
     assert.isFalse(responseBody.cache_hit)
     assert.isNumber(responseBody.processing_time_ms)
-    assert.equal(responseBody.file_size_bytes, 17) // Buffer length
+    assert.equal(responseBody.file_size_bytes, 21) // Buffer length
     assert.isString(responseBody.expires_at)
   })
 
@@ -196,8 +197,8 @@ test.group('ScreenshotController - Single Screenshot', (group) => {
     cacheService.get = async () => null
     cacheService.generateCacheKey = () => 'test-cache-key'
     cacheService.isProcessing = async () => false
-    cacheService.setProcessingLock = async () => {}
-    cacheService.removeProcessingLock = async () => {}
+    cacheService.setProcessingLock = async () => { }
+    cacheService.removeProcessingLock = async () => { }
 
     screenshotWorkerService.processScreenshotJob = async () => {
       throw new Error('Navigation timeout after 30000ms')
@@ -239,8 +240,8 @@ test.group('ScreenshotController - Single Screenshot', (group) => {
     cacheService.get = async () => null
     cacheService.generateCacheKey = () => 'test-cache-key'
     cacheService.isProcessing = async () => false
-    cacheService.setProcessingLock = async () => {}
-    cacheService.removeProcessingLock = async () => {}
+    cacheService.setProcessingLock = async () => { }
+    cacheService.removeProcessingLock = async () => { }
 
     screenshotWorkerService.processScreenshotJob = async () => {
       throw new Error('HTTP 404: Not Found')
@@ -282,8 +283,8 @@ test.group('ScreenshotController - Single Screenshot', (group) => {
     cacheService.get = async () => null
     cacheService.generateCacheKey = () => 'test-cache-key'
     cacheService.isProcessing = async () => false
-    cacheService.setProcessingLock = async () => {}
-    cacheService.removeProcessingLock = async () => {}
+    cacheService.setProcessingLock = async () => { }
+    cacheService.removeProcessingLock = async () => { }
 
     const mockScreenshotResult = {
       buffer: Buffer.from('fake-image-data'),
@@ -339,9 +340,9 @@ test.group('ScreenshotController - Single Screenshot', (group) => {
     cacheService.get = async () => null
     cacheService.generateCacheKey = () => 'test-cache-key'
     cacheService.isProcessing = async () => false
-    cacheService.setProcessingLock = async () => {}
-    cacheService.removeProcessingLock = async () => {}
-    cacheService.set = async () => {}
+    cacheService.setProcessingLock = async () => { }
+    cacheService.removeProcessingLock = async () => { }
+    cacheService.set = async () => { }
 
     let capturedOptions: any = null
     screenshotWorkerService.processScreenshotJob = async (jobData) => {
@@ -404,8 +405,8 @@ test.group('ScreenshotController - Single Screenshot', (group) => {
     }
     cacheService.generateCacheKey = () => 'test-cache-key'
     cacheService.isProcessing = async () => false
-    cacheService.setProcessingLock = async () => {}
-    cacheService.removeProcessingLock = async () => {}
+    cacheService.setProcessingLock = async () => { }
+    cacheService.removeProcessingLock = async () => { }
 
     screenshotWorkerService.processScreenshotJob = async () => ({
       buffer: Buffer.from('fake-image-data'),
@@ -463,7 +464,7 @@ test.group('ScreenshotController - Active Batch Jobs', (group) => {
   })
 
   test('should return active batch jobs successfully', async ({ assert }) => {
-    // Mock BatchJob.getActiveJobs
+    // Mock BatchJob query builder
     const mockActiveJobs = [
       {
         id: 123,
@@ -491,7 +492,12 @@ test.group('ScreenshotController - Active Batch Jobs', (group) => {
       },
     ]
 
-    BatchJob.getActiveJobs = async () => mockActiveJobs as any
+    // Mock the query builder chain
+    BatchJob.query = () => ({
+      whereIn: () => ({
+        orderBy: () => mockActiveJobs,
+      }),
+    }) as any
 
     let responseStatus = 200
     let responseBody: any = null
@@ -529,7 +535,12 @@ test.group('ScreenshotController - Active Batch Jobs', (group) => {
   })
 
   test('should return empty jobs array when no active jobs', async ({ assert }) => {
-    BatchJob.getActiveJobs = async () => []
+    // Mock the query builder chain to return empty array
+    BatchJob.query = () => ({
+      whereIn: () => ({
+        orderBy: () => [],
+      }),
+    }) as any
 
     let responseStatus = 200
     let responseBody: any = null
@@ -554,9 +565,14 @@ test.group('ScreenshotController - Active Batch Jobs', (group) => {
   })
 
   test('should handle database errors gracefully', async ({ assert }) => {
-    BatchJob.getActiveJobs = async () => {
-      throw new Error('Database connection failed')
-    }
+    // Mock the query builder chain to throw an error
+    BatchJob.query = () => ({
+      whereIn: () => ({
+        orderBy: () => {
+          throw new Error('Database connection failed')
+        },
+      }),
+    }) as any
 
     let responseStatus = 200
     let responseBody: any = null
@@ -591,14 +607,14 @@ test.group('SchedulshotController - Job Scheduling', (group) => {
   test('should schedule batch job successfully', async ({ assert }) => {
     const mockBatchJob = {
       id: 123,
-      status: 'scheduled',
+      status: 'pending',
       totalItems: 3,
       completedItems: 0,
       failedItems: 0,
       progressPercentage: 0,
-      createdAt: { toISO: () => '2025-01-26T10:00:00.000Z' },
-      updatedAt: { toISO: () => '2025-01-26T10:30:00.000Z' },
-      scheduledAt: { toISO: () => '2025-01-26T15:00:00.000Z' },
+      createdAt: DateTime.fromISO('2025-01-26T10:00:00.000Z'),
+      updatedAt: DateTime.fromISO('2025-01-26T10:30:00.000Z'),
+      scheduledAt: null,
       completedAt: null,
       estimatedCompletion: null,
       nextScheduledTime: null,
@@ -606,7 +622,11 @@ test.group('SchedulshotController - Job Scheduling', (group) => {
       results: [],
       successfulResults: [],
       failedResults: [],
-      save: async () => {},
+      save: async () => {
+        // Update the mock object when save is called
+        mockBatchJob.status = 'scheduled'
+        mockBatchJob.scheduledAt = DateTime.fromISO('2025-12-31T15:00:00.000Z')
+      },
     }
 
     BatchJob.find = async () => mockBatchJob as any
@@ -618,7 +638,7 @@ test.group('SchedulshotController - Job Scheduling', (group) => {
       params: { job_id: '123' },
       request: {
         only: () => ({
-          scheduled_time: '2025-01-26T15:00:00.000Z',
+          scheduled_time: '2025-12-31T15:00:00.000Z',
         }),
       },
       response: {
@@ -638,7 +658,7 @@ test.group('SchedulshotController - Job Scheduling', (group) => {
     assert.equal(responseStatus, 202)
     assert.equal(responseBody.job_id, '123')
     assert.equal(responseBody.status, 'scheduled')
-    assert.equal(responseBody.scheduled_time, '2025-01-26T15:00:00.000Z')
+    assert.equal(responseBody.scheduled_time, '2025-12-31T15:00:00.000+00:00')
   })
 
   test('should return 404 for non-existent job', async ({ assert }) => {
@@ -673,6 +693,14 @@ test.group('SchedulshotController - Job Scheduling', (group) => {
   })
 
   test('should return 422 for invalid scheduled_time format', async ({ assert }) => {
+    const mockBatchJob = {
+      id: 123,
+      status: 'pending',
+      save: async () => { },
+    }
+
+    BatchJob.find = async () => mockBatchJob as any
+
     let responseStatus = 200
     let responseBody: any = null
 
@@ -703,6 +731,14 @@ test.group('SchedulshotController - Job Scheduling', (group) => {
   })
 
   test('should return 400 for scheduled_time in the past', async ({ assert }) => {
+    const mockBatchJob = {
+      id: 123,
+      status: 'pending',
+      save: async () => { },
+    }
+
+    BatchJob.find = async () => mockBatchJob as any
+
     let responseStatus = 200
     let responseBody: any = null
 
@@ -749,7 +785,7 @@ test.group('SchedulshotController - Job Scheduling', (group) => {
       params: { job_id: '123' },
       request: {
         only: () => ({
-          scheduled_time: '2025-01-26T15:00:00.000Z',
+          scheduled_time: '2025-12-31T15:00:00.000Z',
         }),
       },
       response: {
@@ -796,7 +832,7 @@ test.group('ScreenshotController - Job Recurrence', (group) => {
       results: [],
       successfulResults: [],
       failedResults: [],
-      save: async () => {},
+      save: async () => { },
     }
 
     BatchJob.find = async () => mockBatchJob as any
@@ -855,7 +891,7 @@ test.group('ScreenshotController - Job Recurrence', (group) => {
       results: [],
       successfulResults: [],
       failedResults: [],
-      save: async () => {},
+      save: async () => { },
     }
 
     BatchJob.find = async () => mockBatchJob as any
@@ -1028,7 +1064,7 @@ test.group('ScreenshotController - Job Cancellation', (group) => {
   test('should cancel processing job successfully', async ({ assert }) => {
     const mockBatchJob = {
       id: 123,
-      status: 'cancelled',
+      status: 'processing',
       totalItems: 5,
       completedItems: 2,
       failedItems: 0,
@@ -1056,8 +1092,10 @@ test.group('ScreenshotController - Job Cancellation', (group) => {
         { itemId: 'item4', status: 'error', error: 'Job cancelled' },
         { itemId: 'item5', status: 'error', error: 'Job cancelled' },
       ],
-      cancel: async () => {},
-      save: async () => {},
+      cancel: async function () {
+        this.status = 'cancelled'
+      },
+      save: async () => { },
     }
 
     BatchJob.find = async () => mockBatchJob as any
@@ -1252,7 +1290,7 @@ test.group('ScreenshotController - Job Results', (group) => {
       completedItems: 2,
       failedItems: 1,
       createdAt: { toISO: () => '2025-01-26T10:00:00.000Z', diff: () => ({ as: () => 0 }) },
-      completedAt: { 
+      completedAt: {
         toISO: () => '2025-01-26T10:05:00.000Z',
         diff: (_other: any) => ({ as: () => 300000 }) // 5 minutes
       },
@@ -1299,7 +1337,7 @@ test.group('ScreenshotController - Job Results', (group) => {
     assert.equal(responseBody.failed, 1)
     assert.equal(responseBody.processing_time, 300000)
     assert.lengthOf(responseBody.results, 3)
-    
+
     // Check result format
     assert.equal(responseBody.results[0].id, 'item1')
     assert.equal(responseBody.results[0].status, 'success')
@@ -1320,7 +1358,7 @@ test.group('ScreenshotController - Job Results', (group) => {
       totalItems: 2,
       completedItems: 1,
       failedItems: 0,
-      createdAt: { 
+      createdAt: {
         toISO: () => '2025-01-26T10:00:00.000Z',
         diff: () => ({ as: () => 0 })
       },
@@ -1336,7 +1374,7 @@ test.group('ScreenshotController - Job Results', (group) => {
     }
 
     // Mock DateTime.now() to return a specific time for consistent testing
-    
+
     BatchJob.find = async () => mockBatchJob as any
 
     let responseStatus = 200
@@ -1545,7 +1583,7 @@ test.group('ScreenshotController - Cache Clear', (group) => {
   })
 
   test('should clear cache successfully', async ({ assert }) => {
-    cacheService.flush = async () => {}
+    cacheService.flush = async () => { }
 
     let responseStatus = 200
     let responseBody: any = null

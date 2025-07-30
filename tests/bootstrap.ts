@@ -6,6 +6,7 @@ import { pluginAdonisJS } from '@japa/plugin-adonisjs'
 import testUtils from '@adonisjs/core/services/test_utils'
 import redisService from '#services/redis_service'
 import { getCentralRedisManager, CentralRedisManager } from '#services/central_redis_manager'
+import db from '@adonisjs/lucid/services/db'
 
 /**
  * This file is imported by the "bin/test.ts" entrypoint file
@@ -39,6 +40,79 @@ export const plugins: Config['plugins'] = [assert(), apiClient(), pluginAdonisJS
 export const runnerHooks: Required<Pick<Config, 'setup' | 'teardown'>> = {
   setup: [
     async () => {
+      // Create database tables for tests
+      try {
+        // Create batch_jobs table if it doesn't exist
+        const hasTable = await db.connection().schema.hasTable('batch_jobs')
+        if (!hasTable) {
+          await db.connection().schema.createTable('batch_jobs', (table) => {
+            table.increments('id').notNullable()
+            table.string('status').notNullable().defaultTo('pending')
+            table.integer('total_items').notNullable().defaultTo(0)
+            table.integer('completed_items').notNullable().defaultTo(0)
+            table.integer('failed_items').notNullable().defaultTo(0)
+            table.json('config').nullable()
+            table.json('results').nullable()
+            table.timestamp('created_at').notNullable()
+            table.timestamp('updated_at').nullable()
+            table.timestamp('scheduled_at').nullable()
+            table.timestamp('completed_at').nullable()
+            table.timestamp('next_scheduled_time').nullable()
+            table.json('recurrence_config').nullable()
+            table.string('webhook_url', 2048).nullable()
+            table.string('webhook_auth', 512).nullable()
+            table.timestamp('processing_started_at').nullable()
+          })
+        }
+
+        // Create other required tables
+        const hasApiKeysTable = await db.connection().schema.hasTable('api_keys')
+        if (!hasApiKeysTable) {
+          await db.connection().schema.createTable('api_keys', (table) => {
+            table.increments('id').notNullable()
+            table.string('key').notNullable().unique()
+            table.string('name').notNullable()
+            table.integer('user_id').notNullable()
+            table.integer('rate_limit').notNullable().defaultTo(1000)
+            table.boolean('is_active').notNullable().defaultTo(true)
+            table.timestamp('created_at').notNullable()
+            table.timestamp('updated_at').nullable()
+          })
+        }
+
+        const hasApiKeyUsageTable = await db.connection().schema.hasTable('api_key_usages')
+        if (!hasApiKeyUsageTable) {
+          await db.connection().schema.createTable('api_key_usages', (table) => {
+            table.increments('id').notNullable()
+            table.integer('api_key_id').notNullable()
+            table.string('endpoint').notNullable()
+            table.string('method').notNullable()
+            table.integer('status_code').notNullable()
+            table.integer('response_time').notNullable()
+            table.string('user_agent').nullable()
+            table.string('ip_address').notNullable()
+            table.timestamp('created_at').notNullable()
+          })
+        }
+
+        const hasErrorLogsTable = await db.connection().schema.hasTable('error_logs')
+        if (!hasErrorLogsTable) {
+          await db.connection().schema.createTable('error_logs', (table) => {
+            table.increments('id').notNullable()
+            table.string('level').notNullable()
+            table.text('message').notNullable()
+            table.text('stack').nullable()
+            table.text('context').nullable()
+            table.string('endpoint').nullable()
+            table.string('method').nullable()
+            table.string('user_agent').nullable()
+            table.timestamp('created_at').notNullable()
+          })
+        }
+      } catch (error) {
+        console.warn('Database table creation failed in tests:', error)
+      }
+
       // Initialize Redis service for tests
       try {
         await redisService.initialize()
@@ -51,6 +125,13 @@ export const runnerHooks: Required<Pick<Config, 'setup' | 'teardown'>> = {
     async () => {
       // Give time for any pending operations to complete
       await new Promise((resolve) => setTimeout(resolve, 100))
+
+      // Close database connections
+      try {
+        await db.manager.closeAll()
+      } catch (error) {
+        console.warn('Database cleanup failed in tests:', error)
+      }
 
       // Register CentralRedisManager shutdown before other services
       try {
@@ -87,5 +168,32 @@ export const runnerHooks: Required<Pick<Config, 'setup' | 'teardown'>> = {
 export const configureSuite: Config['configureSuite'] = (suite) => {
   if (['browser', 'functional', 'e2e'].includes(suite.name)) {
     return suite.setup(() => testUtils.httpServer().start())
+  }
+
+  // Set up database cleanup for unit tests
+  if (suite.name === 'unit') {
+    return suite.setup(async () => {
+      // Clean up database tables before each test suite
+      try {
+        // Delete in reverse order to avoid foreign key constraints
+        await db.from('api_key_usages').del()
+        await db.from('error_logs').del()
+        await db.from('batch_jobs').del()
+        await db.from('api_keys').del()
+      } catch (error) {
+        console.warn('Database cleanup failed:', error)
+      }
+    }).teardown(async () => {
+      // Clean up database tables after each test suite
+      try {
+        // Delete in reverse order to avoid foreign key constraints
+        await db.from('api_key_usages').del()
+        await db.from('error_logs').del()
+        await db.from('batch_jobs').del()
+        await db.from('api_keys').del()
+      } catch (error) {
+        console.warn('Database cleanup failed:', error)
+      }
+    })
   }
 }

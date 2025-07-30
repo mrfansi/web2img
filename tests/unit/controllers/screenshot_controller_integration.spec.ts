@@ -31,7 +31,7 @@ test.group('ScreenshotController - Integration Tests', (group) => {
     ApiKey.findByKey = async () => mockApiKey as any
 
     // Mock services for successful screenshot
-    const mockServices = setupMockServices()
+    const mockServices = await setupMockServices()
 
     let responseStatus = 200
     let responseBody: any = null
@@ -97,11 +97,11 @@ test.group('ScreenshotController - Integration Tests', (group) => {
 
     // Verify controller response
     assert.equal(responseStatus, 200)
-    assert.isDefined(responseBody.url)
-    assert.isBoolean(responseBody.cached)
+    assert.isDefined(responseBody.screenshot_url)
+    assert.isBoolean(responseBody.cache_hit)
 
     // Cleanup mocks
-    cleanupMockServices(mockServices)
+    await cleanupMockServices(mockServices)
   })
 
   test('should handle authentication failure', async ({ assert }) => {
@@ -227,7 +227,7 @@ test.group('ScreenshotController - Integration Tests', (group) => {
       scheduledAt: null,
       completedAt: null,
       estimatedCompletion: null,
-      save: async () => {},
+      save: async () => { },
     }
 
     const BatchJob = await import('#models/batch_job')
@@ -307,12 +307,11 @@ test.group('ScreenshotController - Integration Tests', (group) => {
   })
 
   // Helper function to setup mock services
-  function setupMockServices() {
-    const cacheService = require('#services/cache_service').default
-    const screenshotWorkerService =
-      require('#services/screenshot_worker_service').screenshotWorkerService
-    const fileStorageService = require('#services/file_storage_service').default
-    const imgProxyService = require('#services/imgproxy_service').default
+  async function setupMockServices() {
+    const { default: cacheService } = await import('#services/cache_service')
+    const { screenshotWorkerService } = await import('#services/screenshot_worker_service')
+    const { default: fileStorageService } = await import('#services/file_storage_service')
+    const { default: imgProxyService } = await import('#services/imgproxy_service')
 
     const originalMethods = {
       cacheGet: cacheService.get,
@@ -331,9 +330,9 @@ test.group('ScreenshotController - Integration Tests', (group) => {
     cacheService.get = async () => null
     cacheService.generateCacheKey = () => 'test-cache-key'
     cacheService.isProcessing = async () => false
-    cacheService.setProcessingLock = async () => {}
-    cacheService.removeProcessingLock = async () => {}
-    cacheService.set = async () => {}
+    cacheService.setProcessingLock = async () => { }
+    cacheService.removeProcessingLock = async () => { }
+    cacheService.set = async () => { }
 
     screenshotWorkerService.processScreenshotJob = async () => ({
       buffer: Buffer.from('fake-image-data'),
@@ -353,12 +352,11 @@ test.group('ScreenshotController - Integration Tests', (group) => {
   }
 
   // Helper function to cleanup mock services
-  function cleanupMockServices(originalMethods: any) {
-    const cacheService = require('#services/cache_service').default
-    const screenshotWorkerService =
-      require('#services/screenshot_worker_service').screenshotWorkerService
-    const fileStorageService = require('#services/file_storage_service').default
-    const imgProxyService = require('#services/imgproxy_service').default
+  async function cleanupMockServices(originalMethods: any) {
+    const { default: cacheService } = await import('#services/cache_service')
+    const { screenshotWorkerService } = await import('#services/screenshot_worker_service')
+    const { default: fileStorageService } = await import('#services/file_storage_service')
+    const { default: imgProxyService } = await import('#services/imgproxy_service')
 
     // Restore original methods
     cacheService.get = originalMethods.cacheGet

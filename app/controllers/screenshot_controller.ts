@@ -705,8 +705,9 @@ export default class ScreenshotController {
       if (!scheduledDateTime.isValid) {
         return response.status(422).json({
           detail: {
-            error: 'invalid_scheduled_time',
+            error: 'validation_failed',
             message: 'scheduled_time must be a valid ISO 8601 date string',
+            errors: ['scheduled_time must be a valid ISO 8601 date string'],
           },
         })
       }
@@ -823,8 +824,9 @@ export default class ScreenshotController {
       if (!validPatterns.includes(pattern)) {
         return response.status(422).json({
           detail: {
-            error: 'invalid_pattern',
+            error: 'validation_failed',
             message: `pattern must be one of: ${validPatterns.join(', ')}`,
+            errors: [`pattern must be one of: ${validPatterns.join(', ')}`],
           },
         })
       }
@@ -834,8 +836,9 @@ export default class ScreenshotController {
         if (!cron) {
           return response.status(422).json({
             detail: {
-              error: 'missing_cron',
+              error: 'validation_failed',
               message: 'cron expression is required when pattern is "custom"',
+              errors: ['cron expression is required when pattern is "custom"'],
             },
           })
         }
@@ -845,8 +848,9 @@ export default class ScreenshotController {
         if (cronParts.length < 5 || cronParts.length > 6) {
           return response.status(422).json({
             detail: {
-              error: 'invalid_cron',
+              error: 'validation_failed',
               message: 'cron expression must have 5 or 6 fields',
+              errors: ['cron expression must have 5 or 6 fields'],
             },
           })
         }
@@ -886,10 +890,12 @@ export default class ScreenshotController {
       // Update job config with recurrence settings
       const updatedConfig = {
         ...batchJob.config,
-        recurrence: pattern,
-        recurrence_interval: interval,
-        recurrence_count: count,
-        recurrence_cron: cron,
+        recurrence: {
+          pattern: pattern,
+          interval: interval,
+          count: count,
+          cron: cron,
+        },
       }
 
       batchJob.config = updatedConfig

@@ -273,7 +273,7 @@ test.group('Custom Validation Functions', () => {
 
     assert.throws(
       () => validateWebhookAuth(data),
-      'webhook_auth is required when webhook is provided'
+      'webhook_auth is required when webhook_url is provided'
     )
   })
 
@@ -455,7 +455,7 @@ test.group('Comprehensive Validation Functions', () => {
 
     await assert.rejects(
       () => validateBatchRequest(data),
-      'webhook_auth is required when webhook is provided'
+      'webhook_auth is required when webhook_url is provided'
     )
   })
 

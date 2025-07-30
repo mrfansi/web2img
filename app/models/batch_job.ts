@@ -48,13 +48,13 @@ export default class BatchJob extends BaseModel {
   @column()
   declare status: BatchJobStatus
 
-  @column()
+  @column({ columnName: 'total_items' })
   declare totalItems: number
 
-  @column()
+  @column({ columnName: 'completed_items' })
   declare completedItems: number
 
-  @column()
+  @column({ columnName: 'failed_items' })
   declare failedItems: number
 
   @column({
@@ -75,28 +75,29 @@ export default class BatchJob extends BaseModel {
   @column.dateTime({ autoCreate: true, autoUpdate: true })
   declare updatedAt: DateTime | null
 
-  @column.dateTime()
+  @column.dateTime({ columnName: 'scheduled_at' })
   declare scheduledAt: DateTime | null
 
-  @column.dateTime()
+  @column.dateTime({ columnName: 'completed_at' })
   declare completedAt: DateTime | null
 
-  @column.dateTime()
+  @column.dateTime({ columnName: 'next_scheduled_time' })
   declare nextScheduledTime: DateTime | null
 
   @column({
+    columnName: 'recurrence_config',
     prepare: (value: RecurrenceConfig) => JSON.stringify(value),
     consume: (value: string) => value ? JSON.parse(value) : null,
   })
   declare recurrenceConfig: RecurrenceConfig | null
 
-  @column()
+  @column({ columnName: 'webhook_url' })
   declare webhookUrl: string | null
 
-  @column()
+  @column({ columnName: 'webhook_auth' })
   declare webhookAuth: string | null
 
-  @column.dateTime()
+  @column.dateTime({ columnName: 'processing_started_at' })
   declare processingStartedAt: DateTime | null
 
   /**
@@ -116,16 +117,18 @@ export default class BatchJob extends BaseModel {
     config: BatchConfig = {},
     scheduledAt?: DateTime
   ): Promise<BatchJob> {
-    const batchJob = new BatchJob()
-    batchJob.status = scheduledAt ? BatchJobStatus.SCHEDULED : BatchJobStatus.PENDING
-    batchJob.totalItems = totalItems
-    batchJob.completedItems = 0
-    batchJob.failedItems = 0
-    batchJob.config = config
-    batchJob.results = []
-    batchJob.scheduledAt = scheduledAt || null
+    const batchJob = await BatchJob.create({
+      status: scheduledAt ? BatchJobStatus.SCHEDULED : BatchJobStatus.PENDING,
+      totalItems: totalItems,
+      completedItems: 0,
+      failedItems: 0,
+      config: config,
+      results: [],
+      scheduledAt: scheduledAt || null,
+    })
 
-    await batchJob.save()
+    // Refresh the instance to ensure all methods and getters are available
+    await batchJob.refresh()
     return batchJob
   }
 
@@ -136,7 +139,7 @@ export default class BatchJob extends BaseModel {
     if (this.status === BatchJobStatus.COMPLETED || this.status === BatchJobStatus.PROCESSING) {
       throw new Error('Cannot schedule a job that is already completed or processing')
     }
-    
+
     this.status = BatchJobStatus.SCHEDULED
     this.scheduledAt = scheduledTime
     await this.save()
@@ -212,7 +215,7 @@ export default class BatchJob extends BaseModel {
     if (this.status === BatchJobStatus.COMPLETED || this.status === BatchJobStatus.FAILED) {
       throw new Error('Cannot cancel a job that is already completed or failed')
     }
-    
+
     this.status = BatchJobStatus.CANCELLED
     this.completedAt = DateTime.now()
     await this.save()
@@ -320,14 +323,14 @@ export default class BatchJob extends BaseModel {
    * Get the estimated completion time based on current progress
    */
   get estimatedCompletion(): DateTime | null {
-    if (!this.isProcessing || this.completedItems === 0) return null
+    if (!this.isProcessing) return null
 
     const startTime = this.processingStartedAt || this.createdAt
     const elapsedTime = DateTime.now().diff(startTime).as('milliseconds')
     const processedItems = this.completedItems + this.failedItems
-    
+
     if (processedItems === 0) return null
-    
+
     const averageTimePerItem = elapsedTime / processedItems
     const remainingItems = this.totalItems - processedItems
     const estimatedRemainingTime = averageTimePerItem * remainingItems
