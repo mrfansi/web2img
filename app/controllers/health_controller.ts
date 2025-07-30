@@ -375,15 +375,38 @@ export default class HealthController {
         timeout: 30000,
       })
 
+      // Prepare batch job data for queue (this was missing!)
+      const batchJobData = {
+        id: testBatch.id.toString(),
+        items: [
+          {
+            id: 'debug-test-item',
+            url: 'https://httpbin.org/html',
+            format: 'png' as const,
+            width: 800,
+            height: 600,
+          },
+        ],
+        config: {
+          parallel: 1,
+          timeout: 30000,
+        },
+        apiKeyId: 'debug-test-key',
+      }
+
+      // Add the batch job to the queue (this was the missing step!)
+      const queueJob = await queueService.addBatchJob(batchJobData)
+
       return {
         success: true,
         testBatchId: testBatch.id,
+        queueJobId: queueJob.id,
         workerStatus,
         queueMetrics: {
           screenshot: screenshotMetrics,
           batch: batchMetrics,
         },
-        message: 'Test batch job created. Check the batch job status manually.',
+        message: 'Test batch job created AND queued. It should start processing now.',
         timestamp: new Date().toISOString(),
       }
     } catch (error) {
