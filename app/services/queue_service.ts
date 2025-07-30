@@ -134,7 +134,8 @@ export class QueueService {
     const jobOptions = {
       priority: options.priority || 0,
       delay: options.delay || 0,
-      jobId: options.jobId || data.id,
+      // Use a unique job ID to prevent conflicts
+      jobId: options.jobId || `batch-${data.id}-${Date.now()}`,
     }
 
     logger.info('Adding batch job to queue', {

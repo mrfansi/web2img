@@ -357,7 +357,8 @@ export default class ScreenshotController {
    * Create a batch screenshot job
    * POST /batch/screenshots
    */
-  async createBatch({ request, response }: HttpContext) {
+  async createBatch(ctx: HttpContext) {
+    const { request, response } = ctx
     const startTime = Date.now()
 
     try {
@@ -409,6 +410,8 @@ export default class ScreenshotController {
         scheduledAt
       )
 
+
+
       // Initialize results array with pending status for all items
       const initialResults = validatedData.items.map((item) => ({
         itemId: item.id,
@@ -423,6 +426,18 @@ export default class ScreenshotController {
       await batchJob.save()
 
       // Prepare batch job data for queue
+
+      // Create queue-compatible config (only include fields expected by BatchJobData interface)
+      const queueConfig = {
+        parallel: batchConfig.parallel,
+        timeout: batchConfig.timeout,
+        webhook: batchConfig.webhook_url,
+        webhook_auth: batchConfig.webhook_auth,
+        fail_fast: batchConfig.fail_fast,
+        cache: batchConfig.cache,
+        priority: batchConfig.priority,
+      }
+
       const batchJobData = {
         id: batchJob.id.toString(),
         items: validatedData.items.map((item) => ({
@@ -432,17 +447,28 @@ export default class ScreenshotController {
           width: item.width || 1280,
           height: item.height || 720,
         })),
-        config: batchConfig,
-        apiKeyId: 'placeholder', // This should come from auth middleware
+        config: queueConfig,
+        apiKeyId: ctx.apiKey?.id?.toString() || 'unknown',
       }
 
+
       // Add job to queue (scheduled or immediate)
+
       if (scheduledAt) {
-        await queueService.scheduleJob('batch', batchJobData, scheduledAt.toJSDate())
-        logger.info('Batch job scheduled', {
-          batchId: batchJob.id,
-          scheduledTime: scheduledAt.toISO(),
-        })
+        try {
+          await queueService.scheduleJob('batch', batchJobData, scheduledAt.toJSDate())
+          logger.info('Batch job scheduled', {
+            batchId: batchJob.id,
+            scheduledTime: scheduledAt.toISO(),
+          })
+        } catch (queueError) {
+          logger.error('Failed to schedule batch job', {
+            error: queueError.message,
+            stack: queueError.stack,
+            batchJobData,
+          })
+          throw queueError
+        }
       } else {
         const priority =
           batchConfig.priority === 'high' ? 10 : batchConfig.priority === 'low' ? -10 : 0
@@ -452,6 +478,7 @@ export default class ScreenshotController {
           priority: batchConfig.priority,
         })
       }
+
 
       const processingTime = Date.now() - startTime
 
