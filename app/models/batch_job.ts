@@ -1,5 +1,6 @@
 import { DateTime } from 'luxon'
 import { BaseModel, column } from '@adonisjs/lucid/orm'
+import logger from '@adonisjs/core/services/logger'
 
 export enum BatchJobStatus {
   PENDING = 'pending',
@@ -58,14 +59,43 @@ export default class BatchJob extends BaseModel {
   declare failedItems: number
 
   @column({
-    prepare: (value: BatchConfig) => JSON.stringify(value),
-    consume: (value: string) => JSON.parse(value),
+    prepare: (value: BatchConfig) => JSON.stringify(value || {}),
+    consume: (value: string) => {
+      if (!value) return {}
+
+      try {
+        const parsed = JSON.parse(value)
+        return typeof parsed === 'object' && parsed !== null ? parsed : {}
+      } catch (error) {
+        logger.warn('Failed to parse batch job config from database', {
+          value: value.substring(0, 100),
+          error: error.message
+        })
+        return {}
+      }
+    },
   })
   declare config: BatchConfig
 
   @column({
-    prepare: (value: BatchResult[]) => JSON.stringify(value),
-    consume: (value: string) => value ? JSON.parse(value) : [],
+    prepare: (value: BatchResult[]) => JSON.stringify(value || []),
+    consume: (value: string) => {
+      if (!value) return []
+
+      // Handle invalid JSON data that might exist in the database
+      try {
+        const parsed = JSON.parse(value)
+        // Ensure the parsed value is an array
+        return Array.isArray(parsed) ? parsed : []
+      } catch (error) {
+        // Log the error and return empty array for corrupted data
+        logger.warn('Failed to parse batch job results from database', {
+          value: value.substring(0, 100), // Log first 100 chars for debugging
+          error: error.message
+        })
+        return []
+      }
+    },
   })
   declare results: BatchResult[]
 
@@ -86,8 +116,21 @@ export default class BatchJob extends BaseModel {
 
   @column({
     columnName: 'recurrence_config',
-    prepare: (value: RecurrenceConfig) => JSON.stringify(value),
-    consume: (value: string) => value ? JSON.parse(value) : null,
+    prepare: (value: RecurrenceConfig) => value ? JSON.stringify(value) : null,
+    consume: (value: string) => {
+      if (!value) return null
+
+      try {
+        const parsed = JSON.parse(value)
+        return typeof parsed === 'object' && parsed !== null ? parsed : null
+      } catch (error) {
+        logger.warn('Failed to parse batch job recurrence config from database', {
+          value: value.substring(0, 100),
+          error: error.message
+        })
+        return null
+      }
+    },
   })
   declare recurrenceConfig: RecurrenceConfig | null
 
