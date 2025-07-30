@@ -2,6 +2,7 @@ import { Queue, Job, QueueOptions, QueueEvents } from 'bullmq'
 import type { Redis } from 'ioredis'
 import logger from '@adonisjs/core/services/logger'
 import { getCentralRedisManager } from './central_redis_manager.js'
+import ErrorLoggingService from '#services/error_logging_service'
 
 export interface ScreenshotJobData {
   url: string
@@ -243,7 +244,17 @@ export class QueueService {
       logger.info('Job cancelled successfully', { jobId, queueName })
       return true
     } catch (error) {
-      logger.error('Failed to cancel job', { jobId, queueName, error })
+      // Log error with enhanced tracing
+      await ErrorLoggingService.logServiceError(
+        'QueueService',
+        'cancelJob',
+        error,
+        {
+          context: { jobId, queueName },
+          errorCategory: 'system',
+          severity: 'medium',
+        }
+      )
       return false
     }
   }

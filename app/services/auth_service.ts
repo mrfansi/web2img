@@ -1,6 +1,7 @@
 import User from '#models/user'
 import { LoginData } from '#validators/auth_validators'
 import logger from '@adonisjs/core/services/logger'
+import ErrorLoggingService from '#services/error_logging_service'
 
 /**
  * Authentication service for handling login/logout operations
@@ -66,7 +67,16 @@ export class AuthService {
       // For now, this is a placeholder
       return null
     } catch (error) {
-      logger.error('Token validation failed:', error)
+      // Log error with enhanced tracing
+      await ErrorLoggingService.logServiceError(
+        'AuthService',
+        'validateToken',
+        error,
+        {
+          errorCategory: 'system',
+          severity: 'medium',
+        }
+      )
       return null
     }
   }

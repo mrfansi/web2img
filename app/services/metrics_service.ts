@@ -1,5 +1,6 @@
 import { getCentralRedisManager } from '#services/central_redis_manager'
 import logger from '@adonisjs/core/services/logger'
+import ErrorLoggingService from '#services/error_logging_service'
 
 /**
  * Metric types
@@ -194,7 +195,16 @@ export class MetricsService {
         statusCodes,
       }
     } catch (error) {
-      logger.error('Failed to get request metrics', { error })
+      // Log error with enhanced tracing
+      await ErrorLoggingService.logServiceError(
+        'MetricsService',
+        'getRequestMetrics',
+        error,
+        {
+          errorCategory: 'system',
+          severity: 'medium',
+        }
+      )
       return {
         totalRequests: 0,
         requestsPerSecond: 0,
@@ -247,7 +257,16 @@ export class MetricsService {
         activeWorkers,
       }
     } catch (error) {
-      logger.error('Failed to get processing metrics', { error })
+      // Log error with enhanced tracing
+      await ErrorLoggingService.logServiceError(
+        'MetricsService',
+        'getProcessingMetrics',
+        error,
+        {
+          errorCategory: 'system',
+          severity: 'medium',
+        }
+      )
       return {
         screenshotsGenerated: 0,
         screenshotsPerSecond: 0,

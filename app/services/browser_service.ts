@@ -1,5 +1,6 @@
 import { Browser, BrowserContext, Page, chromium } from 'playwright'
 import logger from '@adonisjs/core/services/logger'
+import ErrorLoggingService from '#services/error_logging_service'
 
 export interface PageOptions {
   width: number
@@ -104,7 +105,16 @@ export class BrowserService {
       logger.info('Browser instance initialized successfully')
       return instance
     } catch (error) {
-      logger.error('Failed to initialize browser instance', { error })
+      // Log error with enhanced tracing
+      await ErrorLoggingService.logServiceError(
+        'BrowserService',
+        'initializeBrowser',
+        error,
+        {
+          errorCategory: 'system',
+          severity: 'critical',
+        }
+      )
       throw new Error(`Failed to initialize browser: ${error.message}`)
     }
   }
@@ -201,7 +211,17 @@ export class BrowserService {
 
       return { page, cleanup }
     } catch (error) {
-      logger.error('Failed to create page', { error })
+      // Log error with enhanced tracing
+      await ErrorLoggingService.logServiceError(
+        'BrowserService',
+        'createPage',
+        error,
+        {
+          context: { options },
+          errorCategory: 'system',
+          severity: 'high',
+        }
+      )
       throw new Error(`Failed to create page: ${error.message}`)
     }
   }

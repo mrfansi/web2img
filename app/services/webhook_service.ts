@@ -1,6 +1,7 @@
 import logger from '@adonisjs/core/services/logger'
 import type { WebhookData } from '../types/screenshot.js'
 import webhookDeliveryTracker from './webhook_delivery_tracker.js'
+import ErrorLoggingService from '#services/error_logging_service'
 
 /**
  * Webhook payload for batch completion notifications
@@ -124,6 +125,7 @@ export class WebhookService {
 
       return deliveryResult
     } catch (error) {
+      const processingTime = Date.now() - startTime
       const deliveryResult: WebhookDeliveryResult = {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error',
@@ -131,12 +133,21 @@ export class WebhookService {
         deliveredAt: new Date(),
       }
 
-      logger.error('Webhook delivery error', {
-        url,
-        jobId: payload.job_id,
-        error: deliveryResult.error,
-        processingTime: Date.now() - startTime,
-      })
+      // Log error with enhanced tracing
+      await ErrorLoggingService.logExternalServiceError(
+        'WebhookService',
+        'deliverWebhook',
+        error,
+        {
+          context: {
+            url,
+            jobId: payload.job_id,
+            processingTime,
+          },
+          errorCategory: 'external',
+          severity: 'medium',
+        }
+      )
 
       return deliveryResult
     }

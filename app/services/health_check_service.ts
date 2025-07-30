@@ -4,6 +4,7 @@ import { FileStorageService } from '#services/file_storage_service'
 import { ImgProxyService } from '#services/imgproxy_service'
 import db from '@adonisjs/lucid/services/db'
 import logger from '@adonisjs/core/services/logger'
+import ErrorLoggingService from '#services/error_logging_service'
 
 /**
  * Health check status enum
@@ -101,6 +102,16 @@ export class HealthCheckService {
         },
       }
     } catch (error) {
+      // Log error with enhanced tracing
+      await ErrorLoggingService.logServiceError(
+        'HealthCheckService',
+        'checkDatabase',
+        error,
+        {
+          errorCategory: 'external',
+          severity: 'critical',
+        }
+      )
       return {
         status: HealthStatus.UNHEALTHY,
         message: `Database connection failed: ${error.message}`,

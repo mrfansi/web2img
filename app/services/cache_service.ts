@@ -3,6 +3,7 @@ import { Exception } from '@adonisjs/core/exceptions'
 import logger from '@adonisjs/core/services/logger'
 import env from '#start/env'
 import redisService from '#services/redis_service'
+import ErrorLoggingService from '#services/error_logging_service'
 
 /**
  * Screenshot options interface for cache key generation
@@ -304,7 +305,16 @@ export class CacheService {
         }
       }, 'get cache stats')
     } catch (error) {
-      logger.error('Failed to get cache stats', { error })
+      // Log error with enhanced tracing
+      await ErrorLoggingService.logServiceError(
+        'CacheService',
+        'getStats',
+        error,
+        {
+          errorCategory: 'system',
+          severity: 'medium',
+        }
+      )
       throw new Exception('Failed to get cache statistics', {
         status: 500,
         code: 'CACHE_STATS_FAILED',
@@ -369,7 +379,16 @@ export class CacheService {
         }
       }, 'get enhanced cache stats')
     } catch (error) {
-      logger.error('Failed to get enhanced cache stats', { error })
+      // Log error with enhanced tracing
+      await ErrorLoggingService.logServiceError(
+        'CacheService',
+        'getEnhancedStats',
+        error,
+        {
+          errorCategory: 'system',
+          severity: 'medium',
+        }
+      )
       throw new Exception('Failed to get enhanced cache statistics', {
         status: 500,
         code: 'CACHE_STATS_FAILED',

@@ -4,6 +4,7 @@ import { Exception } from '@adonisjs/core/exceptions'
 import logger from '@adonisjs/core/services/logger'
 import drive from '@adonisjs/drive/services/main'
 import env from '#start/env'
+import ErrorLoggingService from '#services/error_logging_service'
 
 /**
  * File storage statistics interface
@@ -104,7 +105,17 @@ export class FileStorageService {
 
       logger.info('File storage initialized', { disk: this.diskName })
     } catch (error) {
-      logger.error('Failed to initialize file storage', { error })
+      // Log error with enhanced tracing
+      await ErrorLoggingService.logServiceError(
+        'FileStorageService',
+        'initialize',
+        error,
+        {
+          context: { diskName: this.diskName },
+          errorCategory: 'system',
+          severity: 'critical',
+        }
+      )
       throw new Exception('Failed to initialize file storage', {
         status: 500,
         code: 'STORAGE_INIT_FAILED',
@@ -148,7 +159,17 @@ export class FileStorageService {
 
       return relativePath
     } catch (error) {
-      logger.error('Failed to save file to storage', { filename, category, error })
+      // Log error with enhanced tracing
+      await ErrorLoggingService.logServiceError(
+        'FileStorageService',
+        'saveFile',
+        error,
+        {
+          context: { filename, category, fileSize: buffer.length },
+          errorCategory: 'system',
+          severity: 'high',
+        }
+      )
       throw new Exception('Failed to save file to storage', {
         status: 500,
         code: 'STORAGE_SAVE_FAILED',
@@ -252,7 +273,17 @@ export class FileStorageService {
 
       logger.debug('File deleted from storage', { path: relativePath, disk: this.diskName })
     } catch (error) {
-      logger.error('Failed to delete file from storage', { path: relativePath, error })
+      // Log error with enhanced tracing
+      await ErrorLoggingService.logServiceError(
+        'FileStorageService',
+        'deleteFile',
+        error,
+        {
+          context: { path: relativePath },
+          errorCategory: 'system',
+          severity: 'medium',
+        }
+      )
       throw new Exception('Failed to delete file from storage', {
         status: 500,
         code: 'STORAGE_DELETE_FAILED',

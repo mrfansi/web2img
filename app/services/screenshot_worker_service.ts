@@ -2,6 +2,7 @@ import { Page } from 'playwright'
 import logger from '@adonisjs/core/services/logger'
 import { browserService, PageOptions } from '#services/browser_service'
 import { urlTransformationService } from '#services/url_transformation_service'
+import ErrorLoggingService from '#services/error_logging_service'
 
 export interface ScreenshotOptions {
   format: 'png' | 'jpeg' | 'webp'
@@ -89,15 +90,24 @@ export class ScreenshotWorkerService {
     } catch (error) {
       const processingTime = Date.now() - startTime
 
-      logger.error('Screenshot capture failed', {
-        url: jobData.url,
-        errorName: error.name,
-        errorMessage: error.message,
-        errorStack: error.stack,
-        processingTime,
-        batchId: jobData.batchId,
-        itemId: jobData.itemId,
-      })
+      // Log error with enhanced tracing
+      await ErrorLoggingService.logServiceError(
+        'ScreenshotWorkerService',
+        'processScreenshotJob',
+        error,
+        {
+          context: {
+            url: jobData.url,
+            options: jobData.options,
+            processingTime,
+            batchId: jobData.batchId,
+            itemId: jobData.itemId,
+          },
+          errorCategory: 'system',
+          severity: 'high',
+          performanceMetrics: { duration: processingTime },
+        }
+      )
 
       throw new Error(`Screenshot capture failed for ${jobData.url}: ${error.message}`)
     }
@@ -128,13 +138,20 @@ export class ScreenshotWorkerService {
         height: options.height,
       }
     } catch (error) {
-      logger.error('Failed to capture screenshot', {
-        url,
-        options,
-        errorName: error.name,
-        errorMessage: error.message,
-        errorStack: error.stack,
-      })
+      // Log error with enhanced tracing
+      await ErrorLoggingService.logServiceError(
+        'ScreenshotWorkerService',
+        'captureScreenshot',
+        error,
+        {
+          context: {
+            url,
+            options,
+          },
+          errorCategory: 'system',
+          severity: 'high',
+        }
+      )
       throw new Error(`Failed to capture screenshot for ${url}: ${error.message}`)
     }
   }
