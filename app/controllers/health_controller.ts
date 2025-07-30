@@ -234,6 +234,83 @@ export default class HealthController {
   }
 
   /**
+   * Debug environment variables (temporary endpoint)
+   * GET /debug/env
+   */
+  public async debugEnv({ }: HttpContext) {
+    return {
+      NODE_ENV: process.env.NODE_ENV,
+      REDIS_HOST: process.env.REDIS_HOST,
+      REDIS_PORT: process.env.REDIS_PORT,
+      SCREENSHOT_QUEUE_CONCURRENCY: process.env.SCREENSHOT_QUEUE_CONCURRENCY,
+      SCREENSHOT_QUEUE_REMOVE_ON_COMPLETE: process.env.SCREENSHOT_QUEUE_REMOVE_ON_COMPLETE,
+      SCREENSHOT_QUEUE_REMOVE_ON_FAIL: process.env.SCREENSHOT_QUEUE_REMOVE_ON_FAIL,
+      SCREENSHOT_TIMEOUT: process.env.SCREENSHOT_TIMEOUT,
+      timestamp: new Date().toISOString(),
+    }
+  }
+
+  /**
+   * Test batch job processing (temporary endpoint)
+   * POST /debug/test-batch
+   */
+  public async testBatch({ }: HttpContext) {
+    try {
+      // Import required services
+      const BatchJob = (await import('#models/batch_job')).default
+      const queueService = (await import('#services/queue_service')).default
+      const { getScreenshotQueueWorker } = await import('#services/screenshot_queue_worker')
+      const { getBatchQueueWorker } = await import('#services/batch_queue_worker')
+
+      // Check worker status
+      const screenshotWorker = getScreenshotQueueWorker()
+      const batchWorker = getBatchQueueWorker()
+
+      const workerStatus = {
+        screenshot: {
+          running: screenshotWorker.getWorker().isRunning(),
+          paused: screenshotWorker.getWorker().isPaused(),
+        },
+        batch: {
+          running: batchWorker.getWorker().isRunning(),
+          paused: batchWorker.getWorker().isPaused(),
+        },
+      }
+
+      // Get queue metrics
+      const [screenshotMetrics, batchMetrics] = await Promise.all([
+        queueService.getQueueMetrics('screenshot'),
+        queueService.getQueueMetrics('batch'),
+      ])
+
+      // Create a test batch job
+      const testBatch = await BatchJob.createBatchJob(1, {
+        parallel: 1,
+        timeout: 30000,
+      })
+
+      return {
+        success: true,
+        testBatchId: testBatch.id,
+        workerStatus,
+        queueMetrics: {
+          screenshot: screenshotMetrics,
+          batch: batchMetrics,
+        },
+        message: 'Test batch job created. Check the batch job status manually.',
+        timestamp: new Date().toISOString(),
+      }
+    } catch (error) {
+      return {
+        success: false,
+        error: error.message,
+        stack: error.stack,
+        timestamp: new Date().toISOString(),
+      }
+    }
+  }
+
+  /**
    * Metrics endpoint
    * GET /metrics
    */

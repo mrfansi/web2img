@@ -12,15 +12,15 @@ async function debugBatchWorkers() {
   console.log('Environment:', process.env.NODE_ENV)
   console.log('Redis Host:', process.env.REDIS_HOST)
   console.log('Redis Port:', process.env.REDIS_PORT)
-  
+
   try {
     // Import services
     console.log('\n📦 Importing services...')
-    const { getCentralRedisManager } = await import('../app/services/central_redis_manager.js')
-    const queueService = (await import('../app/services/queue_service.js')).default
-    const { getScreenshotQueueWorker } = await import('../app/services/screenshot_queue_worker.js')
-    const { getBatchQueueWorker } = await import('../app/services/batch_queue_worker.js')
-    
+    const { getCentralRedisManager } = await import('./app/services/central_redis_manager.js')
+    const queueService = (await import('./app/services/queue_service.js')).default
+    const { getScreenshotQueueWorker } = await import('./app/services/screenshot_queue_worker.js')
+    const { getBatchQueueWorker } = await import('./app/services/batch_queue_worker.js')
+
     console.log('✅ Services imported successfully')
 
     // Test Redis connection
@@ -28,7 +28,7 @@ async function debugBatchWorkers() {
     const redisManager = getCentralRedisManager()
     const redisHealth = await redisManager.healthCheck()
     console.log('Redis Health:', redisHealth)
-    
+
     if (!redisHealth.healthy) {
       console.error('❌ Redis is not healthy, this will cause batch jobs to fail')
       return
@@ -38,7 +38,7 @@ async function debugBatchWorkers() {
     console.log('\n📊 Checking queue metrics...')
     const screenshotMetrics = await queueService.getQueueMetrics('screenshot')
     const batchMetrics = await queueService.getQueueMetrics('batch')
-    
+
     console.log('Screenshot Queue:', screenshotMetrics)
     console.log('Batch Queue:', batchMetrics)
 
@@ -46,7 +46,7 @@ async function debugBatchWorkers() {
     console.log('\n👷 Checking worker status...')
     const screenshotWorker = getScreenshotQueueWorker()
     const batchWorker = getBatchQueueWorker()
-    
+
     console.log('Screenshot Worker Running:', screenshotWorker.getWorker().isRunning())
     console.log('Screenshot Worker Paused:', screenshotWorker.getWorker().isPaused())
     console.log('Batch Worker Running:', batchWorker.getWorker().isRunning())
@@ -54,18 +54,18 @@ async function debugBatchWorkers() {
 
     // Test creating a simple batch job
     console.log('\n🧪 Testing batch job creation...')
-    
+
     // Import BatchJob model
-    const BatchJob = (await import('../app/models/batch_job.js')).default
-    
+    const BatchJob = (await import('./app/models/batch_job.js')).default
+
     // Create a test batch job
     const testBatch = await BatchJob.createBatchJob(1, {
       parallel: 1,
       timeout: 30000,
     })
-    
+
     console.log('Test batch job created:', testBatch.id)
-    
+
     // Create batch job data
     const batchJobData = {
       batchId: testBatch.id.toString(),
@@ -94,13 +94,13 @@ async function debugBatchWorkers() {
     console.log('\n⏱️  Monitoring batch job for 60 seconds...')
     let attempts = 0
     const maxAttempts = 60
-    
+
     while (attempts < maxAttempts) {
       await setTimeout(1000)
       await testBatch.refresh()
-      
+
       console.log(`[${attempts + 1}s] Status: ${testBatch.status}, Completed: ${testBatch.completedItems}, Failed: ${testBatch.failedItems}, Results: ${testBatch.results?.length || 0}`)
-      
+
       if (testBatch.status === 'completed' || testBatch.status === 'failed') {
         break
       }
@@ -114,20 +114,20 @@ async function debugBatchWorkers() {
     console.log('Completed Items:', testBatch.completedItems)
     console.log('Failed Items:', testBatch.failedItems)
     console.log('Results Count:', testBatch.results?.length || 0)
-    
+
     if (testBatch.results && testBatch.results.length > 0) {
       console.log('Results:', JSON.stringify(testBatch.results, null, 2))
     } else {
       console.log('❌ No results found - this indicates the bug!')
-      
+
       // Check if there are any screenshot jobs in the queue
       const finalScreenshotMetrics = await queueService.getQueueMetrics('screenshot')
       console.log('Final Screenshot Queue Metrics:', finalScreenshotMetrics)
-      
+
       // Check if the individual screenshot job was created
       const expectedJobId = `${testBatch.id}-debug-test-1`
       console.log('Expected screenshot job ID:', expectedJobId)
-      
+
       try {
         const jobStatus = await queueService.getJobStatus(expectedJobId, 'screenshot')
         if (jobStatus) {
@@ -147,7 +147,7 @@ async function debugBatchWorkers() {
     }
 
     console.log('\n✅ Diagnostics completed')
-    
+
   } catch (error) {
     console.error('❌ Diagnostics failed:', error.message)
     console.error('Stack trace:', error.stack)

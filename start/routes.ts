@@ -110,6 +110,10 @@ router
     router.get('/metrics/requests', '#controllers/health_controller.requestMetrics')
     router.get('/metrics/processing', '#controllers/health_controller.processingMetrics')
     router.get('/metrics/system', '#controllers/health_controller.systemMetrics')
+
+    // Debug endpoints (temporary)
+    router.get('/debug/env', '#controllers/health_controller.debugEnv')
+    router.post('/debug/test-batch', '#controllers/health_controller.testBatch')
   })
   .middleware([middleware.requestLogging(), middleware.metrics()])
 
