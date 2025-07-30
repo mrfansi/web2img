@@ -136,8 +136,22 @@ export class BatchQueueWorker {
         processingTime: result.processingTime,
       }))
 
+      logger.info('Saving batch results to database', {
+        batchId,
+        resultsCount: results.length,
+        dbResultsCount: dbResults.length,
+        completedItems,
+        failedItems,
+        results: results.map(r => ({ itemId: r.itemId, success: r.success, hasImageUrl: !!r.imageUrl }))
+      })
+
       batchJobRecord.results = dbResults
       await batchJobRecord.markCompleted()
+
+      logger.info('Batch job marked as completed in database', {
+        batchId,
+        finalResultsCount: batchJobRecord.results?.length || 0
+      })
 
       const batchResult: BatchResult = {
         batchId,
@@ -306,7 +320,9 @@ export class BatchQueueWorker {
             itemId: jobInfo.itemId,
             jobId: jobInfo.jobId,
             error: error.message,
-            failFast
+            errorStack: error.stack,
+            failFast,
+            errorType: error.constructor.name
           })
 
           if (failFast) {
@@ -401,6 +417,9 @@ export class BatchQueueWorker {
     const startTime = Date.now()
 
     logger.debug('Waiting for screenshot job', { jobId })
+
+    // Give the screenshot job a moment to be created before we start polling
+    await new Promise((resolve) => setTimeout(resolve, 100))
 
     while (Date.now() - startTime < maxWaitTime) {
       const jobStatus = await queueService.getJobStatus(jobId, 'screenshot')
