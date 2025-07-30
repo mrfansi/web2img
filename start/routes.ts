@@ -115,6 +115,7 @@ router
     router.get('/debug/env', '#controllers/health_controller.debugEnv')
     router.get('/debug/screenshot-jobs', '#controllers/health_controller.debugScreenshotJobs')
     router.get('/debug/test-job-status/:jobId', '#controllers/health_controller.testJobStatus')
+    router.get('/debug/test-wait-job/:jobId', '#controllers/health_controller.testWaitJob')
     router.post('/debug/test-batch', '#controllers/health_controller.testBatch')
   })
   .middleware([middleware.requestLogging(), middleware.metrics()])

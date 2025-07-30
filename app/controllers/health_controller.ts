@@ -337,6 +337,50 @@ export default class HealthController {
   }
 
   /**
+   * Test waitForScreenshotJob method directly (temporary endpoint)
+   * GET /debug/test-wait-job/:jobId
+   */
+  public async testWaitJob({ params }: HttpContext) {
+    try {
+      const { jobId } = params
+      // Simulate what waitForScreenshotJob does
+      const queueService = (await import('#services/queue_service')).default
+      const jobStatus = await queueService.getJobStatus(jobId, 'screenshot')
+
+      let result = null
+      let error = null
+
+      if (!jobStatus) {
+        error = 'Job not found'
+      } else if (jobStatus.finishedOn && jobStatus.returnvalue) {
+        result = jobStatus.returnvalue
+      } else if (jobStatus.finishedOn && !jobStatus.returnvalue && !jobStatus.failedReason) {
+        error = 'Job completed but returned no result'
+      } else if (jobStatus.failedReason) {
+        error = jobStatus.failedReason
+      } else {
+        error = 'Job still processing or unknown state'
+      }
+
+      return {
+        success: true,
+        jobId,
+        jobStatus,
+        result,
+        error,
+        timestamp: new Date().toISOString(),
+      }
+    } catch (error) {
+      return {
+        success: false,
+        error: error.message,
+        stack: error.stack,
+        timestamp: new Date().toISOString(),
+      }
+    }
+  }
+
+  /**
    * Test batch job processing (temporary endpoint)
    * POST /debug/test-batch
    */
