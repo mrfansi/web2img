@@ -8,6 +8,7 @@ import ErrorLog, { ErrorLevel } from '#models/error_log'
 import vine from '@vinejs/vine'
 import { changePasswordValidator } from '#validators/auth_validators'
 import hash from '@adonisjs/core/services/hash'
+import ErrorLoggingService from '#services/error_logging_service'
 
 /**
  * Dashboard controller for web interface and API key management
@@ -615,10 +616,11 @@ export default class DashboardController {
    * GET /dashboard/api/errors
    */
   public async getErrorLogs({ request, response }: HttpContext) {
+    const level = request.input('level') as ErrorLevel | undefined
+    const limit = request.input('limit', 100)
+    const timeframe = request.input('timeframe', 'day') as 'hour' | 'day' | 'week'
+
     try {
-      const level = request.input('level') as ErrorLevel | undefined
-      const limit = request.input('limit', 100)
-      const timeframe = request.input('timeframe', 'day') as 'hour' | 'day' | 'week'
 
       const errors = await ErrorLog.getRecentErrors(limit, level)
       const stats = await ErrorLog.getErrorStats(timeframe)
@@ -641,6 +643,24 @@ export default class DashboardController {
         },
       }
     } catch (error) {
+      // Log the error to both application logger and database
+      await ErrorLoggingService.logControllerError(
+        'DashboardController',
+        'getErrorLogs',
+        error,
+        {
+          context: {
+            level,
+            limit,
+            timeframe,
+          },
+          endpoint: request.url(),
+          method: request.method(),
+          userAgent: request.header('user-agent'),
+          ipAddress: request.ip(),
+        }
+      )
+
       response.status(500)
       return {
         detail: {
@@ -657,27 +677,90 @@ export default class DashboardController {
    */
   public async createTestError({ request, response }: HttpContext) {
     try {
-      const { level, message, context } = request.only(['level', 'message', 'context'])
+      const { level, message, context, testType } = request.only(['level', 'message', 'context', 'testType'])
 
-      const errorLog = await ErrorLog.logError({
-        level: level || ErrorLevel.ERROR,
-        message: message || 'Test error from dashboard',
-        context: context || { source: 'dashboard', test: true },
-        endpoint: '/dashboard/api/errors',
-        method: 'POST',
-        ipAddress: request.ip(),
-        userAgent: request.header('user-agent'),
-      })
+      // Generate different types of test errors
+      if (testType === 'exception') {
+        // Test exception handling
+        throw new Error('Test exception to verify error logging')
+      }
+
+      if (testType === 'controller_error') {
+        // Test controller error logging
+        await ErrorLoggingService.logControllerError(
+          'DashboardController',
+          'createTestError',
+          'Test controller error via ErrorLoggingService',
+          {
+            context: { testType: 'controller_error', source: 'dashboard' },
+            endpoint: request.url(),
+            method: request.method(),
+            userAgent: request.header('user-agent'),
+            ipAddress: request.ip(),
+          }
+        )
+      } else if (testType === 'http_error') {
+        // Test HTTP error logging
+        await ErrorLoggingService.logHttpError(
+          500,
+          'Test HTTP error via ErrorLoggingService',
+          {
+            context: { testType: 'http_error', source: 'dashboard' },
+            endpoint: request.url(),
+            method: request.method(),
+            userAgent: request.header('user-agent'),
+            ipAddress: request.ip(),
+          }
+        )
+      } else {
+        // Test direct error log creation
+        const errorLog = await ErrorLog.logError({
+          level: level || ErrorLevel.ERROR,
+          message: message || 'Test error from dashboard',
+          context: context || { source: 'dashboard', test: true },
+          endpoint: '/dashboard/api/errors',
+          method: 'POST',
+          ipAddress: request.ip(),
+          userAgent: request.header('user-agent'),
+        })
+
+        return {
+          data: {
+            id: errorLog.id,
+            level: errorLog.level,
+            message: errorLog.message,
+            createdAt: errorLog.createdAt,
+          },
+        }
+      }
 
       return {
         data: {
-          id: errorLog.id,
-          level: errorLog.level,
-          message: errorLog.message,
-          createdAt: errorLog.createdAt,
+          message: 'Test error logged successfully',
+          testType: testType || 'direct',
         },
       }
     } catch (error) {
+      // This catch block will test the ErrorLoggingService
+      await ErrorLoggingService.logControllerError(
+        'DashboardController',
+        'createTestError',
+        error,
+        {
+          context: {
+            originalRequest: {
+              level: request.input('level'),
+              message: request.input('message'),
+              testType: request.input('testType'),
+            },
+          },
+          endpoint: request.url(),
+          method: request.method(),
+          userAgent: request.header('user-agent'),
+          ipAddress: request.ip(),
+        }
+      )
+
       response.status(500)
       return {
         detail: {

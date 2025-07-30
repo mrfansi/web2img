@@ -11,6 +11,7 @@ import imgProxyService from '#services/imgproxy_service'
 import queueService from '#services/queue_service'
 import BatchJob, { BatchJobStatus } from '#models/batch_job'
 import { DateTime } from 'luxon'
+import ErrorLoggingService from '#services/error_logging_service'
 
 /**
  * Screenshot controller for handling single and batch screenshot requests
@@ -215,11 +216,23 @@ export default class ScreenshotController {
     } catch (error) {
       const processingTime = Date.now() - startTime
 
-      logger.error('Screenshot processing failed', {
-        url: request.input('url'),
-        error: error.message,
-        processingTime,
-      })
+      // Log error to both application logger and database
+      await ErrorLoggingService.logControllerError(
+        'ScreenshotController',
+        'single',
+        error,
+        {
+          context: {
+            url: request.input('url'),
+            processingTime,
+            errorCode: error.code,
+          },
+          endpoint: request.url(),
+          method: request.method(),
+          userAgent: request.header('user-agent'),
+          ipAddress: request.ip(),
+        }
+      )
 
       // Handle validation errors
       if (error.messages) {

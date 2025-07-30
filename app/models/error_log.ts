@@ -59,7 +59,7 @@ export default class ErrorLog extends BaseModel {
     userAgent?: string
     ipAddress?: string
     correlationId?: string
-    apiKeyId?: number
+    apiKeyId?: number | null
   }): Promise<ErrorLog> {
     return await ErrorLog.create({
       level: data.level,

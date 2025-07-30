@@ -4,6 +4,7 @@ import { HttpContext, ExceptionHandler } from '@adonisjs/core/http'
 import { ScreenshotException } from '#exceptions/screenshot_exceptions'
 import { CorrelationService } from '#services/correlation_service'
 import { ErrorCode } from '#types/errors'
+import ErrorLog, { ErrorLevel } from '#models/error_log'
 
 export default class HttpExceptionHandler extends ExceptionHandler {
   /**
@@ -198,6 +199,16 @@ export default class HttpExceptionHandler extends ExceptionHandler {
     const correlationId = CorrelationService.getOrCreateCorrelationId(ctx)
     const errorContext = CorrelationService.createErrorContext(ctx)
 
+    // Prepare common error log data
+    const errorLogData = {
+      endpoint: ctx.request.url(),
+      method: ctx.request.method(),
+      userAgent: ctx.request.header('user-agent'),
+      ipAddress: ctx.request.ip(),
+      correlationId,
+      apiKeyId: ctx.apiKey?.id || null,
+    }
+
     // Log screenshot exceptions with full context
     if (error instanceof ScreenshotException) {
       logger.error('Screenshot exception occurred', {
@@ -210,7 +221,30 @@ export default class HttpExceptionHandler extends ExceptionHandler {
         request: errorContext,
         correlationId,
       })
+
+      // Save to database for dashboard
+      try {
+        await ErrorLog.logError({
+          level: ErrorLevel.ERROR,
+          message: error.message,
+          stack: error.stack,
+          context: {
+            code: error.code,
+            context: error.context,
+            request: errorContext,
+          },
+          ...errorLogData,
+        })
+      } catch (dbError) {
+        logger.error('Failed to save error to database', { dbError })
+      }
       return
+    }
+
+    // Determine error level based on error type
+    let errorLevel = ErrorLevel.ERROR
+    if (error instanceof Error && error.name === 'FatalError') {
+      errorLevel = ErrorLevel.FATAL
     }
 
     // Log other errors with context
@@ -223,6 +257,22 @@ export default class HttpExceptionHandler extends ExceptionHandler {
       request: errorContext,
       correlationId,
     })
+
+    // Save to database for dashboard
+    try {
+      await ErrorLog.logError({
+        level: errorLevel,
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        context: {
+          name: error instanceof Error ? error.name : 'Unknown',
+          request: errorContext,
+        },
+        ...errorLogData,
+      })
+    } catch (dbError) {
+      logger.error('Failed to save error to database', { dbError })
+    }
 
     return super.report(error, ctx)
   }
