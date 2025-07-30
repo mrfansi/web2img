@@ -262,7 +262,6 @@ export class BatchQueueWorker {
   ): Promise<BatchResult['results']> {
     const results: BatchResult['results'] = []
     const activeJobs = new Map<string, Promise<JobResult>>()
-    let jobIndex = 0
     let completedCount = 0
     let failedCount = 0
 
@@ -353,36 +352,17 @@ export class BatchQueueWorker {
     }
 
     try {
-      // Start initial batch of jobs
-      while (jobIndex < jobs.length && activeJobs.size < concurrency) {
-        startJob(jobs[jobIndex])
-        jobIndex++
-      }
+      // Simplified approach: process all jobs with Promise.all for now
+      // This ensures we wait for ALL jobs to complete before proceeding
+      const allPromises = jobs.map(job => startJob(job))
 
-      // Process remaining jobs as others complete
-      while (activeJobs.size > 0 || jobIndex < jobs.length) {
-        if (activeJobs.size > 0) {
-          // Wait for at least one job to complete
-          // Create a promise that resolves when any job completes AND is removed from activeJobs
-          const activePromises = Array.from(activeJobs.values())
-          await Promise.race(activePromises.map(async (promise) => {
-            try {
-              await promise
-            } catch (error) {
-              // Ignore errors here, they're handled in the individual promise chains
-            }
-          }))
+      logger.info('Waiting for all screenshot jobs to complete', {
+        totalJobs: jobs.length,
+        concurrency
+      })
 
-          // Small delay to ensure the .finally() block has executed and removed the job
-          await new Promise(resolve => setTimeout(resolve, 10))
-        }
-
-        // Start new jobs if we have capacity and remaining jobs
-        while (jobIndex < jobs.length && activeJobs.size < concurrency) {
-          startJob(jobs[jobIndex])
-          jobIndex++
-        }
-      }
+      // Wait for all jobs to complete
+      await Promise.allSettled(allPromises)
 
       logger.info('Batch processing completed', {
         totalJobs: jobs.length,
