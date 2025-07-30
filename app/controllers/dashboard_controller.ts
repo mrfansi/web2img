@@ -106,7 +106,7 @@ export default class DashboardController {
    * API endpoint to get dashboard data
    * GET /dashboard/api/data
    */
-  public async getDashboardData({ response }: HttpContext) {
+  public async getDashboardData({ request, response }: HttpContext) {
     try {
       // Get system health
       const health = await this.healthCheckService.checkSystemHealth()
@@ -142,6 +142,19 @@ export default class DashboardController {
         },
       }
     } catch (error) {
+      // Log error to both application logger and database
+      await ErrorLoggingService.logControllerError(
+        'DashboardController',
+        'index',
+        error,
+        {
+          endpoint: request.url(),
+          method: request.method(),
+          userAgent: request.header('user-agent'),
+          ipAddress: request.ip(),
+        }
+      )
+
       response.status(500)
       return {
         detail: {
@@ -248,7 +261,7 @@ export default class DashboardController {
    * Get all API keys for dashboard
    * GET /dashboard/api/keys
    */
-  public async getApiKeys({ response }: HttpContext) {
+  public async getApiKeys({ request, response }: HttpContext) {
     try {
       const apiKeys = await ApiKey.query().preload('user').orderBy('created_at', 'desc').limit(50) // Limit to last 50 keys
 
@@ -268,6 +281,19 @@ export default class DashboardController {
         })),
       }
     } catch (error) {
+      // Log error to both application logger and database
+      await ErrorLoggingService.logControllerError(
+        'DashboardController',
+        'getApiKeys',
+        error,
+        {
+          endpoint: request.url(),
+          method: request.method(),
+          userAgent: request.header('user-agent'),
+          ipAddress: request.ip(),
+        }
+      )
+
       response.status(500)
       return {
         detail: {
@@ -316,6 +342,21 @@ export default class DashboardController {
         },
       }
     } catch (error) {
+
+
+      // Log error to both application logger and database
+      await ErrorLoggingService.logControllerError(
+        'DashboardController',
+        'createApiKey',
+        error,
+        {
+          endpoint: request.url(),
+          method: request.method(),
+          userAgent: request.header('user-agent'),
+          ipAddress: request.ip(),
+        }
+      )
+
       if (error.messages) {
         response.status(422)
         return {
@@ -341,7 +382,7 @@ export default class DashboardController {
    * Toggle API key active status
    * PATCH /dashboard/api/keys/:id/toggle
    */
-  public async toggleApiKey({ params, response }: HttpContext) {
+  public async toggleApiKey({ request, params, response }: HttpContext) {
     try {
       const apiKey = await ApiKey.find(params.id)
 
@@ -379,6 +420,22 @@ export default class DashboardController {
         },
       }
     } catch (error) {
+      // Log error to both application logger and database
+      await ErrorLoggingService.logControllerError(
+        'DashboardController',
+        'toggleApiKey',
+        error,
+        {
+          context: {
+            apiKeyId: params.id,
+          },
+          endpoint: request.url(),
+          method: request.method(),
+          userAgent: request.header('user-agent'),
+          ipAddress: request.ip(),
+        }
+      )
+
       response.status(500)
       return {
         detail: {
@@ -393,7 +450,7 @@ export default class DashboardController {
    * Delete an API key
    * DELETE /dashboard/api/keys/:id
    */
-  public async deleteApiKey({ params, response }: HttpContext) {
+  public async deleteApiKey({ request, params, response }: HttpContext) {
     try {
       const apiKey = await ApiKey.find(params.id)
 
@@ -416,6 +473,22 @@ export default class DashboardController {
         },
       }
     } catch (error) {
+      // Log error to both application logger and database
+      await ErrorLoggingService.logControllerError(
+        'DashboardController',
+        'deleteApiKey',
+        error,
+        {
+          context: {
+            apiKeyId: params.id,
+          },
+          endpoint: request.url(),
+          method: request.method(),
+          userAgent: request.header('user-agent'),
+          ipAddress: request.ip(),
+        }
+      )
+
       response.status(500)
       return {
         detail: {
@@ -601,6 +674,23 @@ export default class DashboardController {
         },
       }
     } catch (error) {
+      // Log error to both application logger and database
+      await ErrorLoggingService.logControllerError(
+        'DashboardController',
+        'getApiKeyUsage',
+        error,
+        {
+          context: {
+            apiKeyId: params.id,
+            timeframe: request.input('timeframe', 'day'),
+          },
+          endpoint: request.url(),
+          method: request.method(),
+          userAgent: request.header('user-agent'),
+          ipAddress: request.ip(),
+        }
+      )
+
       response.status(500)
       return {
         detail: {
@@ -817,6 +907,22 @@ export default class DashboardController {
         },
       }
     } catch (error) {
+      // Log error to both application logger and database
+      await ErrorLoggingService.logControllerError(
+        'DashboardController',
+        'getUsageOverview',
+        error,
+        {
+          context: {
+            timeframe: request.input('timeframe', 'day'),
+          },
+          endpoint: request.url(),
+          method: request.method(),
+          userAgent: request.header('user-agent'),
+          ipAddress: request.ip(),
+        }
+      )
+
       response.status(500)
       return {
         detail: {
@@ -863,7 +969,7 @@ export default class DashboardController {
    * Get current user information
    * GET /dashboard/api/user
    */
-  public async getCurrentUser({ user, response }: HttpContext) {
+  public async getCurrentUser({ request, user, response }: HttpContext) {
     try {
       if (!user) {
         response.status(401)
@@ -884,6 +990,19 @@ export default class DashboardController {
         },
       }
     } catch (error) {
+      // Log error to both application logger and database
+      await ErrorLoggingService.logControllerError(
+        'DashboardController',
+        'getUser',
+        error,
+        {
+          endpoint: request.url(),
+          method: request.method(),
+          userAgent: request.header('user-agent'),
+          ipAddress: request.ip(),
+        }
+      )
+
       response.status(500)
       return {
         detail: {
@@ -985,6 +1104,21 @@ export default class DashboardController {
         },
       }
     } catch (error) {
+
+
+      // Log error to both application logger and database
+      await ErrorLoggingService.logControllerError(
+        'DashboardController',
+        'changePassword',
+        error,
+        {
+          endpoint: request.url(),
+          method: request.method(),
+          userAgent: request.header('user-agent'),
+          ipAddress: request.ip(),
+        }
+      )
+
       if (error.messages) {
         response.status(422)
         return {

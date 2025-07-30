@@ -465,11 +465,23 @@ export default class ScreenshotController {
             scheduledTime: scheduledAt.toISO(),
           })
         } catch (queueError) {
-          logger.error('Failed to schedule batch job', {
-            error: queueError.message,
-            stack: queueError.stack,
-            batchJobData,
-          })
+          // Log queue error to both application logger and database
+          await ErrorLoggingService.logControllerError(
+            'ScreenshotController',
+            'batch_queue_scheduling',
+            queueError,
+            {
+              context: {
+                batchJobId: batchJob.id,
+                scheduledTime: scheduledAt.toISO(),
+                batchJobData,
+              },
+              endpoint: request.url(),
+              method: request.method(),
+              userAgent: request.header('user-agent'),
+              ipAddress: request.ip(),
+            }
+          )
           throw queueError
         }
       } else {
@@ -508,10 +520,22 @@ export default class ScreenshotController {
     } catch (error) {
       const processingTime = Date.now() - startTime
 
-      logger.error('Batch job creation failed', {
-        error: error.message,
-        processingTime,
-      })
+      // Log error to both application logger and database
+      await ErrorLoggingService.logControllerError(
+        'ScreenshotController',
+        'batch',
+        error,
+        {
+          context: {
+            processingTime,
+            errorCode: error.code,
+          },
+          endpoint: request.url(),
+          method: request.method(),
+          userAgent: request.header('user-agent'),
+          ipAddress: request.ip(),
+        }
+      )
 
       // Handle validation errors
       if (error.messages) {
@@ -704,7 +728,7 @@ export default class ScreenshotController {
    * Get active batch jobs
    * GET /batch/screenshots/active
    */
-  async getActiveBatchJobs({ response }: HttpContext) {
+  async getActiveBatchJobs({ request, response }: HttpContext) {
     try {
       // Find all batch jobs with status 'processing' or 'scheduled'
       const activeJobs = await BatchJob.query()
@@ -733,9 +757,18 @@ export default class ScreenshotController {
         jobs: formattedJobs,
       })
     } catch (error) {
-      logger.error('Failed to get active batch jobs', {
-        error: error.message,
-      })
+      // Log error to both application logger and database
+      await ErrorLoggingService.logControllerError(
+        'ScreenshotController',
+        'getActiveBatchJobs',
+        error,
+        {
+          endpoint: request.url(),
+          method: request.method(),
+          userAgent: request.header('user-agent'),
+          ipAddress: request.ip(),
+        }
+      )
 
       return response.status(500).json({
         detail: {
@@ -921,10 +954,21 @@ export default class ScreenshotController {
         failed_results: batchJob.failedResults,
       })
     } catch (error) {
-      logger.error('Failed to schedule batch job', {
-        jobId: params.job_id,
-        error: error.message,
-      })
+      // Log error to both application logger and database
+      await ErrorLoggingService.logControllerError(
+        'ScreenshotController',
+        'scheduleBatchJob',
+        error,
+        {
+          context: {
+            jobId: params.job_id,
+          },
+          endpoint: request.url(),
+          method: request.method(),
+          userAgent: request.header('user-agent'),
+          ipAddress: request.ip(),
+        }
+      )
 
       return response.status(500).json({
         detail: {
@@ -1077,10 +1121,21 @@ export default class ScreenshotController {
         failed_results: batchJob.failedResults,
       })
     } catch (error) {
-      logger.error('Failed to set batch job recurrence', {
-        jobId: params.job_id,
-        error: error.message,
-      })
+      // Log error to both application logger and database
+      await ErrorLoggingService.logControllerError(
+        'ScreenshotController',
+        'setBatchJobRecurrence',
+        error,
+        {
+          context: {
+            jobId: params.job_id,
+          },
+          endpoint: request.url(),
+          method: request.method(),
+          userAgent: request.header('user-agent'),
+          ipAddress: request.ip(),
+        }
+      )
 
       return response.status(500).json({
         detail: {
@@ -1167,7 +1222,7 @@ export default class ScreenshotController {
    * Cancel a batch job
    * POST /batch/screenshots/:job_id/cancel
    */
-  async cancelBatchJob({ params, response }: HttpContext) {
+  async cancelBatchJob({ request, params, response }: HttpContext) {
     try {
       const jobId = params.job_id
 
@@ -1261,10 +1316,21 @@ export default class ScreenshotController {
         failed_results: batchJob.failedResults,
       })
     } catch (error) {
-      logger.error('Failed to cancel batch job', {
-        jobId: params.job_id,
-        error: error.message,
-      })
+      // Log error to both application logger and database
+      await ErrorLoggingService.logControllerError(
+        'ScreenshotController',
+        'cancelBatchJob',
+        error,
+        {
+          context: {
+            jobId: params.job_id,
+          },
+          endpoint: request.url(),
+          method: request.method(),
+          userAgent: request.header('user-agent'),
+          ipAddress: request.ip(),
+        }
+      )
 
       return response.status(500).json({
         detail: {
@@ -1394,7 +1460,7 @@ export default class ScreenshotController {
    * Get detailed batch job results
    * GET /batch/screenshots/:job_id/results
    */
-  async getBatchJobResults({ params, response }: HttpContext) {
+  async getBatchJobResults({ request, params, response }: HttpContext) {
     try {
       const jobId = params.job_id
 
@@ -1454,10 +1520,21 @@ export default class ScreenshotController {
         results: formattedResults,
       })
     } catch (error) {
-      logger.error('Failed to get batch job results', {
-        jobId: params.job_id,
-        error: error.message,
-      })
+      // Log error to both application logger and database
+      await ErrorLoggingService.logControllerError(
+        'ScreenshotController',
+        'getBatchJobResults',
+        error,
+        {
+          context: {
+            jobId: params.job_id,
+          },
+          endpoint: request.url(),
+          method: request.method(),
+          userAgent: request.header('user-agent'),
+          ipAddress: request.ip(),
+        }
+      )
 
       return response.status(500).json({
         detail: {
@@ -1472,7 +1549,7 @@ export default class ScreenshotController {
    * Get batch job status
    * GET /batch/screenshots/{job_id}
    */
-  async getBatchStatus({ params, response }: HttpContext) {
+  async getBatchStatus({ request, params, response }: HttpContext) {
     try {
       const jobId = params.job_id
 
@@ -1523,10 +1600,21 @@ export default class ScreenshotController {
         failed_results: batchJob.failedResults,
       })
     } catch (error) {
-      logger.error('Failed to get batch job status', {
-        jobId: params.job_id,
-        error: error.message,
-      })
+      // Log error to both application logger and database
+      await ErrorLoggingService.logControllerError(
+        'ScreenshotController',
+        'getBatchJobStatus',
+        error,
+        {
+          context: {
+            jobId: params.job_id,
+          },
+          endpoint: request.url(),
+          method: request.method(),
+          userAgent: request.header('user-agent'),
+          ipAddress: request.ip(),
+        }
+      )
 
       return response.status(500).json({
         detail: {
@@ -1606,7 +1694,7 @@ export default class ScreenshotController {
    * Get cache statistics
    * GET /cache/stats
    */
-  async getCacheStats({ response }: HttpContext) {
+  async getCacheStats({ request, response }: HttpContext) {
     try {
       const stats = await cacheService.getEnhancedStats()
 
@@ -1620,9 +1708,18 @@ export default class ScreenshotController {
 
       return response.json(stats)
     } catch (error) {
-      logger.error('Failed to get cache statistics', {
-        error: error.message,
-      })
+      // Log error to both application logger and database
+      await ErrorLoggingService.logControllerError(
+        'ScreenshotController',
+        'getCacheStats',
+        error,
+        {
+          endpoint: request.url(),
+          method: request.method(),
+          userAgent: request.header('user-agent'),
+          ipAddress: request.ip(),
+        }
+      )
 
       return response.status(500).json({
         detail: {
@@ -1669,7 +1766,7 @@ export default class ScreenshotController {
    * Clear entire cache
    * DELETE /cache
    */
-  async clearCache({ response }: HttpContext) {
+  async clearCache({ request, response }: HttpContext) {
     try {
       await cacheService.flush()
 
@@ -1677,9 +1774,18 @@ export default class ScreenshotController {
 
       return response.status(204).send('')
     } catch (error) {
-      logger.error('Failed to clear cache', {
-        error: error.message,
-      })
+      // Log error to both application logger and database
+      await ErrorLoggingService.logControllerError(
+        'ScreenshotController',
+        'clearCache',
+        error,
+        {
+          endpoint: request.url(),
+          method: request.method(),
+          userAgent: request.header('user-agent'),
+          ipAddress: request.ip(),
+        }
+      )
 
       return response.status(500).json({
         detail: {
@@ -1790,10 +1896,21 @@ export default class ScreenshotController {
         invalidated: invalidatedCount,
       })
     } catch (error) {
-      logger.error('Failed to invalidate cache for URL', {
-        url: request.input('url'),
-        error: error.message,
-      })
+      // Log error to both application logger and database
+      await ErrorLoggingService.logControllerError(
+        'ScreenshotController',
+        'invalidateCache',
+        error,
+        {
+          context: {
+            url: request.input('url'),
+          },
+          endpoint: request.url(),
+          method: request.method(),
+          userAgent: request.header('user-agent'),
+          ipAddress: request.ip(),
+        }
+      )
 
       return response.status(500).json({
         detail: {

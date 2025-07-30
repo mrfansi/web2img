@@ -1,6 +1,7 @@
 import { HttpContext } from '@adonisjs/core/http'
 import { HealthCheckService, HealthStatus } from '#services/health_check_service'
 import { MetricsService } from '#services/metrics_service'
+import ErrorLoggingService from '#services/error_logging_service'
 
 /**
  * Controller for health checks and metrics endpoints
@@ -190,7 +191,7 @@ export default class HealthController {
    * Liveness probe endpoint (for Kubernetes/Docker)
    * GET /health/live
    */
-  public async live({ response }: HttpContext) {
+  public async live({ request, response }: HttpContext) {
     // Basic liveness check - if we can respond, we're alive
     try {
       const uptime = process.uptime()
@@ -207,6 +208,19 @@ export default class HealthController {
         timestamp: new Date(),
       }
     } catch (error) {
+      // Log error to both application logger and database
+      await ErrorLoggingService.logControllerError(
+        'HealthController',
+        'alive',
+        error,
+        {
+          endpoint: request.url(),
+          method: request.method(),
+          userAgent: request.header('user-agent'),
+          ipAddress: request.ip(),
+        }
+      )
+
       response.status(500)
       return {
         alive: false,
@@ -220,11 +234,24 @@ export default class HealthController {
    * Metrics endpoint
    * GET /metrics
    */
-  public async metrics({ response }: HttpContext) {
+  public async metrics({ request, response }: HttpContext) {
     try {
       const dashboard = await this.metricsService.getMetricsDashboard()
       return dashboard
     } catch (error) {
+      // Log error to both application logger and database
+      await ErrorLoggingService.logControllerError(
+        'HealthController',
+        'metrics',
+        error,
+        {
+          endpoint: request.url(),
+          method: request.method(),
+          userAgent: request.header('user-agent'),
+          ipAddress: request.ip(),
+        }
+      )
+
       response.status(500)
       return {
         error: 'Failed to retrieve metrics',
@@ -238,7 +265,7 @@ export default class HealthController {
    * Request metrics endpoint
    * GET /metrics/requests
    */
-  public async requestMetrics({ response }: HttpContext) {
+  public async requestMetrics({ request, response }: HttpContext) {
     try {
       const metrics = await this.metricsService.getRequestMetrics()
       return {
@@ -246,6 +273,19 @@ export default class HealthController {
         timestamp: new Date(),
       }
     } catch (error) {
+      // Log error to both application logger and database
+      await ErrorLoggingService.logControllerError(
+        'HealthController',
+        'requestMetrics',
+        error,
+        {
+          endpoint: request.url(),
+          method: request.method(),
+          userAgent: request.header('user-agent'),
+          ipAddress: request.ip(),
+        }
+      )
+
       response.status(500)
       return {
         error: 'Failed to retrieve request metrics',
@@ -259,7 +299,7 @@ export default class HealthController {
    * Processing metrics endpoint
    * GET /metrics/processing
    */
-  public async processingMetrics({ response }: HttpContext) {
+  public async processingMetrics({ request, response }: HttpContext) {
     try {
       const metrics = await this.metricsService.getProcessingMetrics()
       return {
@@ -267,6 +307,19 @@ export default class HealthController {
         timestamp: new Date(),
       }
     } catch (error) {
+      // Log error to both application logger and database
+      await ErrorLoggingService.logControllerError(
+        'HealthController',
+        'processingMetrics',
+        error,
+        {
+          endpoint: request.url(),
+          method: request.method(),
+          userAgent: request.header('user-agent'),
+          ipAddress: request.ip(),
+        }
+      )
+
       response.status(500)
       return {
         error: 'Failed to retrieve processing metrics',
@@ -280,7 +333,7 @@ export default class HealthController {
    * System metrics endpoint
    * GET /metrics/system
    */
-  public async systemMetrics({ response }: HttpContext) {
+  public async systemMetrics({ request, response }: HttpContext) {
     try {
       const metrics = await this.metricsService.getSystemMetrics()
       return {
@@ -288,6 +341,19 @@ export default class HealthController {
         timestamp: new Date(),
       }
     } catch (error) {
+      // Log error to both application logger and database
+      await ErrorLoggingService.logControllerError(
+        'HealthController',
+        'systemMetrics',
+        error,
+        {
+          endpoint: request.url(),
+          method: request.method(),
+          userAgent: request.header('user-agent'),
+          ipAddress: request.ip(),
+        }
+      )
+
       response.status(500)
       return {
         error: 'Failed to retrieve system metrics',
