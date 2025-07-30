@@ -127,36 +127,36 @@
   - Return 422 validation error format matching Postman collection
   - _Requirements: 11.1, 11.2, 11.3, 11.4, 11.5, 11.6_
 
-- [ ] 7. Add new routes matching Postman collection structure
-- [ ] 7.1 Register batch management routes in correct order
+- [x] 7. Add new routes matching Postman collection structure
+- [x] 7.1 Register batch management routes in correct order
   - Add GET /batch/screenshots/active before parameterized routes to prevent conflicts
   - Add POST /batch/screenshots/:job_id/schedule, /recurrence, /cancel routes
   - Add GET /batch/screenshots/:job_id/results route
   - Apply existing middleware: requestLogging, apiKeyAuth, rateLimit, metrics
   - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5, 5.1, 5.2, 5.3, 5.4, 5.5, 5.6, 6.1, 6.2, 6.3, 6.4, 6.5, 6.6, 6.7, 7.1, 7.2, 7.3, 7.4, 7.5, 7.6, 8.1, 8.2, 8.3, 8.4, 8.5, 8.6_
 
-- [ ] 7.2 Register cache management routes matching Postman collection
+- [x] 7.2 Register cache management routes matching Postman collection
   - Add GET /cache/stats, DELETE /cache, DELETE /cache/url routes
   - Configure proper HTTP methods and query parameter handling for /cache/url
   - Apply security middleware and ensure proper response status codes
   - _Requirements: 9.1, 9.2, 9.3, 9.4, 9.5, 10.1, 10.2, 10.3, 10.4, 10.5, 11.1, 11.2, 11.3, 11.4, 11.5, 11.6_
 
-- [ ] 8. Implement comprehensive testing matching Postman collection scenarios
-- [ ] 8.1 Create unit tests for all new controller methods
+- [x] 8. Implement comprehensive testing matching Postman collection scenarios
+- [x] 8.1 Create unit tests for all new controller methods
   - Test response formats exactly match Postman collection examples
   - Test validation errors return 422 status with proper error format
   - Test success responses return correct status codes (200, 202, 204)
   - Verify all request/response field names match Postman collection
   - _Requirements: All requirements_
 
-- [ ] 8.2 Create integration tests for complete API workflows
+- [x] 8.2 Create integration tests for complete API workflows
   - Test batch job creation → scheduling → recurrence → cancellation flow
   - Test cache stats → clear → URL invalidation workflow
   - Verify webhook delivery with authentication headers
   - Test error scenarios match Postman collection error responses
   - _Requirements: All requirements_
 
-- [ ] 8.3 Add performance tests for enhanced endpoints
+- [x] 8.3 Add performance tests for enhanced endpoints
   - Test cache hit/miss tracking doesn't impact performance
   - Verify batch job processing with enhanced status tracking
   - Test concurrent cache operations and invalidation
