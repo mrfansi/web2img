@@ -734,6 +734,69 @@ export default class ScreenshotController {
   }
 
   /**
+   * @swagger
+   * /batch/screenshots/{job_id}/schedule:
+   *   post:
+   *     summary: Schedule a batch job for future execution
+   *     description: Schedule a batch job to run at a specific time
+   *     tags:
+   *       - Batch Screenshots
+   *     parameters:
+   *       - in: path
+   *         name: job_id
+   *         required: true
+   *         schema:
+   *           type: string
+   *         description: Batch job ID
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             required:
+   *               - scheduled_time
+   *             properties:
+   *               scheduled_time:
+   *                 type: string
+   *                 format: date-time
+   *                 description: ISO 8601 timestamp for when to execute the job
+   *                 example: "2024-01-15T10:30:00Z"
+   *     responses:
+   *       202:
+   *         description: Batch job scheduled successfully
+   *         content:
+   *           application/json:
+   *             schema:
+   *               $ref: '#/components/schemas/BatchJobStatus'
+   *       400:
+   *         description: Invalid request parameters
+   *         content:
+   *           application/json:
+   *             schema:
+   *               $ref: '#/components/schemas/ErrorResponse'
+   *       404:
+   *         description: Batch job not found
+   *         content:
+   *           application/json:
+   *             schema:
+   *               $ref: '#/components/schemas/ErrorResponse'
+   *       422:
+   *         description: Validation failed
+   *         content:
+   *           application/json:
+   *             schema:
+   *               $ref: '#/components/schemas/ErrorResponse'
+   *       500:
+   *         description: Failed to schedule batch job
+   *         content:
+   *           application/json:
+   *             schema:
+   *               $ref: '#/components/schemas/ErrorResponse'
+   *     security:
+   *       - ApiKeyAuth: []
+   */
+  /**
    * Schedule a batch job for future execution
    * POST /batch/screenshots/:job_id/schedule
    */
@@ -1016,6 +1079,78 @@ export default class ScreenshotController {
   }
 
   /**
+   * @swagger
+   * /batch/screenshots/{job_id}/cancel:
+   *   post:
+   *     summary: Cancel a batch job
+   *     description: Cancel a batch job that is pending, processing, or scheduled
+   *     tags:
+   *       - Batch Screenshots
+   *     parameters:
+   *       - in: path
+   *         name: job_id
+   *         required: true
+   *         schema:
+   *           type: string
+   *         description: Batch job ID
+   *     responses:
+   *       200:
+   *         description: Batch job cancelled successfully
+   *         content:
+   *           application/json:
+   *             schema:
+   *               $ref: '#/components/schemas/BatchJobStatus'
+   *       400:
+   *         description: Invalid request or job cannot be cancelled
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 detail:
+   *                   type: object
+   *                   properties:
+   *                     error:
+   *                       type: string
+   *                       enum: [missing_job_id, job_already_completed, job_already_failed, job_already_cancelled]
+   *                     message:
+   *                       type: string
+   *       404:
+   *         description: Batch job not found
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 detail:
+   *                   type: object
+   *                   properties:
+   *                     error:
+   *                       type: string
+   *                       example: job_not_found
+   *                     message:
+   *                       type: string
+   *                       example: Batch job not found
+   *       500:
+   *         description: Failed to cancel batch job
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 detail:
+   *                   type: object
+   *                   properties:
+   *                     error:
+   *                       type: string
+   *                       example: cancellation_failed
+   *                     message:
+   *                       type: string
+   *                       example: Failed to cancel batch job
+   *     security:
+   *       - ApiKeyAuth: []
+   */
+  /**
    * Cancel a batch job
    * POST /batch/screenshots/:job_id/cancel
    */
@@ -1078,8 +1213,9 @@ export default class ScreenshotController {
       // TODO: Remove job from queue if it's scheduled or pending
       // await queueService.removeJob(batchJob.id.toString())
 
-      // Update any pending results to cancelled
-      const updatedResults = batchJob.results.map((result) =>
+      // Update any pending results to cancelled - ensure results is always an array
+      const currentResults = batchJob.results || []
+      const updatedResults = currentResults.map((result) =>
         result.status === 'pending' || result.status === 'processing'
           ? { ...result, status: 'error' as const, error: 'Job cancelled' }
           : result
@@ -1127,6 +1263,121 @@ export default class ScreenshotController {
   }
 
   /**
+   * @swagger
+   * /batch/screenshots/{job_id}/results:
+   *   get:
+   *     summary: Get detailed batch job results
+   *     description: Retrieve detailed results for all items in a batch job
+   *     tags:
+   *       - Batch Screenshots
+   *     parameters:
+   *       - in: path
+   *         name: job_id
+   *         required: true
+   *         schema:
+   *           type: string
+   *         description: Batch job ID
+   *     responses:
+   *       200:
+   *         description: Batch job results retrieved successfully
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 job_id:
+   *                   type: string
+   *                   description: Batch job ID
+   *                 status:
+   *                   type: string
+   *                   enum: [pending, processing, completed, failed, scheduled, cancelled]
+   *                   description: Current job status
+   *                 total:
+   *                   type: integer
+   *                   description: Total number of items in the batch
+   *                 succeeded:
+   *                   type: integer
+   *                   description: Number of successfully processed items
+   *                 failed:
+   *                   type: integer
+   *                   description: Number of failed items
+   *                 processing_time:
+   *                   type: number
+   *                   description: Total processing time in seconds
+   *                 results:
+   *                   type: array
+   *                   description: Detailed results for each item
+   *                   items:
+   *                     type: object
+   *                     properties:
+   *                       id:
+   *                         type: string
+   *                         description: Item ID
+   *                       status:
+   *                         type: string
+   *                         enum: [success, error, pending, processing]
+   *                         description: Item processing status
+   *                       url:
+   *                         type: string
+   *                         description: Screenshot URL (if successful)
+   *                       error:
+   *                         type: string
+   *                         description: Error message (if failed)
+   *                       cached:
+   *                         type: boolean
+   *                         description: Whether result was served from cache
+   *       400:
+   *         description: Missing job ID parameter
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 detail:
+   *                   type: object
+   *                   properties:
+   *                     error:
+   *                       type: string
+   *                       example: missing_job_id
+   *                     message:
+   *                       type: string
+   *                       example: job_id parameter is required
+   *       404:
+   *         description: Batch job not found
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 detail:
+   *                   type: object
+   *                   properties:
+   *                     error:
+   *                       type: string
+   *                       example: job_not_found
+   *                     message:
+   *                       type: string
+   *                       example: Batch job not found
+   *       500:
+   *         description: Failed to retrieve batch job results
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 detail:
+   *                   type: object
+   *                   properties:
+   *                     error:
+   *                       type: string
+   *                       example: results_retrieval_failed
+   *                     message:
+   *                       type: string
+   *                       example: Failed to retrieve batch job results
+   *     security:
+   *       - ApiKeyAuth: []
+   */
+  /**
    * Get detailed batch job results
    * GET /batch/screenshots/:job_id/results
    */
@@ -1163,8 +1414,9 @@ export default class ScreenshotController {
         processingTime = DateTime.now().diff(batchJob.createdAt).as('milliseconds')
       }
 
-      // Format results for response
-      const formattedResults = batchJob.results.map((result) => ({
+      // Format results for response - ensure results is always an array
+      const results = batchJob.results || []
+      const formattedResults = results.map((result) => ({
         id: result.itemId,
         status: result.status,
         url: result.url,

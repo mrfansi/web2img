@@ -65,7 +65,7 @@ export default class BatchJob extends BaseModel {
 
   @column({
     prepare: (value: BatchResult[]) => JSON.stringify(value),
-    consume: (value: string) => JSON.parse(value),
+    consume: (value: string) => value ? JSON.parse(value) : [],
   })
   declare results: BatchResult[]
 
@@ -239,7 +239,8 @@ export default class BatchJob extends BaseModel {
    * Add a result to the batch job
    */
   async addResult(result: BatchResult): Promise<void> {
-    this.results = [...this.results, result]
+    const currentResults = this.results || []
+    this.results = [...currentResults, result]
     await this.save()
   }
 
@@ -247,7 +248,8 @@ export default class BatchJob extends BaseModel {
    * Update a specific result in the batch job
    */
   async updateResult(itemId: string, updates: Partial<BatchResult>): Promise<void> {
-    this.results = this.results.map((result) =>
+    const currentResults = this.results || []
+    this.results = currentResults.map((result) =>
       result.itemId === itemId ? { ...result, ...updates } : result
     )
     await this.save()
@@ -293,14 +295,14 @@ export default class BatchJob extends BaseModel {
    * Get successful results
    */
   get successfulResults(): BatchResult[] {
-    return this.results.filter((result) => result.status === 'success')
+    return (this.results || []).filter((result) => result.status === 'success')
   }
 
   /**
    * Get failed results
    */
   get failedResults(): BatchResult[] {
-    return this.results.filter((result) => result.status === 'error')
+    return (this.results || []).filter((result) => result.status === 'error')
   }
 
   /**
