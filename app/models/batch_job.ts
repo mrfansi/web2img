@@ -127,8 +127,6 @@ export default class BatchJob extends BaseModel {
       scheduledAt: scheduledAt || null,
     })
 
-    // Refresh the instance to ensure all methods and getters are available
-    await batchJob.refresh()
     return batchJob
   }
 

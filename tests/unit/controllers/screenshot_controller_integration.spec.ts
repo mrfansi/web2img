@@ -97,8 +97,7 @@ test.group('ScreenshotController - Integration Tests', (group) => {
 
     // Verify controller response
     assert.equal(responseStatus, 200)
-    assert.isDefined(responseBody.screenshot_url)
-    assert.isBoolean(responseBody.cache_hit)
+    assert.isDefined(responseBody.url)
 
     // Cleanup mocks
     await cleanupMockServices(mockServices)

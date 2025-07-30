@@ -51,12 +51,7 @@ test.group('ScreenshotController - Single Screenshot', (group) => {
     await controller.single(ctx as any)
 
     assert.equal(responseStatus, 200)
-    assert.isTrue(responseBody.success)
-    assert.equal(responseBody.screenshot_url, mockCachedUrl)
-    assert.isTrue(responseBody.cache_hit)
-    assert.isNumber(responseBody.processing_time_ms)
-    assert.equal(responseBody.file_size_bytes, 0) // File size not available for cached results
-    assert.equal(responseBody.expires_at, mockExpirationTime.toISOString())
+    assert.equal(responseBody.url, mockCachedUrl)
   })
 
   test('should process new screenshot when not cached', async ({ assert }) => {
@@ -119,12 +114,7 @@ test.group('ScreenshotController - Single Screenshot', (group) => {
     await controller.single(ctx as any)
 
     assert.equal(responseStatus, 200)
-    assert.isTrue(responseBody.success)
-    assert.equal(responseBody.screenshot_url, mockImgProxyUrl)
-    assert.isFalse(responseBody.cache_hit)
-    assert.isNumber(responseBody.processing_time_ms)
-    assert.equal(responseBody.file_size_bytes, 21) // Buffer length
-    assert.isString(responseBody.expires_at)
+    assert.equal(responseBody.url, mockImgProxyUrl)
   })
 
   test('should return 429 when URL is being processed', async ({ assert }) => {
@@ -450,9 +440,7 @@ test.group('ScreenshotController - Single Screenshot', (group) => {
     assert.equal(responseStatus, 200)
     assert.isFalse(cacheGetCalled)
     assert.isFalse(cacheSetCalled)
-    assert.isTrue(responseBody.success)
-    assert.isFalse(responseBody.cache_hit)
-    assert.isNull(responseBody.expires_at) // No expiration when cache is disabled
+    assert.isDefined(responseBody.url)
   })
 })
 
@@ -1335,7 +1323,7 @@ test.group('ScreenshotController - Job Results', (group) => {
     assert.equal(responseBody.total, 3)
     assert.equal(responseBody.succeeded, 2)
     assert.equal(responseBody.failed, 1)
-    assert.equal(responseBody.processing_time, 300000)
+    assert.equal(responseBody.processing_time, 300) // 300 seconds (converted from 300000ms)
     assert.lengthOf(responseBody.results, 3)
 
     // Check result format

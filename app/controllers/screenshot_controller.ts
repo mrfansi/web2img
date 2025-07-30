@@ -144,12 +144,7 @@ export default class ScreenshotController {
           })
 
           return response.json({
-            success: true,
-            screenshot_url: cachedUrl,
-            cache_hit: true,
-            processing_time_ms: processingTime,
-            file_size_bytes: 0, // File size not available for cached results
-            expires_at: expiresAt,
+            url: cachedUrl,
           })
         }
       }
@@ -222,12 +217,7 @@ export default class ScreenshotController {
         })
 
         return response.json({
-          success: true,
-          screenshot_url: finalUrl,
-          cache_hit: false,
-          processing_time_ms: processingTime,
-          file_size_bytes: fileSizeBytes,
-          expires_at: expiresAt,
+          url: finalUrl,
         })
       } finally {
         // Always remove processing lock
@@ -1113,7 +1103,7 @@ export default class ScreenshotController {
         total: batchJob.totalItems,
         succeeded: batchJob.successfulResults.length,
         failed: batchJob.failedResults.length,
-        processing_time: Math.round(processingTime),
+        processing_time: Math.round(processingTime / 1000 * 100) / 100, // Convert to seconds with 2 decimal places
         results: formattedResults,
       })
     } catch (error) {
