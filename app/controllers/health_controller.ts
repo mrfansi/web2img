@@ -251,6 +251,50 @@ export default class HealthController {
   }
 
   /**
+   * Check recent screenshot job results (temporary endpoint)
+   * GET /debug/screenshot-jobs
+   */
+  public async debugScreenshotJobs({ }: HttpContext) {
+    try {
+      const queueService = (await import('#services/queue_service')).default
+
+      // Get the screenshot queue directly
+      const screenshotQueue = queueService.getQueue('screenshot')
+
+      // Get recent completed screenshot jobs
+      const completedJobs = await screenshotQueue.getCompleted(0, 9) // Get last 10 jobs
+
+      const jobDetails = []
+      for (const job of completedJobs) {
+        jobDetails.push({
+          id: job.id,
+          name: job.name,
+          finishedOn: job.finishedOn,
+          processedOn: job.processedOn,
+          returnvalue: job.returnvalue,
+          data: job.data,
+          progress: job.progress,
+          failedReason: job.failedReason,
+        })
+      }
+
+      return {
+        success: true,
+        totalJobs: completedJobs.length,
+        jobs: jobDetails,
+        timestamp: new Date().toISOString(),
+      }
+    } catch (error) {
+      return {
+        success: false,
+        error: error.message,
+        stack: error.stack,
+        timestamp: new Date().toISOString(),
+      }
+    }
+  }
+
+  /**
    * Test batch job processing (temporary endpoint)
    * POST /debug/test-batch
    */
