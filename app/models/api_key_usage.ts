@@ -93,15 +93,15 @@ export default class ApiKeyUsage extends BaseModel {
     const endpointStats = usage.reduce(
       (acc, u) => {
         if (!acc[u.endpoint]) {
-          acc[u.endpoint] = { count: 0, errors: 0, avgResponseTime: 0 }
+          acc[u.endpoint] = { totalRequests: 0, errorRequests: 0, avgResponseTime: 0 }
         }
-        acc[u.endpoint].count++
+        acc[u.endpoint].totalRequests++
         if (u.statusCode >= 400) {
-          acc[u.endpoint].errors++
+          acc[u.endpoint].errorRequests++
         }
         return acc
       },
-      {} as Record<string, { count: number; errors: number; avgResponseTime: number }>
+      {} as Record<string, { totalRequests: number; errorRequests: number; avgResponseTime: number }>
     )
 
     // Calculate average response times per endpoint

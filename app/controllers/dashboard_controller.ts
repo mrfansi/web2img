@@ -426,8 +426,139 @@ export default class DashboardController {
   }
 
   /**
+   * @swagger
+   * /dashboard/api/usage/{id}:
+   *   get:
+   *     summary: Get API key usage statistics
+   *     description: Retrieve detailed usage statistics for a specific API key
+   *     tags:
+   *       - Dashboard
+   *     parameters:
+   *       - in: path
+   *         name: id
+   *         required: true
+   *         schema:
+   *           type: integer
+   *         description: API key ID
+   *       - in: query
+   *         name: timeframe
+   *         required: false
+   *         schema:
+   *           type: string
+   *           enum: [hour, day, week]
+   *           default: day
+   *         description: Time period for statistics
+   *     responses:
+   *       200:
+   *         description: API key usage statistics retrieved successfully
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 data:
+   *                   type: object
+   *                   properties:
+   *                     apiKey:
+   *                       type: object
+   *                       properties:
+   *                         id:
+   *                           type: integer
+   *                         name:
+   *                           type: string
+   *                         rateLimit:
+   *                           type: integer
+   *                         user:
+   *                           type: string
+   *                     stats:
+   *                       type: object
+   *                       properties:
+   *                         totalRequests:
+   *                           type: integer
+   *                         successfulRequests:
+   *                           type: integer
+   *                         errorRequests:
+   *                           type: integer
+   *                         errorRate:
+   *                           type: number
+   *                         avgResponseTime:
+   *                           type: number
+   *                         endpointStats:
+   *                           type: object
+   *                           additionalProperties:
+   *                             type: object
+   *                             properties:
+   *                               totalRequests:
+   *                                 type: integer
+   *                               errorRequests:
+   *                                 type: integer
+   *                               avgResponseTime:
+   *                                 type: number
+   *                         timeframe:
+   *                           type: string
+   *                         periodStart:
+   *                           type: string
+   *                         periodEnd:
+   *                           type: string
+   *                     recentUsage:
+   *                       type: array
+   *                       items:
+   *                         type: object
+   *                         properties:
+   *                           id:
+   *                             type: integer
+   *                           endpoint:
+   *                             type: string
+   *                           method:
+   *                             type: string
+   *                           statusCode:
+   *                             type: integer
+   *                           responseTime:
+   *                             type: number
+   *                           ipAddress:
+   *                             type: string
+   *                           userAgent:
+   *                             type: string
+   *                           createdAt:
+   *                             type: string
+   *       404:
+   *         description: API key not found
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 detail:
+   *                   type: object
+   *                   properties:
+   *                     error:
+   *                       type: string
+   *                       example: api_key_not_found
+   *                     message:
+   *                       type: string
+   *                       example: API key not found
+   *       500:
+   *         description: Failed to fetch usage statistics
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 detail:
+   *                   type: object
+   *                   properties:
+   *                     error:
+   *                       type: string
+   *                       example: usage_stats_fetch_failed
+   *                     message:
+   *                       type: string
+   *                       example: Failed to fetch usage statistics
+   *     security:
+   *       - ApiKeyAuth: []
+   */
+  /**
    * Get API key usage statistics
-   * GET /dashboard/api/keys/:id/usage
+   * GET /dashboard/api/usage/:id
    */
   public async getApiKeyUsage({ params, request, response }: HttpContext) {
     try {
@@ -587,7 +718,7 @@ export default class DashboardController {
       const avgResponseTime =
         totalRequests > 0
           ? usageData.reduce((sum, data) => sum + data.avgResponseTime * data.totalRequests, 0) /
-            totalRequests
+          totalRequests
           : 0
 
       return {

@@ -416,11 +416,133 @@
     }, 5e3);
   }
 
-  function showApiUsageDetails(apiKeyId) {
-    // This function would show detailed usage for a specific API key
-    // Implementation depends on whether you want to add this modal
-    console.log("Show usage details for API key:", apiKeyId);
+  async function showApiUsageDetails(apiKeyId) {
+    // Show the modal
+    document.getElementById("api-usage-details-modal").classList.remove("hidden");
+
+    // Show loading state
+    document.getElementById("usage-details-loading").classList.remove("hidden");
+    document.getElementById("usage-details-content").classList.add("hidden");
+    document.getElementById("usage-details-error").classList.add("hidden");
+
+    try {
+      // Get current timeframe from the main usage overview
+      const timeframe = document.getElementById("usage-timeframe").value;
+
+      // Fetch detailed usage data
+      const response = await fetch(`/dashboard/api/usage/${apiKeyId}?timeframe=${timeframe}`);
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const result = await response.json();
+
+      // Hide loading and show content
+      document.getElementById("usage-details-loading").classList.add("hidden");
+      document.getElementById("usage-details-content").classList.remove("hidden");
+
+      // Populate the modal with data
+      populateUsageDetailsModal(result.data);
+
+    } catch (error) {
+      console.error("Error loading API usage details:", error);
+
+      // Hide loading and show error
+      document.getElementById("usage-details-loading").classList.add("hidden");
+      document.getElementById("usage-details-error").classList.remove("hidden");
+      document.getElementById("usage-details-error-message").textContent =
+        error.message || "Failed to load usage details";
+    }
   }
+
+  function populateUsageDetailsModal(data) {
+    // Populate API key information
+    document.getElementById("details-api-key-name").textContent = data.apiKey.name;
+    document.getElementById("details-api-key-user").textContent = data.apiKey.user;
+    document.getElementById("details-api-key-rate-limit").textContent = `${data.apiKey.rateLimit} req/hour`;
+
+    // Populate statistics
+    document.getElementById("details-total-requests").textContent = data.stats.totalRequests;
+    document.getElementById("details-successful-requests").textContent = data.stats.successfulRequests;
+    document.getElementById("details-error-requests").textContent = data.stats.errorRequests;
+    document.getElementById("details-avg-response-time").textContent = `${Math.round(data.stats.avgResponseTime)}ms`;
+
+    // Populate endpoint statistics
+    const endpointStatsBody = document.getElementById("details-endpoint-stats");
+    endpointStatsBody.innerHTML = "";
+
+    const endpointStats = data.stats.endpointStats || {};
+    const endpointEntries = Object.entries(endpointStats);
+
+    if (endpointEntries.length === 0) {
+      const row = document.createElement("tr");
+      row.innerHTML = `
+        <td colspan="5" class="px-6 py-4 text-center text-sm text-gray-500">No endpoint usage data available</td>
+      `;
+      endpointStatsBody.appendChild(row);
+    } else {
+      endpointEntries.forEach(([endpoint, stats]) => {
+        const row = document.createElement("tr");
+        const errorRate = stats.totalRequests > 0 ? (stats.errorRequests / stats.totalRequests * 100).toFixed(2) : "0.00";
+
+        row.innerHTML = `
+          <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${endpoint}</td>
+          <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${stats.totalRequests}</td>
+          <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${stats.errorRequests}</td>
+          <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${errorRate}%</td>
+          <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${Math.round(stats.avgResponseTime)}ms</td>
+        `;
+        endpointStatsBody.appendChild(row);
+      });
+    }
+
+    // Populate recent usage
+    const recentUsageBody = document.getElementById("details-recent-usage");
+    recentUsageBody.innerHTML = "";
+
+    const recentUsage = data.recentUsage || [];
+
+    if (recentUsage.length === 0) {
+      const row = document.createElement("tr");
+      row.innerHTML = `
+        <td colspan="6" class="px-6 py-4 text-center text-sm text-gray-500">No recent usage data available</td>
+      `;
+      recentUsageBody.appendChild(row);
+    } else {
+      recentUsage.forEach(usage => {
+        const row = document.createElement("tr");
+        const statusClass = usage.statusCode >= 200 && usage.statusCode < 300 ? "text-green-600" : "text-red-600";
+        const formattedTime = new Date(usage.createdAt).toLocaleString();
+
+        row.innerHTML = `
+          <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${formattedTime}</td>
+          <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${usage.method}</td>
+          <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${usage.endpoint}</td>
+          <td class="px-6 py-4 whitespace-nowrap text-sm font-medium ${statusClass}">${usage.statusCode}</td>
+          <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${usage.responseTime}ms</td>
+          <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${usage.ipAddress || '-'}</td>
+        `;
+        recentUsageBody.appendChild(row);
+      });
+    }
+  }
+
+  function hideApiUsageDetailsModal() {
+    document.getElementById("api-usage-details-modal").classList.add("hidden");
+  }
+
+  // Add event listener for clicking outside the modal to close it
+  document.addEventListener("DOMContentLoaded", function () {
+    const modal = document.getElementById("api-usage-details-modal");
+    if (modal) {
+      modal.addEventListener("click", function (event) {
+        if (event.target === modal) {
+          hideApiUsageDetailsModal();
+        }
+      });
+    }
+  });
   // Load current user information
 
   async function loadCurrentUser() {
