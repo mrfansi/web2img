@@ -411,18 +411,64 @@ export default class HealthController {
         }
       ]
 
+      // Log before save
+      const beforeSave = {
+        results: batchJob.results,
+        resultsLength: batchJob.results?.length || 0,
+        isDirty: batchJob.$isDirty,
+        dirtyFields: batchJob.$dirty
+      }
+
       // Save results directly
       batchJob.results = testResults
-      await batchJob.save()
+
+      // Log after assignment
+      const afterAssignment = {
+        results: batchJob.results,
+        resultsLength: batchJob.results?.length || 0,
+        isDirty: batchJob.$isDirty,
+        dirtyFields: batchJob.$dirty
+      }
+
+      // Attempt save
+      try {
+        await batchJob.save()
+      } catch (saveError) {
+        return {
+          success: false,
+          error: 'Save failed',
+          saveError: saveError.message,
+          beforeSave,
+          afterAssignment,
+          batchId
+        }
+      }
+
+      // Log after save
+      const afterSave = {
+        results: batchJob.results,
+        resultsLength: batchJob.results?.length || 0,
+        isDirty: batchJob.$isDirty,
+        dirtyFields: batchJob.$dirty
+      }
 
       // Reload to verify
       await batchJob.refresh()
 
+      // Log after refresh
+      const afterRefresh = {
+        results: batchJob.results,
+        resultsLength: batchJob.results?.length || 0
+      }
+
       return {
         success: true,
         batchId,
-        originalResults: batchJob.results,
         testResults,
+        beforeSave,
+        afterAssignment,
+        afterSave,
+        afterRefresh,
         savedSuccessfully: batchJob.results?.length > 0,
         timestamp: new Date().toISOString(),
       }
