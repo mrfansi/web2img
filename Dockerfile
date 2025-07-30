@@ -51,6 +51,14 @@ RUN node ace build
 FROM base AS production
 ENV NODE_ENV=production
 
+# Set default environment variables for queue workers
+ENV SCREENSHOT_QUEUE_REMOVE_ON_COMPLETE=1000
+ENV SCREENSHOT_QUEUE_REMOVE_ON_FAIL=500
+ENV SCREENSHOT_QUEUE_CONCURRENCY=3
+ENV SCREENSHOT_TIMEOUT=30000
+ENV SCREENSHOT_CACHE_TTL=3600
+ENV SCREENSHOT_MAX_CONCURRENT=10
+
 # Create app user
 RUN addgroup -g 1001 -S nodejs && \
     adduser -S web2img -u 1001
@@ -64,10 +72,12 @@ COPY --from=build --chown=web2img:nodejs /app/build /app
 # Copy test scripts for debugging
 COPY --chown=web2img:nodejs test_browser.js /app/test_browser.js
 COPY --chown=web2img:nodejs scripts/docker-entrypoint.sh /app/docker-entrypoint.sh
+COPY --chown=web2img:nodejs scripts/debug-batch-workers.js /app/debug-batch-workers.js
 
 # Create storage directories and set permissions as root
 RUN mkdir -p storage/screenshots/cache storage/screenshots/screenshots storage/screenshots/temp && \
     chmod +x /app/docker-entrypoint.sh && \
+    chmod +x /app/debug-batch-workers.js && \
     chown -R web2img:nodejs /app
 
 # Switch to non-root user

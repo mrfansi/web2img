@@ -141,11 +141,14 @@ export default class HealthController {
       case 'imgproxy':
         componentHealth = await this.healthCheckService.checkImgProxyHealth()
         break
+      case 'queues':
+        componentHealth = await this.healthCheckService.checkQueueHealth()
+        break
       default:
         response.status(404)
         return {
           error: 'Component not found',
-          availableComponents: ['database', 'redis', 'browser', 'storage', 'imgproxy'],
+          availableComponents: ['database', 'redis', 'browser', 'storage', 'imgproxy', 'queues'],
         }
     }
 

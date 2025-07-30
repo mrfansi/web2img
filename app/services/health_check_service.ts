@@ -60,15 +60,16 @@ export class HealthCheckService {
     const timestamp = new Date()
     const uptime = Math.floor((timestamp.getTime() - this.startTime.getTime()) / 1000)
 
-    const [database, redis, browser, storage, imgproxy] = await Promise.all([
+    const [database, redis, browser, storage, imgproxy, queues] = await Promise.all([
       this.checkDatabaseHealth(),
       this.checkRedisHealth(),
       this.checkBrowserHealth(),
       this.checkStorageHealth(),
       this.checkImgProxyHealth(),
+      this.checkQueueHealth(),
     ])
 
-    const components = { database, redis, browser, storage, imgproxy }
+    const components = { database, redis, browser, storage, imgproxy, queues }
     const summary = this.calculateSummary(components)
     const overallStatus = this.determineOverallStatus(summary)
 
@@ -312,6 +313,105 @@ export class HealthCheckService {
         message: `ImgProxy service failed: ${error.message}`,
         responseTime: Date.now() - startTime,
         details: { error: error.message },
+      }
+    }
+  }
+
+  /**
+   * Check queue and worker health
+   */
+  public async checkQueueHealth(): Promise<ComponentHealth> {
+    const startTime = Date.now()
+
+    try {
+      const queueService = (await import('#services/queue_service')).default
+      const { getScreenshotQueueWorker } = await import('#services/screenshot_queue_worker')
+      const { getBatchQueueWorker } = await import('#services/batch_queue_worker')
+
+      // Get queue metrics
+      const [screenshotMetrics, batchMetrics] = await Promise.all([
+        queueService.getQueueMetrics('screenshot'),
+        queueService.getQueueMetrics('batch'),
+      ])
+
+      // Get worker status
+      const screenshotWorker = getScreenshotQueueWorker()
+      const batchWorker = getBatchQueueWorker()
+
+      const screenshotWorkerRunning = screenshotWorker.getWorker().isRunning()
+      const screenshotWorkerPaused = screenshotWorker.getWorker().isPaused()
+      const batchWorkerRunning = batchWorker.getWorker().isRunning()
+      const batchWorkerPaused = batchWorker.getWorker().isPaused()
+
+      const responseTime = Date.now() - startTime
+
+      // Determine health status
+      let status = HealthStatus.HEALTHY
+      const issues: string[] = []
+
+      if (!screenshotWorkerRunning) {
+        issues.push('Screenshot worker is not running')
+        status = HealthStatus.UNHEALTHY
+      }
+
+      if (!batchWorkerRunning) {
+        issues.push('Batch worker is not running')
+        status = HealthStatus.UNHEALTHY
+      }
+
+      if (screenshotWorkerPaused) {
+        issues.push('Screenshot worker is paused')
+        status = status === HealthStatus.HEALTHY ? HealthStatus.DEGRADED : status
+      }
+
+      if (batchWorkerPaused) {
+        issues.push('Batch worker is paused')
+        status = status === HealthStatus.HEALTHY ? HealthStatus.DEGRADED : status
+      }
+
+      // Check for excessive failed jobs
+      if (screenshotMetrics.failed > 100) {
+        issues.push(`High number of failed screenshot jobs: ${screenshotMetrics.failed}`)
+        status = status === HealthStatus.HEALTHY ? HealthStatus.DEGRADED : status
+      }
+
+      if (batchMetrics.failed > 10) {
+        issues.push(`High number of failed batch jobs: ${batchMetrics.failed}`)
+        status = status === HealthStatus.HEALTHY ? HealthStatus.DEGRADED : status
+      }
+
+      return {
+        status,
+        message: status === HealthStatus.HEALTHY ? 'Queue workers are healthy' : 'Queue workers have issues',
+        responseTime,
+        details: {
+          workers: {
+            screenshot: {
+              running: screenshotWorkerRunning,
+              paused: screenshotWorkerPaused,
+            },
+            batch: {
+              running: batchWorkerRunning,
+              paused: batchWorkerPaused,
+            },
+          },
+          queues: {
+            screenshot: screenshotMetrics,
+            batch: batchMetrics,
+          },
+          issues: issues.length > 0 ? issues : undefined,
+        },
+      }
+    } catch (error) {
+      const responseTime = Date.now() - startTime
+
+      return {
+        status: HealthStatus.UNHEALTHY,
+        message: `Failed to check queue and worker health: ${error.message}`,
+        responseTime,
+        details: {
+          error: error.message,
+        },
       }
     }
   }
