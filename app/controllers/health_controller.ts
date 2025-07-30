@@ -295,6 +295,48 @@ export default class HealthController {
   }
 
   /**
+   * Test job status retrieval (temporary endpoint)
+   * GET /debug/test-job-status/:jobId
+   */
+  public async testJobStatus({ params }: HttpContext) {
+    try {
+      const { jobId } = params
+      const queueService = (await import('#services/queue_service')).default
+
+      // Test getting job status the same way batch worker does
+      const jobStatus = await queueService.getJobStatus(jobId, 'screenshot')
+
+      // Also get the job directly from the queue
+      const screenshotQueue = queueService.getQueue('screenshot')
+      const directJob = await screenshotQueue.getJob(jobId)
+
+      return {
+        success: true,
+        jobId,
+        jobStatus,
+        directJob: directJob ? {
+          id: directJob.id,
+          name: directJob.name,
+          finishedOn: directJob.finishedOn,
+          processedOn: directJob.processedOn,
+          returnvalue: directJob.returnvalue,
+          data: directJob.data,
+          progress: directJob.progress,
+          failedReason: directJob.failedReason,
+        } : null,
+        timestamp: new Date().toISOString(),
+      }
+    } catch (error) {
+      return {
+        success: false,
+        error: error.message,
+        stack: error.stack,
+        timestamp: new Date().toISOString(),
+      }
+    }
+  }
+
+  /**
    * Test batch job processing (temporary endpoint)
    * POST /debug/test-batch
    */
