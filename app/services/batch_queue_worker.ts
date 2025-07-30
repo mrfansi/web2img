@@ -136,13 +136,21 @@ export class BatchQueueWorker {
         processingTime: result.processingTime,
       }))
 
-      logger.info('Saving batch results to database', {
+      logger.error('DEBUG: Batch processing completed - checking results', {
         batchId,
         resultsCount: results.length,
         dbResultsCount: dbResults.length,
         completedItems,
         failedItems,
-        results: results.map(r => ({ itemId: r.itemId, success: r.success, hasImageUrl: !!r.imageUrl }))
+
+        results: results.map(r => ({
+          itemId: r.itemId,
+          success: r.success,
+          hasImageUrl: !!r.imageUrl,
+          imageUrl: r.imageUrl?.substring(0, 50) + '...',
+          error: r.error
+        })),
+        rawResults: results
       })
 
       batchJobRecord.results = dbResults
@@ -362,7 +370,19 @@ export class BatchQueueWorker {
       })
 
       // Wait for all jobs to complete
-      await Promise.allSettled(allPromises)
+      const settledResults = await Promise.allSettled(allPromises)
+
+      logger.error('DEBUG: Promise.allSettled completed', {
+        jobId: parentJob.id,
+        totalPromises: allPromises.length,
+        settledResults: settledResults.map((r, i) => ({
+          index: i,
+          status: r.status,
+          reason: r.status === 'rejected' ? r.reason?.message : undefined
+        })),
+        resultsArrayLength: results.length,
+        resultsArray: results
+      })
 
       logger.info('Batch processing completed', {
         totalJobs: jobs.length,
