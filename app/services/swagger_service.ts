@@ -37,22 +37,16 @@ class SwaggerService {
         info: {
           title: 'Web2Img API',
           version: '1.0.0',
-          description:
-            'High-performance website screenshot service with queue processing and batch operations',
+          description: 'High-performance website screenshot service with queue processing and batch operations',
           contact: {
-            name: 'Web2Img Support',
-            email: 'support@web2img.com',
+            name: 'Web2Img Team',
+            email: 'mrfansi17@gmail.com',
           },
           license: {
             name: 'Private',
           },
         },
-        servers: [
-          {
-            url: 'https://api.web2img.com',
-            description: 'Production server',
-          },
-        ],
+
         components: {
           securitySchemes: {
             ApiKeyAuth: {

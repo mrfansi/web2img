@@ -21,9 +21,7 @@ export default class ScreenshotController {
    * /screenshot:
    *   post:
    *     summary: Capture a single website screenshot
-   *     description: |
-   *       Captures a screenshot of the specified website URL with customizable options.
-   *       Results are cached by default and can be served from cache for improved performance.
+   *     description: Captures a screenshot of the specified website URL with customizable options.
    *     tags:
    *       - Screenshots
    *     security:
@@ -280,10 +278,7 @@ export default class ScreenshotController {
    * /batch/screenshots:
    *   post:
    *     summary: Create a batch screenshot job
-   *     description: |
-   *       Creates a batch job to capture screenshots of multiple URLs.
-   *       Supports scheduled execution, webhooks, and priority processing.
-   *       Maximum of 100 URLs per batch with configurable concurrency.
+   *     description: Creates a batch job to capture screenshots of multiple URLs with configurable options.
    *     tags:
    *       - Batch Screenshots
    *     security:
@@ -546,9 +541,7 @@ export default class ScreenshotController {
    * /batch/screenshots/{batch_id}:
    *   get:
    *     summary: Get batch job status and results
-   *     description: |
-   *       Retrieves the current status of a batch screenshot job including
-   *       progress information and download URLs for completed screenshots.
+   *     description: Retrieves the current status of a batch screenshot job including progress and results.
    *     tags:
    *       - Batch Screenshots
    *     security:
@@ -645,9 +638,7 @@ export default class ScreenshotController {
    * /batch/screenshots/active:
    *   get:
    *     summary: Get all active batch jobs
-   *     description: |
-   *       Retrieves a list of all batch jobs that are currently processing or scheduled.
-   *       Useful for monitoring system load and job queue status.
+   *     description: Retrieves a list of all batch jobs that are currently processing or scheduled.
    *     tags:
    *       - Batch Screenshots
    *     security:
@@ -1286,9 +1277,7 @@ export default class ScreenshotController {
    * /cache/stats:
    *   get:
    *     summary: Get cache statistics
-   *     description: |
-   *       Retrieves detailed statistics about the cache system including
-   *       hit rates, memory usage, and performance metrics.
+   *     description: Retrieves detailed statistics about the cache system including hit rates and memory usage.
    *     tags:
    *       - Cache Management
    *     security:
@@ -1384,9 +1373,7 @@ export default class ScreenshotController {
    * /cache:
    *   delete:
    *     summary: Clear entire cache
-   *     description: |
-   *       Clears all cached screenshots and resets cache statistics.
-   *       This operation cannot be undone.
+   *     description: Clears all cached screenshots and resets cache statistics.
    *     tags:
    *       - Cache Management
    *     security:
@@ -1443,9 +1430,7 @@ export default class ScreenshotController {
    * /cache/url:
    *   delete:
    *     summary: Invalidate cache entries for a specific URL
-   *     description: |
-   *       Removes all cached screenshots for a specific URL.
-   *       Useful when you need to force a fresh screenshot of a particular page.
+   *     description: Removes all cached screenshots for a specific URL.
    *     tags:
    *       - Cache Management
    *     security:
