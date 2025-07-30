@@ -381,6 +381,37 @@ export default class HealthController {
   }
 
   /**
+   * Test raw database query to see what's in the results column
+   * GET /debug/test-raw-db/:batchId
+   */
+  public async testRawDb({ params }: HttpContext) {
+    try {
+      const { batchId } = params
+      const { default: Database } = await import('@adonisjs/lucid/services/db')
+
+      // Query the raw database value
+      const rawResult = await Database.rawQuery(
+        'SELECT id, results, config FROM batch_jobs WHERE id = ?',
+        [batchId]
+      )
+
+      return {
+        success: true,
+        batchId,
+        rawResult: rawResult[0] || null,
+        timestamp: new Date().toISOString(),
+      }
+    } catch (error) {
+      return {
+        success: false,
+        error: error.message,
+        stack: error.stack,
+        timestamp: new Date().toISOString(),
+      }
+    }
+  }
+
+  /**
    * Test direct database save of batch results (temporary endpoint)
    * POST /debug/test-db-save/:batchId
    */

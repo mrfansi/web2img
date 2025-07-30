@@ -116,6 +116,7 @@ router
     router.get('/debug/screenshot-jobs', '#controllers/health_controller.debugScreenshotJobs')
     router.get('/debug/test-job-status/:jobId', '#controllers/health_controller.testJobStatus')
     router.get('/debug/test-wait-job/:jobId', '#controllers/health_controller.testWaitJob')
+    router.get('/debug/test-raw-db/:batchId', '#controllers/health_controller.testRawDb')
     router.post('/debug/test-db-save/:batchId', '#controllers/health_controller.testDbSave')
     router.post('/debug/test-batch', '#controllers/health_controller.testBatch')
   })
