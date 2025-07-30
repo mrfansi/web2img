@@ -4,7 +4,6 @@ import cacheService from '#services/cache_service'
 import { screenshotWorkerService } from '#services/screenshot_worker_service'
 import fileStorageService from '#services/file_storage_service'
 import imgProxyService from '#services/imgproxy_service'
-import queueService from '#services/queue_service'
 import BatchJob from '#models/batch_job'
 
 test.group('ScreenshotController - Single Screenshot', (group) => {
@@ -1255,7 +1254,7 @@ test.group('ScreenshotController - Job Results', (group) => {
       createdAt: { toISO: () => '2025-01-26T10:00:00.000Z', diff: () => ({ as: () => 0 }) },
       completedAt: { 
         toISO: () => '2025-01-26T10:05:00.000Z',
-        diff: (other: any) => ({ as: () => 300000 }) // 5 minutes
+        diff: (_other: any) => ({ as: () => 300000 }) // 5 minutes
       },
       results: [
         { itemId: 'item1', status: 'success', url: 'https://example.com/item1.png', cached: false },
@@ -1337,9 +1336,6 @@ test.group('ScreenshotController - Job Results', (group) => {
     }
 
     // Mock DateTime.now() to return a specific time for consistent testing
-    const mockNow = {
-      diff: (other: any) => ({ as: () => 120000 }) // 2 minutes
-    }
     
     BatchJob.find = async () => mockBatchJob as any
 
@@ -1674,7 +1670,7 @@ test.group('ScreenshotController - Cache URL Invalidation', (group) => {
 
     const ctx = {
       request: {
-        input: (key: string) => undefined,
+        input: (_key: string) => undefined,
       },
       response: {
         status: (code: number) => {

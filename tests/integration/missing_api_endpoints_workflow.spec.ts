@@ -2,7 +2,6 @@ import { test } from '@japa/runner'
 import { ApiClient } from '@japa/api-client'
 import ApiKey from '#models/api_key'
 import User from '#models/user'
-import BatchJob from '#models/batch_job'
 import { cleanupRedisConnections } from '#tests/utils/redis_test_utils'
 import { DateTime } from 'luxon'
 
