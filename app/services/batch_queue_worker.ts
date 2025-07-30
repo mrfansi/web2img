@@ -5,6 +5,7 @@ import logger from '@adonisjs/core/services/logger'
 import queueService from '#services/queue_service'
 import type { BatchJobData, ScreenshotJobData, JobResult } from '#services/queue_service'
 import { getCentralRedisManager } from '#services/central_redis_manager'
+import BatchJob, { BatchJobStatus } from '#models/batch_job'
 
 export interface BatchResult {
   batchId: string
@@ -66,7 +67,16 @@ export class BatchQueueWorker {
       config,
     })
 
+    // Find the batch job in the database and mark it as processing
+    const batchJobRecord = await BatchJob.find(parseInt(batchId))
+    if (!batchJobRecord) {
+      throw new Error(`Batch job ${batchId} not found in database`)
+    }
+
     try {
+      // Mark batch job as processing in database
+      await batchJobRecord.startProcessing()
+
       await job.updateProgress(5)
 
       // Validate batch configuration
@@ -113,6 +123,22 @@ export class BatchQueueWorker {
       const completedItems = results.filter((r) => r.success).length
       const failedItems = results.length - completedItems
 
+      // Update batch job in database with final results
+      await batchJobRecord.updateProgress(completedItems, failedItems)
+
+      // Update individual results in database
+      const dbResults = results.map((result) => ({
+        itemId: result.itemId,
+        status: result.success ? 'success' as const : 'error' as const,
+        url: result.imageUrl,
+        error: result.error,
+        cached: false, // This would need to be tracked from screenshot job
+        processingTime: result.processingTime,
+      }))
+
+      batchJobRecord.results = dbResults
+      await batchJobRecord.markCompleted()
+
       const batchResult: BatchResult = {
         batchId,
         totalItems: items.length,
@@ -144,6 +170,16 @@ export class BatchQueueWorker {
         processingTime,
         attempt: job.attemptsMade,
       })
+
+      // Mark batch job as failed in database
+      if (batchJobRecord) {
+        await batchJobRecord.markFailed().catch((dbError) => {
+          logger.error('Failed to mark batch job as failed in database', {
+            batchId,
+            error: dbError.message,
+          })
+        })
+      }
 
       // Update progress to indicate failure
       await job.updateProgress(0)
@@ -190,7 +226,7 @@ export class BatchQueueWorker {
 
       // Update progress as we create jobs (10% to 20% range)
       const progress = 10 + Math.floor(((i + 1) / items.length) * 10)
-      await parentJob.updateProgress(progress).catch(() => {}) // Don't fail on progress update error
+      await parentJob.updateProgress(progress).catch(() => { }) // Don't fail on progress update error
     }
 
     logger.info('Created screenshot jobs for batch', {
@@ -263,7 +299,7 @@ export class BatchQueueWorker {
 
           // Update parent job progress
           const progress = 20 + Math.floor(((completedCount + failedCount) / jobs.length) * 70)
-          parentJob.updateProgress(progress).catch(() => {}) // Don't fail batch on progress update error
+          parentJob.updateProgress(progress).catch(() => { }) // Don't fail batch on progress update error
         })
 
       activeJobs.set(jobInfo.jobId, promise)
@@ -306,7 +342,7 @@ export class BatchQueueWorker {
         })
 
         for (const [jobId] of activeJobs) {
-          await queueService.cancelJob(jobId, 'screenshot').catch(() => {}) // Don't fail on cancel errors
+          await queueService.cancelJob(jobId, 'screenshot').catch(() => { }) // Don't fail on cancel errors
         }
       }
 
