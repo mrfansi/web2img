@@ -381,6 +381,62 @@ export default class HealthController {
   }
 
   /**
+   * Test direct database save of batch results (temporary endpoint)
+   * POST /debug/test-db-save/:batchId
+   */
+  public async testDbSave({ params }: HttpContext) {
+    try {
+      const { batchId } = params
+      const { default: BatchJob } = await import('#models/batch_job')
+
+      // Find the batch job
+      const batchJob = await BatchJob.find(batchId)
+      if (!batchJob) {
+        return {
+          success: false,
+          error: 'Batch job not found',
+          batchId
+        }
+      }
+
+      // Create test results
+      const testResults = [
+        {
+          itemId: 'debug-test-item',
+          status: 'success' as const,
+          url: 'https://example.com/test-image.png',
+          error: undefined,
+          cached: false,
+          processingTime: 1000,
+        }
+      ]
+
+      // Save results directly
+      batchJob.results = testResults
+      await batchJob.save()
+
+      // Reload to verify
+      await batchJob.refresh()
+
+      return {
+        success: true,
+        batchId,
+        originalResults: batchJob.results,
+        testResults,
+        savedSuccessfully: batchJob.results?.length > 0,
+        timestamp: new Date().toISOString(),
+      }
+    } catch (error) {
+      return {
+        success: false,
+        error: error.message,
+        stack: error.stack,
+        timestamp: new Date().toISOString(),
+      }
+    }
+  }
+
+  /**
    * Test batch job processing (temporary endpoint)
    * POST /debug/test-batch
    */
