@@ -269,7 +269,6 @@ export class BatchQueueWorker {
     parentJob: Job<BatchJobData>
   ): Promise<BatchResult['results']> {
     const results: BatchResult['results'] = []
-    const activeJobs = new Map<string, Promise<JobResult>>()
     let completedCount = 0
     let failedCount = 0
 
@@ -279,109 +278,90 @@ export class BatchQueueWorker {
       failFast,
     })
 
-    // Helper function to start a job
-    const startJob = (jobInfo: { itemId: string; jobId: string }) => {
-      logger.debug('Starting screenshot job', {
-        itemId: jobInfo.itemId,
-        jobId: jobInfo.jobId
+
+
+    try {
+      // COMPLETELY REWRITTEN: Direct approach without complex promise management
+      logger.info('Starting direct batch processing', {
+        totalJobs: jobs.length,
+        concurrency
       })
 
-      const promise = this.waitForScreenshotJob(jobInfo.jobId)
-        .then((result) => {
-          completedCount++
-          results.push({
-            itemId: jobInfo.itemId,
+      // Process each job directly and collect results
+      for (const job of jobs) {
+        try {
+          logger.info('Processing screenshot job', {
+            itemId: job.itemId,
+            jobId: job.jobId
+          })
+
+          // Wait for the screenshot job to complete
+          const result = await this.waitForScreenshotJob(job.jobId)
+
+          // Add result to array
+          const batchResult = {
+            itemId: job.itemId,
             success: result.success,
             imageUrl: result.imageUrl,
             error: result.error,
             processingTime: result.processingTime,
-          })
-
-          logger.debug('Screenshot job result collected', {
-            itemId: jobInfo.itemId,
-            jobId: jobInfo.jobId,
-            success: result.success,
-            error: result.error,
-            processingTime: result.processingTime
-          })
-
-          if (!result.success) {
-            failedCount++
-            if (failFast) {
-              throw new Error(`Batch failed fast due to item ${jobInfo.itemId}: ${result.error}`)
-            }
           }
 
-          return result
-        })
-        .catch((error) => {
-          failedCount++
+          results.push(batchResult)
+
+          if (result.success) {
+            completedCount++
+          } else {
+            failedCount++
+          }
+
+          logger.info('Screenshot job result collected', {
+            itemId: job.itemId,
+            jobId: job.jobId,
+            success: result.success,
+            resultsCount: results.length
+          })
+
+          // Update progress
+          const progress = 20 + Math.floor(((completedCount + failedCount) / jobs.length) * 70)
+          parentJob.updateProgress(progress).catch(() => { }) // Don't fail batch on progress update error
+
+        } catch (error) {
+          // Handle individual job failure
           const errorResult = {
-            itemId: jobInfo.itemId,
+            itemId: job.itemId,
             success: false,
             error: error.message,
+            imageUrl: undefined,
+            processingTime: undefined,
           }
-          results.push(errorResult)
 
-          logger.error('Screenshot job failed in batch processing', {
-            itemId: jobInfo.itemId,
-            jobId: jobInfo.jobId,
+          results.push(errorResult)
+          failedCount++
+
+          logger.error('Screenshot job failed', {
+            itemId: job.itemId,
+            jobId: job.jobId,
             error: error.message,
-            errorStack: error.stack,
-            failFast,
-            errorType: error.constructor.name
+            resultsCount: results.length
           })
 
           if (failFast) {
             throw error
           }
+        }
+      }
 
-          return { success: false, error: error.message }
-        })
-        .finally(() => {
-          activeJobs.delete(jobInfo.jobId)
-
-          // Update parent job progress
-          const progress = 20 + Math.floor(((completedCount + failedCount) / jobs.length) * 70)
-          parentJob.updateProgress(progress).catch(() => { }) // Don't fail batch on progress update error
-
-          logger.debug('Screenshot job processing completed', {
-            itemId: jobInfo.itemId,
-            jobId: jobInfo.jobId,
-            completedCount,
-            failedCount,
-            totalJobs: jobs.length,
-            progress
-          })
-        })
-
-      activeJobs.set(jobInfo.jobId, promise)
-      return promise
-    }
-
-    try {
-      // Simplified approach: process all jobs with Promise.all for now
-      // This ensures we wait for ALL jobs to complete before proceeding
-      const allPromises = jobs.map(job => startJob(job))
-
-      logger.info('Waiting for all screenshot jobs to complete', {
+      logger.error('DEBUG: All jobs processed directly', {
         totalJobs: jobs.length,
-        concurrency
-      })
-
-      // Wait for all jobs to complete
-      const settledResults = await Promise.allSettled(allPromises)
-
-      logger.error('DEBUG: Promise.allSettled completed', {
-        jobId: parentJob.id,
-        totalPromises: allPromises.length,
-        settledResults: settledResults.map((r, i) => ({
-          index: i,
-          status: r.status,
-          reason: r.status === 'rejected' ? r.reason?.message : undefined
-        })),
-        resultsArrayLength: results.length,
-        resultsArray: results
+        resultsCount: results.length,
+        completedCount,
+        failedCount,
+        results: results.map(r => ({
+          itemId: r.itemId,
+          success: r.success,
+          hasImageUrl: !!r.imageUrl
+        }))
       })
 
       logger.info('Batch processing completed', {
@@ -404,16 +384,13 @@ export class BatchQueueWorker {
 
       return results
     } catch (error) {
-      // Cancel remaining jobs if fail_fast is enabled
-      if (failFast) {
-        logger.warn('Cancelling remaining jobs due to fail_fast', {
-          remainingJobs: activeJobs.size,
-        })
-
-        for (const [jobId] of activeJobs) {
-          await queueService.cancelJob(jobId, 'screenshot').catch(() => { }) // Don't fail on cancel errors
-        }
-      }
+      // Log the error and re-throw
+      logger.error('Batch processing failed', {
+        error: error.message,
+        completedCount,
+        failedCount,
+        resultsCount: results.length
+      })
 
       throw error
     }
