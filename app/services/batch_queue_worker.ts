@@ -363,7 +363,18 @@ export class BatchQueueWorker {
       while (activeJobs.size > 0 || jobIndex < jobs.length) {
         if (activeJobs.size > 0) {
           // Wait for at least one job to complete
-          await Promise.race(Array.from(activeJobs.values()))
+          // Create a promise that resolves when any job completes AND is removed from activeJobs
+          const activePromises = Array.from(activeJobs.values())
+          await Promise.race(activePromises.map(async (promise) => {
+            try {
+              await promise
+            } catch (error) {
+              // Ignore errors here, they're handled in the individual promise chains
+            }
+          }))
+
+          // Small delay to ensure the .finally() block has executed and removed the job
+          await new Promise(resolve => setTimeout(resolve, 10))
         }
 
         // Start new jobs if we have capacity and remaining jobs
