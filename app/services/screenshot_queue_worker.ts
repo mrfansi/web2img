@@ -20,8 +20,8 @@ export class ScreenshotQueueWorker {
       connection: this.redisConnection,
       prefix: 'web2img:queue',
       concurrency: env.get('SCREENSHOT_QUEUE_CONCURRENCY', 5),
-      removeOnComplete: { count: 100 },
-      removeOnFail: { count: 50 },
+      removeOnComplete: { count: env.get('SCREENSHOT_QUEUE_REMOVE_ON_COMPLETE', 1000) },
+      removeOnFail: { count: env.get('SCREENSHOT_QUEUE_REMOVE_ON_FAIL', 500) },
       stalledInterval: 30 * 1000, // 30 seconds
       maxStalledCount: 1,
     }

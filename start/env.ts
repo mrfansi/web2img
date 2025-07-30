@@ -80,6 +80,8 @@ export default await Env.create(new URL('../', import.meta.url), {
   SCREENSHOT_QUEUE_CONCURRENCY: Env.schema.number(),
   SCREENSHOT_CLEANUP_INTERVAL: Env.schema.number.optional(),
   SCREENSHOT_MAX_AGE_DAYS: Env.schema.number.optional(),
+  SCREENSHOT_QUEUE_REMOVE_ON_COMPLETE: Env.schema.number.optional(),
+  SCREENSHOT_QUEUE_REMOVE_ON_FAIL: Env.schema.number.optional(),
 
   /*
   |----------------------------------------------------------

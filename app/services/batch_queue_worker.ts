@@ -260,6 +260,11 @@ export class BatchQueueWorker {
 
     // Helper function to start a job
     const startJob = (jobInfo: { itemId: string; jobId: string }) => {
+      logger.debug('Starting screenshot job', {
+        itemId: jobInfo.itemId,
+        jobId: jobInfo.jobId
+      })
+
       const promise = this.waitForScreenshotJob(jobInfo.jobId)
         .then((result) => {
           completedCount++
@@ -269,6 +274,14 @@ export class BatchQueueWorker {
             imageUrl: result.imageUrl,
             error: result.error,
             processingTime: result.processingTime,
+          })
+
+          logger.debug('Screenshot job result collected', {
+            itemId: jobInfo.itemId,
+            jobId: jobInfo.jobId,
+            success: result.success,
+            error: result.error,
+            processingTime: result.processingTime
           })
 
           if (!result.success) {
@@ -282,10 +295,18 @@ export class BatchQueueWorker {
         })
         .catch((error) => {
           failedCount++
-          results.push({
+          const errorResult = {
             itemId: jobInfo.itemId,
             success: false,
             error: error.message,
+          }
+          results.push(errorResult)
+
+          logger.error('Screenshot job failed in batch processing', {
+            itemId: jobInfo.itemId,
+            jobId: jobInfo.jobId,
+            error: error.message,
+            failFast
           })
 
           if (failFast) {
@@ -300,6 +321,15 @@ export class BatchQueueWorker {
           // Update parent job progress
           const progress = 20 + Math.floor(((completedCount + failedCount) / jobs.length) * 70)
           parentJob.updateProgress(progress).catch(() => { }) // Don't fail batch on progress update error
+
+          logger.debug('Screenshot job processing completed', {
+            itemId: jobInfo.itemId,
+            jobId: jobInfo.jobId,
+            completedCount,
+            failedCount,
+            totalJobs: jobs.length,
+            progress
+          })
         })
 
       activeJobs.set(jobInfo.jobId, promise)
@@ -331,7 +361,19 @@ export class BatchQueueWorker {
         totalJobs: jobs.length,
         completedCount,
         failedCount,
+        resultsCount: results.length,
+        successfulResults: results.filter(r => r.success).length,
+        failedResults: results.filter(r => !r.success).length
       })
+
+      // Validate that we have results for all jobs
+      if (results.length !== jobs.length) {
+        logger.error('Mismatch between expected and actual results', {
+          expectedJobs: jobs.length,
+          actualResults: results.length,
+          missingResults: jobs.length - results.length
+        })
+      }
 
       return results
     } catch (error) {
@@ -358,20 +400,52 @@ export class BatchQueueWorker {
     const pollInterval = 1000 // 1 second
     const startTime = Date.now()
 
+    logger.debug('Waiting for screenshot job', { jobId })
+
     while (Date.now() - startTime < maxWaitTime) {
       const jobStatus = await queueService.getJobStatus(jobId, 'screenshot')
 
       if (!jobStatus) {
-        throw new Error(`Screenshot job ${jobId} not found`)
+        // Job not found - likely cleaned up after completion
+        logger.warn('Screenshot job not found, likely cleaned up after completion', {
+          jobId,
+          waitTime: Date.now() - startTime
+        })
+        throw new Error(`Screenshot job ${jobId} not found - may have been cleaned up after completion`)
       }
 
       // Job completed successfully
       if (jobStatus.finishedOn && jobStatus.returnvalue) {
+        logger.debug('Screenshot job completed successfully', {
+          jobId,
+          waitTime: Date.now() - startTime
+        })
         return jobStatus.returnvalue as JobResult
+      }
+
+      // Job completed but no return value (edge case)
+      if (jobStatus.finishedOn && !jobStatus.returnvalue && !jobStatus.failedReason) {
+        logger.warn('Screenshot job finished but has no return value', {
+          jobId,
+          jobStatus: {
+            finishedOn: jobStatus.finishedOn,
+            processedOn: jobStatus.processedOn,
+            progress: jobStatus.progress
+          }
+        })
+        return {
+          success: false,
+          error: 'Job completed but returned no result',
+        }
       }
 
       // Job failed
       if (jobStatus.failedReason) {
+        logger.debug('Screenshot job failed', {
+          jobId,
+          error: jobStatus.failedReason,
+          waitTime: Date.now() - startTime
+        })
         return {
           success: false,
           error: jobStatus.failedReason,
@@ -382,6 +456,11 @@ export class BatchQueueWorker {
       await new Promise((resolve) => setTimeout(resolve, pollInterval))
     }
 
+    logger.error('Screenshot job timed out', {
+      jobId,
+      maxWaitTime,
+      actualWaitTime: Date.now() - startTime
+    })
     throw new Error(`Screenshot job ${jobId} timed out after ${maxWaitTime}ms`)
   }
 
