@@ -30,51 +30,64 @@ export default class extends BaseSchema {
       }
     })
 
-    // Add indexes for performance (check if they exist first)
-    const hasStatusScheduledIndex = await this.schema.raw(`
-      SELECT COUNT(*) as count FROM information_schema.statistics 
-      WHERE table_schema = DATABASE() 
-      AND table_name = 'batch_jobs' 
-      AND index_name = 'idx_batch_jobs_status_scheduled'
-    `)
-
-    const hasNextScheduledIndex = await this.schema.raw(`
-      SELECT COUNT(*) as count FROM information_schema.statistics 
-      WHERE table_schema = DATABASE() 
-      AND table_name = 'batch_jobs' 
-      AND index_name = 'idx_batch_jobs_next_scheduled'
-    `)
-
-    if (hasStatusScheduledIndex[0][0].count === 0) {
-      await this.schema.raw('CREATE INDEX idx_batch_jobs_status_scheduled ON batch_jobs(status, scheduled_at)')
-    }
-
-    if (hasNextScheduledIndex[0][0].count === 0) {
-      await this.schema.raw('CREATE INDEX idx_batch_jobs_next_scheduled ON batch_jobs(next_scheduled_time)')
-    }
+    // Add indexes for performance using schema builder to avoid conflicts
+    this.schema.alterTable(this.tableName, (table) => {
+      // Add composite index for status and scheduled_at if it doesn't exist
+      try {
+        table.index(['status', 'scheduled_at'], 'idx_batch_jobs_status_scheduled_composite')
+      } catch (error) {
+        console.log('Composite status-scheduled index already exists or failed to create')
+      }
+      
+      // Add index for next_scheduled_time
+      try {
+        table.index(['next_scheduled_time'], 'idx_batch_jobs_next_scheduled_time')
+      } catch (error) {
+        console.log('Next scheduled time index already exists or failed to create')
+      }
+    })
   }
 
   async down() {
-    // Drop indexes first (check if they exist)
-    try {
-      await this.schema.raw('DROP INDEX idx_batch_jobs_status_scheduled ON batch_jobs')
-    } catch (error) {
-      // Index doesn't exist, ignore error
-    }
+    // Drop indexes first
+    this.schema.alterTable(this.tableName, (table) => {
+      try {
+        table.dropIndex(['status', 'scheduled_at'], 'idx_batch_jobs_status_scheduled_composite')
+      } catch (error) {
+        console.log('Composite status-scheduled index does not exist')
+      }
+      
+      try {
+        table.dropIndex(['next_scheduled_time'], 'idx_batch_jobs_next_scheduled_time')
+      } catch (error) {
+        console.log('Next scheduled time index does not exist')
+      }
+    })
 
-    try {
-      await this.schema.raw('DROP INDEX idx_batch_jobs_next_scheduled ON batch_jobs')
-    } catch (error) {
-      // Index doesn't exist, ignore error
-    }
+    // Check if columns exist before dropping them
+    const hasNextScheduledTime = await this.schema.hasColumn(this.tableName, 'next_scheduled_time')
+    const hasRecurrenceConfig = await this.schema.hasColumn(this.tableName, 'recurrence_config')
+    const hasWebhookUrl = await this.schema.hasColumn(this.tableName, 'webhook_url')
+    const hasWebhookAuth = await this.schema.hasColumn(this.tableName, 'webhook_auth')
+    const hasProcessingStartedAt = await this.schema.hasColumn(this.tableName, 'processing_started_at')
 
     this.schema.alterTable(this.tableName, (table) => {
-      // Remove the added columns
-      table.dropColumn('next_scheduled_time')
-      table.dropColumn('recurrence_config')
-      table.dropColumn('webhook_url')
-      table.dropColumn('webhook_auth')
-      table.dropColumn('processing_started_at')
+      // Remove the added columns only if they exist
+      if (hasNextScheduledTime) {
+        table.dropColumn('next_scheduled_time')
+      }
+      if (hasRecurrenceConfig) {
+        table.dropColumn('recurrence_config')
+      }
+      if (hasWebhookUrl) {
+        table.dropColumn('webhook_url')
+      }
+      if (hasWebhookAuth) {
+        table.dropColumn('webhook_auth')
+      }
+      if (hasProcessingStartedAt) {
+        table.dropColumn('processing_started_at')
+      }
     })
   }
 }
