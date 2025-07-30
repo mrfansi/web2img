@@ -30,15 +30,43 @@ export default class extends BaseSchema {
       }
     })
 
-    // Add indexes for performance (using IF NOT EXISTS)
-    await this.schema.raw('CREATE INDEX IF NOT EXISTS idx_batch_jobs_status_scheduled ON batch_jobs(status, scheduled_at)')
-    await this.schema.raw('CREATE INDEX IF NOT EXISTS idx_batch_jobs_next_scheduled ON batch_jobs(next_scheduled_time)')
+    // Add indexes for performance (check if they exist first)
+    const hasStatusScheduledIndex = await this.schema.raw(`
+      SELECT COUNT(*) as count FROM information_schema.statistics 
+      WHERE table_schema = DATABASE() 
+      AND table_name = 'batch_jobs' 
+      AND index_name = 'idx_batch_jobs_status_scheduled'
+    `)
+
+    const hasNextScheduledIndex = await this.schema.raw(`
+      SELECT COUNT(*) as count FROM information_schema.statistics 
+      WHERE table_schema = DATABASE() 
+      AND table_name = 'batch_jobs' 
+      AND index_name = 'idx_batch_jobs_next_scheduled'
+    `)
+
+    if (hasStatusScheduledIndex[0][0].count === 0) {
+      await this.schema.raw('CREATE INDEX idx_batch_jobs_status_scheduled ON batch_jobs(status, scheduled_at)')
+    }
+
+    if (hasNextScheduledIndex[0][0].count === 0) {
+      await this.schema.raw('CREATE INDEX idx_batch_jobs_next_scheduled ON batch_jobs(next_scheduled_time)')
+    }
   }
 
   async down() {
-    // Drop indexes first
-    await this.schema.raw('DROP INDEX IF EXISTS idx_batch_jobs_status_scheduled')
-    await this.schema.raw('DROP INDEX IF EXISTS idx_batch_jobs_next_scheduled')
+    // Drop indexes first (check if they exist)
+    try {
+      await this.schema.raw('DROP INDEX idx_batch_jobs_status_scheduled ON batch_jobs')
+    } catch (error) {
+      // Index doesn't exist, ignore error
+    }
+
+    try {
+      await this.schema.raw('DROP INDEX idx_batch_jobs_next_scheduled ON batch_jobs')
+    } catch (error) {
+      // Index doesn't exist, ignore error
+    }
 
     this.schema.alterTable(this.tableName, (table) => {
       // Remove the added columns

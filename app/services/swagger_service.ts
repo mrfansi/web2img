@@ -1,17 +1,36 @@
 import swaggerJsdoc from 'swagger-jsdoc'
 import swaggerUiExpress from 'swagger-ui-express'
 import type { OpenAPIV3 } from 'openapi-types'
+import schemaRegistry from '#services/schema_registry'
+import vineSchemaGenerator from '#services/vine_schema_generator'
+import type { ValidationResult } from '#services/schema_registry'
 
 /**
- * Service for handling OpenAPI/Swagger documentation
+ * Enhanced service for handling OpenAPI/Swagger documentation
  */
 class SwaggerService {
   private _spec: OpenAPIV3.Document | null = null
+  private _initialized: boolean = false
 
   /**
-   * Initialize the Swagger documentation
+   * Initialize the Swagger documentation with enhanced schema registry
    */
   initialize(): void {
+    if (this._initialized) {
+      return
+    }
+
+    // Initialize schema registry first
+    schemaRegistry.initialize()
+
+    this._initializeSwaggerSpec()
+    this._initialized = true
+  }
+
+  /**
+   * Initialize the core Swagger specification
+   */
+  private _initializeSwaggerSpec(): void {
     const options: swaggerJsdoc.Options = {
       definition: {
         openapi: '3.0.0',
@@ -44,6 +63,9 @@ class SwaggerService {
             },
           },
           schemas: {
+            // Load schemas from registry
+            ...schemaRegistry.getAllSchemas(),
+            // Legacy schemas for backward compatibility
             Error: {
               type: 'object',
               properties: {
@@ -591,6 +613,107 @@ class SwaggerService {
    */
   getSpecJson(): string {
     return JSON.stringify(this.getSpec(), null, 2)
+  }
+
+  /**
+   * Get the schema registry instance
+   */
+  getSchemaRegistry() {
+    return schemaRegistry
+  }
+
+  /**
+   * Generate OpenAPI schema from VineJS validator
+   */
+  generateSchemaFromValidator(validator: any, options?: any): OpenAPIV3.SchemaObject {
+    return vineSchemaGenerator.generateFromValidator(validator, options)
+  }
+
+  /**
+   * Validate the current documentation for completeness and consistency
+   */
+  validateDocumentation(): ValidationResult {
+    if (!this._initialized) {
+      this.initialize()
+    }
+
+    return schemaRegistry.validateSchemas()
+  }
+
+  /**
+   * Update server URLs in the specification (useful for different environments)
+   */
+  updateServerUrls(baseUrl: string): void {
+    if (!this._spec) {
+      this.initialize()
+    }
+
+    if (this._spec) {
+      this._spec.servers = [
+        {
+          url: baseUrl,
+          description: 'API Server',
+        },
+      ]
+    }
+  }
+
+  /**
+   * Register a new schema in the registry
+   */
+  registerSchema(
+    category: 'requests' | 'responses' | 'errors' | 'components',
+    name: string,
+    schema: OpenAPIV3.SchemaObject
+  ): void {
+    schemaRegistry.registerSchema(category, name, schema)
+    
+    // Invalidate cached spec to force regeneration
+    this._spec = null
+    this._initialized = false
+  }
+
+  /**
+   * Get a specific schema from the registry
+   */
+  getSchema(
+    category: 'requests' | 'responses' | 'errors' | 'components',
+    name: string
+  ): OpenAPIV3.SchemaObject | undefined {
+    return schemaRegistry.getSchema(category, name)
+  }
+
+  /**
+   * Generate schemas from multiple VineJS validators
+   */
+  generateSchemasFromValidators(
+    validators: Record<string, any>,
+    options?: any
+  ): Record<string, OpenAPIV3.SchemaObject> {
+    return vineSchemaGenerator.generateSchemasFromValidators(validators, options)
+  }
+
+  /**
+   * Refresh the specification (useful after schema updates)
+   */
+  refresh(): void {
+    this._spec = null
+    this._initialized = false
+    this.initialize()
+  }
+
+  /**
+   * Get validation results for the current specification
+   */
+  getValidationResults(): ValidationResult {
+    return this.validateDocumentation()
+  }
+
+  /**
+   * Check if the service has been initialized
+   */
+  isInitialized(): boolean {
+    return this._initialized
   }
 }
 
