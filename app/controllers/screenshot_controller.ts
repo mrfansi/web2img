@@ -298,25 +298,28 @@ export default class ScreenshotController {
    *             simple:
    *               summary: Simple batch job
    *               value:
-   *                 urls:
-   *                   - "https://example.com"
-   *                   - "https://google.com"
-   *                   - "https://github.com"
-   *                 options:
-   *                   format: "png"
-   *                   width: 1280
-   *                   height: 720
+   *                 items:
+   *                   - url: "https://example.com"
+   *                     id: "example"
+   *                     format: "png"
+   *                     width: 1280
+   *                     height: 720
+   *                   - url: "https://google.com"
+   *                     id: "google"
+   *                   - url: "https://github.com"
+   *                     id: "github"
    *             scheduled:
    *               summary: Scheduled batch with webhook
    *               value:
-   *                 urls:
-   *                   - "https://example.com"
-   *                   - "https://google.com"
-   *                 options:
-   *                   format: "jpeg"
-   *                   width: 1920
-   *                   height: 1080
-   *                   fullPage: true
+   *                 items:
+   *                   - url: "https://example.com"
+   *                     id: "example"
+   *                     format: "jpeg"
+   *                     width: 1920
+   *                     height: 1080
+   *                     fullPage: true
+   *                   - url: "https://google.com"
+   *                     id: "google"
    *                 webhook_url: "https://your-app.com/webhook"
    *                 webhook_auth: "Bearer your-token"
    *                 scheduled_at: "2025-07-27T10:00:00Z"
@@ -331,10 +334,11 @@ export default class ScreenshotController {
    *               $ref: '#/components/schemas/BatchJobResponse'
    *             example:
    *               success: true
-   *               job_id: "batch_abc123def456"
+   *               batch_id: 123
    *               status: "pending"
-   *               total_urls: 3
+   *               total_items: 3
    *               estimated_completion: "2025-07-26T12:05:00Z"
+   *               created_at: "2025-07-26T12:00:00Z"
    *       400:
    *         $ref: '#/components/responses/BadRequest'
    *       401:
@@ -539,7 +543,7 @@ export default class ScreenshotController {
 
   /**
    * @swagger
-   * /batch/screenshots/{job_id}:
+   * /batch/screenshots/{batch_id}:
    *   get:
    *     summary: Get batch job status and results
    *     description: |
@@ -550,13 +554,13 @@ export default class ScreenshotController {
    *     security:
    *       - ApiKeyAuth: []
    *     parameters:
-   *       - name: job_id
+   *       - name: batch_id
    *         in: path
    *         required: true
    *         description: Unique identifier of the batch job
    *         schema:
-   *           type: string
-   *           example: "batch_abc123def456"
+   *           type: integer
+   *           example: 123
    *     responses:
    *       200:
    *         description: Batch job status retrieved successfully
@@ -568,41 +572,54 @@ export default class ScreenshotController {
    *               processing:
    *                 summary: Job in progress
    *                 value:
-   *                   job_id: "batch_abc123def456"
+   *                   batch_id: 123
    *                   status: "processing"
    *                   progress:
    *                     completed: 2
    *                     failed: 0
-   *                     total: 5
-   *                     percentage: 40
+   *                     total: 3
+   *                     percentage: 67
    *                   results:
-   *                     - url: "https://example.com"
-   *                       screenshot_url: "https://api.web2img.com/images/img1.png"
-   *                       status: "completed"
-   *                     - url: "https://google.com"
-   *                       screenshot_url: "https://api.web2img.com/images/img2.png"
-   *                       status: "completed"
-   *                     - url: "https://github.com"
-   *                       status: "pending"
+   *                     - itemId: "example"
+   *                       status: "success"
+   *                       url: "https://api.web2img.com/images/img1.png"
+   *                       cached: false
+   *                       processingTime: 2500
+   *                     - itemId: "google"
+   *                       status: "success"
+   *                       url: "https://api.web2img.com/images/img2.png"
+   *                       cached: false
+   *                       processingTime: 3200
+   *                     - itemId: "github"
+   *                       status: "error"
+   *                       error: "Timeout after 30000ms"
+   *                       cached: false
+   *                       processingTime: 30000
    *                   created_at: "2025-07-26T10:00:00Z"
+   *                   updated_at: "2025-07-26T10:01:30Z"
    *               completed:
    *                 summary: Job completed
    *                 value:
-   *                   job_id: "batch_abc123def456"
+   *                   batch_id: 123
    *                   status: "completed"
    *                   progress:
-   *                     completed: 5
-   *                     failed: 0
-   *                     total: 5
+   *                     completed: 2
+   *                     failed: 1
+   *                     total: 3
    *                     percentage: 100
    *                   results:
-   *                     - url: "https://example.com"
-   *                       screenshot_url: "https://api.web2img.com/images/img1.png"
-   *                       status: "completed"
-   *                     - url: "https://google.com"
-   *                       screenshot_url: "https://api.web2img.com/images/img2.png"
-   *                       status: "completed"
+   *                     - itemId: "example"
+   *                       status: "success"
+   *                       url: "https://api.web2img.com/images/img1.png"
+   *                       cached: false
+   *                       processingTime: 2500
+   *                     - itemId: "google"
+   *                       status: "success"
+   *                       url: "https://api.web2img.com/images/img2.png"
+   *                       cached: false
+   *                       processingTime: 3200
    *                   created_at: "2025-07-26T10:00:00Z"
+   *                   updated_at: "2025-07-26T10:02:30Z"
    *                   completed_at: "2025-07-26T10:02:30Z"
    *       400:
    *         $ref: '#/components/responses/BadRequest'
@@ -618,6 +635,62 @@ export default class ScreenshotController {
    *               detail:
    *                 error: "job_not_found"
    *                 message: "Batch job with the specified ID was not found"
+   *       429:
+   *         $ref: '#/components/responses/RateLimited'
+   *       500:
+   *         $ref: '#/components/responses/InternalError'
+   */
+  /**
+   * @swagger
+   * /batch/screenshots/active:
+   *   get:
+   *     summary: Get all active batch jobs
+   *     description: |
+   *       Retrieves a list of all batch jobs that are currently processing or scheduled.
+   *       Useful for monitoring system load and job queue status.
+   *     tags:
+   *       - Batch Screenshots
+   *     security:
+   *       - ApiKeyAuth: []
+   *     responses:
+   *       200:
+   *         description: Active batch jobs retrieved successfully
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 success:
+   *                   type: boolean
+   *                 active_jobs:
+   *                   type: array
+   *                   items:
+   *                     $ref: '#/components/schemas/BatchStatusResponse'
+   *                 total_active:
+   *                   type: integer
+   *                   description: Total number of active jobs
+   *             example:
+   *               success: true
+   *               active_jobs:
+   *                 - batch_id: 123
+   *                   status: "processing"
+   *                   progress:
+   *                     completed: 2
+   *                     failed: 0
+   *                     total: 5
+   *                     percentage: 40
+   *                   created_at: "2025-07-26T10:00:00Z"
+   *                 - batch_id: 124
+   *                   status: "scheduled"
+   *                   progress:
+   *                     completed: 0
+   *                     failed: 0
+   *                     total: 3
+   *                     percentage: 0
+   *                   scheduled_at: "2025-07-26T15:00:00Z"
+   *               total_active: 2
+   *       401:
+   *         $ref: '#/components/responses/Unauthorized'
    *       429:
    *         $ref: '#/components/responses/RateLimited'
    *       500:
@@ -1209,6 +1282,73 @@ export default class ScreenshotController {
   }
 
   /**
+   * @swagger
+   * /cache/stats:
+   *   get:
+   *     summary: Get cache statistics
+   *     description: |
+   *       Retrieves detailed statistics about the cache system including
+   *       hit rates, memory usage, and performance metrics.
+   *     tags:
+   *       - Cache Management
+   *     security:
+   *       - ApiKeyAuth: []
+   *     responses:
+   *       200:
+   *         description: Cache statistics retrieved successfully
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 success:
+   *                   type: boolean
+   *                 cache_stats:
+   *                   type: object
+   *                   properties:
+   *                     enabled:
+   *                       type: boolean
+   *                       description: Whether caching is enabled
+   *                     hit_rate:
+   *                       type: number
+   *                       description: Cache hit rate percentage
+   *                     total_requests:
+   *                       type: integer
+   *                       description: Total number of cache requests
+   *                     hits:
+   *                       type: integer
+   *                       description: Number of cache hits
+   *                     misses:
+   *                       type: integer
+   *                       description: Number of cache misses
+   *                     memory_usage:
+   *                       type: object
+   *                       properties:
+   *                         used:
+   *                           type: integer
+   *                           description: Used memory in bytes
+   *                         available:
+   *                           type: integer
+   *                           description: Available memory in bytes
+   *             example:
+   *               success: true
+   *               cache_stats:
+   *                 enabled: true
+   *                 hit_rate: 85.5
+   *                 total_requests: 1000
+   *                 hits: 855
+   *                 misses: 145
+   *                 memory_usage:
+   *                   used: 52428800
+   *                   available: 134217728
+   *       401:
+   *         $ref: '#/components/responses/Unauthorized'
+   *       429:
+   *         $ref: '#/components/responses/RateLimited'
+   *       500:
+   *         $ref: '#/components/responses/InternalError'
+   */
+  /**
    * Get cache statistics
    * GET /cache/stats
    */
@@ -1240,6 +1380,40 @@ export default class ScreenshotController {
   }
 
   /**
+   * @swagger
+   * /cache:
+   *   delete:
+   *     summary: Clear entire cache
+   *     description: |
+   *       Clears all cached screenshots and resets cache statistics.
+   *       This operation cannot be undone.
+   *     tags:
+   *       - Cache Management
+   *     security:
+   *       - ApiKeyAuth: []
+   *     responses:
+   *       200:
+   *         description: Cache cleared successfully
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 success:
+   *                   type: boolean
+   *                 message:
+   *                   type: string
+   *             example:
+   *               success: true
+   *               message: "Cache cleared successfully"
+   *       401:
+   *         $ref: '#/components/responses/Unauthorized'
+   *       429:
+   *         $ref: '#/components/responses/RateLimited'
+   *       500:
+   *         $ref: '#/components/responses/InternalError'
+   */
+  /**
    * Clear entire cache
    * DELETE /cache
    */
@@ -1264,6 +1438,68 @@ export default class ScreenshotController {
     }
   }
 
+  /**
+   * @swagger
+   * /cache/url:
+   *   delete:
+   *     summary: Invalidate cache entries for a specific URL
+   *     description: |
+   *       Removes all cached screenshots for a specific URL.
+   *       Useful when you need to force a fresh screenshot of a particular page.
+   *     tags:
+   *       - Cache Management
+   *     security:
+   *       - ApiKeyAuth: []
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             properties:
+   *               url:
+   *                 type: string
+   *                 format: uri
+   *                 description: URL to invalidate from cache
+   *                 example: "https://example.com"
+   *             required:
+   *               - url
+   *     responses:
+   *       200:
+   *         description: Cache entries invalidated successfully
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 success:
+   *                   type: boolean
+   *                 message:
+   *                   type: string
+   *                 invalidated_entries:
+   *                   type: integer
+   *                   description: Number of cache entries removed
+   *             example:
+   *               success: true
+   *               message: "Cache entries for URL invalidated successfully"
+   *               invalidated_entries: 3
+   *       422:
+   *         description: Validation Error - URL is required
+   *         content:
+   *           application/json:
+   *             schema:
+   *               $ref: '#/components/schemas/Error'
+   *             example:
+   *               detail:
+   *                 error: "VALIDATION_ERROR"
+   *                 message: "URL is required"
+   *       401:
+   *         $ref: '#/components/responses/Unauthorized'
+   *       429:
+   *         $ref: '#/components/responses/RateLimited'
+   *       500:
+   *         $ref: '#/components/responses/InternalError'
+   */
   /**
    * Invalidate cache entries for a specific URL
    * DELETE /cache/url

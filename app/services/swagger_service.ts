@@ -192,18 +192,14 @@ class SwaggerService {
             BatchScreenshotRequest: {
               type: 'object',
               properties: {
-                urls: {
+                items: {
                   type: 'array',
                   items: {
-                    type: 'string',
-                    format: 'uri',
+                    $ref: '#/components/schemas/BatchScreenshotItem',
                   },
                   minItems: 1,
                   maxItems: 100,
-                  description: 'List of URLs to screenshot (max 100)',
-                },
-                options: {
-                  $ref: '#/components/schemas/BatchOptions',
+                  description: 'List of screenshot items to process (max 100)',
                 },
                 webhook_url: {
                   type: 'string',
@@ -233,7 +229,83 @@ class SwaggerService {
                   description: 'Number of parallel screenshots',
                 },
               },
-              required: ['urls'],
+              required: ['items'],
+            },
+            BatchScreenshotItem: {
+              type: 'object',
+              properties: {
+                url: {
+                  type: 'string',
+                  format: 'uri',
+                  description: 'URL of the website to screenshot',
+                  example: 'https://example.com',
+                },
+                id: {
+                  type: 'string',
+                  description: 'Unique identifier for this item within the batch',
+                  example: 'item-1',
+                },
+                format: {
+                  type: 'string',
+                  enum: ['png', 'jpeg', 'webp'],
+                  default: 'png',
+                  description: 'Output image format',
+                },
+                width: {
+                  type: 'integer',
+                  minimum: 100,
+                  maximum: 3840,
+                  default: 1280,
+                  description: 'Screenshot width in pixels',
+                },
+                height: {
+                  type: 'integer',
+                  minimum: 100,
+                  maximum: 2160,
+                  default: 720,
+                  description: 'Screenshot height in pixels',
+                },
+                timeout: {
+                  type: 'integer',
+                  minimum: 5000,
+                  maximum: 60000,
+                  default: 30000,
+                  description: 'Request timeout in milliseconds',
+                },
+                cache: {
+                  type: 'boolean',
+                  default: true,
+                  description: 'Whether to use cached results if available',
+                },
+                fullPage: {
+                  type: 'boolean',
+                  default: false,
+                  description: 'Capture full page instead of viewport',
+                },
+                waitFor: {
+                  type: 'integer',
+                  minimum: 0,
+                  maximum: 10000,
+                  description: 'Additional wait time in milliseconds before capturing',
+                },
+                userAgent: {
+                  type: 'string',
+                  description: 'Custom user agent string',
+                },
+                deviceScale: {
+                  type: 'number',
+                  minimum: 0.5,
+                  maximum: 3,
+                  default: 1,
+                  description: 'Device pixel ratio',
+                },
+                blockAds: {
+                  type: 'boolean',
+                  default: false,
+                  description: 'Block ads and tracking scripts',
+                },
+              },
+              required: ['url', 'id'],
             },
             BatchOptions: {
               type: 'object',
@@ -294,36 +366,51 @@ class SwaggerService {
               properties: {
                 success: {
                   type: 'boolean',
+                  description: 'Whether the batch job was created successfully',
                 },
-                job_id: {
-                  type: 'string',
+                batch_id: {
+                  type: 'integer',
                   description: 'Unique identifier for the batch job',
                 },
                 status: {
                   type: 'string',
-                  enum: ['pending', 'processing', 'completed', 'failed'],
+                  enum: ['pending', 'scheduled', 'processing', 'completed', 'failed', 'cancelled'],
+                  description: 'Current status of the batch job',
                 },
-                total_urls: {
+                total_items: {
                   type: 'integer',
-                  description: 'Total number of URLs in the batch',
+                  description: 'Total number of items in the batch',
                 },
                 estimated_completion: {
                   type: 'string',
                   format: 'date-time',
                   description: 'Estimated completion time',
                 },
+                created_at: {
+                  type: 'string',
+                  format: 'date-time',
+                  description: 'When the batch job was created',
+                },
+                scheduled_at: {
+                  type: 'string',
+                  format: 'date-time',
+                  nullable: true,
+                  description: 'When the batch job is scheduled to run (if scheduled)',
+                },
               },
-              required: ['success', 'job_id', 'status'],
+              required: ['success', 'batch_id', 'status', 'total_items'],
             },
             BatchStatusResponse: {
               type: 'object',
               properties: {
-                job_id: {
-                  type: 'string',
+                batch_id: {
+                  type: 'integer',
+                  description: 'Unique identifier for the batch job',
                 },
                 status: {
                   type: 'string',
-                  enum: ['pending', 'processing', 'completed', 'failed'],
+                  enum: ['pending', 'scheduled', 'processing', 'completed', 'failed', 'cancelled'],
+                  description: 'Current status of the batch job',
                 },
                 progress: {
                   type: 'object',
@@ -347,41 +434,88 @@ class SwaggerService {
                       description: 'Completion percentage',
                     },
                   },
+                  required: ['completed', 'failed', 'total', 'percentage'],
                 },
                 results: {
                   type: 'array',
                   items: {
-                    type: 'object',
-                    properties: {
-                      url: {
-                        type: 'string',
-                        format: 'uri',
-                      },
-                      screenshot_url: {
-                        type: 'string',
-                        format: 'uri',
-                      },
-                      status: {
-                        type: 'string',
-                        enum: ['completed', 'failed', 'pending'],
-                      },
-                      error: {
-                        type: 'string',
-                        description: 'Error message if status is failed',
-                      },
-                    },
+                    $ref: '#/components/schemas/BatchItemResult',
                   },
+                  description: 'Individual results for each item in the batch',
                 },
                 created_at: {
                   type: 'string',
                   format: 'date-time',
+                  description: 'When the batch job was created',
+                },
+                updated_at: {
+                  type: 'string',
+                  format: 'date-time',
+                  description: 'When the batch job was last updated',
                 },
                 completed_at: {
                   type: 'string',
                   format: 'date-time',
+                  nullable: true,
+                  description: 'When the batch job was completed (if completed)',
+                },
+                scheduled_at: {
+                  type: 'string',
+                  format: 'date-time',
+                  nullable: true,
+                  description: 'When the batch job is scheduled to run (if scheduled)',
+                },
+                webhook_url: {
+                  type: 'string',
+                  format: 'uri',
+                  nullable: true,
+                  description: 'Webhook URL for completion notification',
+                },
+                priority: {
+                  type: 'string',
+                  enum: ['high', 'normal', 'low'],
+                  description: 'Job priority level',
+                },
+                concurrency: {
+                  type: 'integer',
+                  description: 'Number of parallel screenshots',
                 },
               },
-              required: ['job_id', 'status'],
+              required: ['batch_id', 'status', 'progress', 'created_at'],
+            },
+            BatchItemResult: {
+              type: 'object',
+              properties: {
+                itemId: {
+                  type: 'string',
+                  description: 'Unique identifier for this item within the batch',
+                },
+                status: {
+                  type: 'string',
+                  enum: ['success', 'error'],
+                  description: 'Status of this individual item',
+                },
+                url: {
+                  type: 'string',
+                  format: 'uri',
+                  nullable: true,
+                  description: 'Screenshot URL if successful',
+                },
+                error: {
+                  type: 'string',
+                  nullable: true,
+                  description: 'Error message if status is error',
+                },
+                cached: {
+                  type: 'boolean',
+                  description: 'Whether the result was served from cache',
+                },
+                processingTime: {
+                  type: 'integer',
+                  description: 'Processing time for this item in milliseconds',
+                },
+              },
+              required: ['itemId', 'status', 'cached', 'processingTime'],
             },
             HealthResponse: {
               type: 'object',
@@ -667,7 +801,7 @@ class SwaggerService {
     schema: OpenAPIV3.SchemaObject
   ): void {
     schemaRegistry.registerSchema(category, name, schema)
-    
+
     // Invalidate cached spec to force regeneration
     this._spec = null
     this._initialized = false
