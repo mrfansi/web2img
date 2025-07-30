@@ -127,14 +127,10 @@ export default class ScreenshotController {
 
       // Check cache if enabled
       let cachedUrl: string | null = null
-      let expiresAt: string | null = null
 
       if (screenshotOptions.useCache) {
         cachedUrl = await cacheService.get(cacheKey)
         if (cachedUrl) {
-          const expirationTime = await cacheService.getExpirationTime(cacheKey)
-          expiresAt = expirationTime ? expirationTime.toISOString() : null
-
           const processingTime = Date.now() - startTime
 
           logger.info('Returning cached screenshot', {
@@ -196,14 +192,9 @@ export default class ScreenshotController {
           height: screenshotOptions.height,
         })
 
-        // Cache the result if caching is enabled and calculate expiration
-        let expiresAt: string | null = null
+        // Cache the result if caching is enabled
         if (screenshotOptions.useCache) {
           await cacheService.set(cacheKey, finalUrl)
-          // Calculate expiration time based on cache TTL
-          const ttlSeconds = cacheService.getDefaultTtl()
-          const expirationTime = new Date(Date.now() + ttlSeconds * 1000)
-          expiresAt = expirationTime.toISOString()
         }
 
         const processingTime = Date.now() - startTime

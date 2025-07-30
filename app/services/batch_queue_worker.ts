@@ -5,7 +5,7 @@ import logger from '@adonisjs/core/services/logger'
 import queueService from '#services/queue_service'
 import type { BatchJobData, ScreenshotJobData, JobResult } from '#services/queue_service'
 import { getCentralRedisManager } from '#services/central_redis_manager'
-import BatchJob, { BatchJobStatus } from '#models/batch_job'
+import BatchJob from '#models/batch_job'
 
 export interface BatchResult {
   batchId: string

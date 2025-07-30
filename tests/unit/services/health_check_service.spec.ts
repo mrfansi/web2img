@@ -1,5 +1,5 @@
 import { test } from '@japa/runner'
-import { HealthCheckService, HealthStatus } from '#services/health_check_service'
+import { HealthCheckService, HealthStatus, SystemHealth } from '#services/health_check_service'
 
 test.group('Health Check Service', (group) => {
   let healthCheckService: HealthCheckService
@@ -178,7 +178,7 @@ test.group('Health Check Service', (group) => {
       const health1 = await Promise.race([
         healthCheckService.checkSystemHealth(),
         timeoutPromise
-      ])
+      ]) as SystemHealth
 
       // Wait a bit
       await new Promise((resolve) => setTimeout(resolve, 100))
@@ -186,7 +186,7 @@ test.group('Health Check Service', (group) => {
       const health2 = await Promise.race([
         healthCheckService.checkSystemHealth(),
         timeoutPromise
-      ])
+      ]) as SystemHealth
 
       assert.isTrue(health2.uptime >= health1.uptime)
     } catch (error) {

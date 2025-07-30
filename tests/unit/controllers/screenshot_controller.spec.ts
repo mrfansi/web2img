@@ -602,7 +602,7 @@ test.group('SchedulshotController - Job Scheduling', (group) => {
       progressPercentage: 0,
       createdAt: DateTime.fromISO('2025-01-26T10:00:00.000Z'),
       updatedAt: DateTime.fromISO('2025-01-26T10:30:00.000Z'),
-      scheduledAt: null,
+      scheduledAt: null as DateTime | null,
       completedAt: null,
       estimatedCompletion: null,
       nextScheduledTime: null,
