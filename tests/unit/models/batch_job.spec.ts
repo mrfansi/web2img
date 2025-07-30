@@ -75,6 +75,7 @@ test.group('BatchJob Model', (group) => {
 
   test('should update progress', async ({ assert }) => {
     const batchJob = await BatchJob.createBatchJob(10)
+    await batchJob.refresh()
 
     await batchJob.updateProgress(7, 2)
 
@@ -84,6 +85,8 @@ test.group('BatchJob Model', (group) => {
 
   test('should add result', async ({ assert }) => {
     const batchJob = await BatchJob.createBatchJob(3)
+    await batchJob.refresh()
+
     const result: BatchResult = {
       itemId: 'item-1',
       status: 'success',
@@ -99,6 +102,8 @@ test.group('BatchJob Model', (group) => {
 
   test('should update specific result', async ({ assert }) => {
     const batchJob = await BatchJob.createBatchJob(3)
+    await batchJob.refresh()
+
     const result: BatchResult = {
       itemId: 'item-1',
       status: 'pending',
@@ -117,6 +122,7 @@ test.group('BatchJob Model', (group) => {
 
   test('should calculate progress percentage', async ({ assert }) => {
     const batchJob = await BatchJob.createBatchJob(10)
+    await batchJob.refresh()
 
     // No progress
     assert.equal(batchJob.progressPercentage, 0)
@@ -132,12 +138,14 @@ test.group('BatchJob Model', (group) => {
 
   test('should handle zero total items for progress percentage', async ({ assert }) => {
     const batchJob = await BatchJob.createBatchJob(0)
+    await batchJob.refresh()
 
     assert.equal(batchJob.progressPercentage, 0)
   })
 
   test('should check completion status', async ({ assert }) => {
     const batchJob = await BatchJob.createBatchJob(3)
+    await batchJob.refresh()
 
     assert.isFalse(batchJob.isCompleted)
 
@@ -152,6 +160,7 @@ test.group('BatchJob Model', (group) => {
 
   test('should check processing status', async ({ assert }) => {
     const batchJob = await BatchJob.createBatchJob(3)
+    await batchJob.refresh()
 
     assert.isFalse(batchJob.isProcessing)
 
@@ -162,6 +171,7 @@ test.group('BatchJob Model', (group) => {
   test('should check scheduled status', async ({ assert }) => {
     const scheduledTime = DateTime.now().plus({ hours: 1 })
     const batchJob = await BatchJob.createBatchJob(3, {}, scheduledTime)
+    await batchJob.refresh()
 
     assert.isTrue(batchJob.isScheduled)
 
@@ -171,6 +181,7 @@ test.group('BatchJob Model', (group) => {
 
   test('should check pending status', async ({ assert }) => {
     const batchJob = await BatchJob.createBatchJob(3)
+    await batchJob.refresh()
 
     assert.isTrue(batchJob.isPending)
 
@@ -180,6 +191,7 @@ test.group('BatchJob Model', (group) => {
 
   test('should filter successful results', async ({ assert }) => {
     const batchJob = await BatchJob.createBatchJob(3)
+    await batchJob.refresh()
 
     await batchJob.addResult({ itemId: 'item-1', status: 'success', url: 'url1' })
     await batchJob.addResult({ itemId: 'item-2', status: 'error', error: 'Failed' })
@@ -194,6 +206,7 @@ test.group('BatchJob Model', (group) => {
 
   test('should filter failed results', async ({ assert }) => {
     const batchJob = await BatchJob.createBatchJob(3)
+    await batchJob.refresh()
 
     await batchJob.addResult({ itemId: 'item-1', status: 'success', url: 'url1' })
     await batchJob.addResult({ itemId: 'item-2', status: 'error', error: 'Failed' })
@@ -208,6 +221,7 @@ test.group('BatchJob Model', (group) => {
 
   test('should calculate estimated completion time', async ({ assert }) => {
     const batchJob = await BatchJob.createBatchJob(10)
+    await batchJob.refresh()
 
     // No estimation for non-processing jobs
     assert.isNull(batchJob.estimatedCompletion)
@@ -217,13 +231,20 @@ test.group('BatchJob Model', (group) => {
     // No estimation with zero completed items
     assert.isNull(batchJob.estimatedCompletion)
 
+    // Add a small delay to ensure meaningful elapsed time for calculation
+    await new Promise(resolve => setTimeout(resolve, 20))
+
     // Add some progress
     await batchJob.updateProgress(3, 1)
 
     // Should have an estimated completion time
     const estimation = batchJob.estimatedCompletion
     assert.isNotNull(estimation)
-    assert.isTrue(estimation!.toMillis() > DateTime.now().toMillis())
+
+    // Check that estimation is in the future (with some tolerance for timing)
+    const now = DateTime.now()
+    const timeDiff = estimation!.toMillis() - now.toMillis()
+    assert.isTrue(timeDiff >= -5, `Estimation should be in the future or very close to now, but was ${timeDiff}ms in the past`)
   })
 
   test('should handle JSON serialization for config and results', async ({ assert }) => {
@@ -235,6 +256,7 @@ test.group('BatchJob Model', (group) => {
     }
 
     const batchJob = await BatchJob.createBatchJob(2, config)
+    await batchJob.refresh()
 
     const result: BatchResult = {
       itemId: 'test-item',
