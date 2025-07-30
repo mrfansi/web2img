@@ -210,7 +210,7 @@ export class ErrorLoggingService {
     // Get trace information
     const errorTrace = options.errorTrace || this.getTrace(traceId)
 
-    // Enhanced context with tracing information
+    // Enhanced context with tracing information - ensure all objects are serializable
     const enhancedContext = {
       ...contextData,
       tracing: {
@@ -219,11 +219,32 @@ export class ErrorLoggingService {
         serviceName: options.serviceName,
         serviceMethod: options.serviceMethod,
         errorTrace: errorTrace ? {
-          serviceStack: errorTrace.serviceStack,
-          errorChain: errorTrace.errorChain,
-          rootCause: errorTrace.rootCause,
+          serviceStack: errorTrace.serviceStack?.map(s => ({
+            serviceName: s.serviceName,
+            methodName: s.methodName,
+            startTime: s.startTime,
+            endTime: s.endTime,
+            duration: s.duration,
+            success: s.success,
+            errorMessage: s.errorMessage
+          })) || [],
+          errorChain: errorTrace.errorChain?.map(e => ({
+            service: e.service,
+            method: e.method,
+            error: e.error,
+            timestamp: e.timestamp
+          })) || [],
+          rootCause: errorTrace.rootCause ? {
+            service: errorTrace.rootCause.service,
+            method: errorTrace.rootCause.method,
+            error: errorTrace.rootCause.error
+          } : undefined,
         } : undefined,
-        performanceMetrics: options.performanceMetrics,
+        performanceMetrics: options.performanceMetrics ? {
+          duration: options.performanceMetrics.duration,
+          memoryUsage: options.performanceMetrics.memoryUsage,
+          cpuUsage: options.performanceMetrics.cpuUsage
+        } : undefined,
       },
       errorCategory: options.errorCategory || 'system',
       severity: options.severity || 'medium',
@@ -246,11 +267,14 @@ export class ErrorLoggingService {
 
     // Save to database for dashboard
     try {
+      // Ensure context is JSON serializable
+      const serializableContext = JSON.parse(JSON.stringify(enhancedContext))
+
       await ErrorLog.logError({
         level,
         message: errorMessage,
         stack: errorStack,
-        context: enhancedContext,
+        context: serializableContext,
         endpoint,
         method,
         userAgent,
@@ -263,6 +287,7 @@ export class ErrorLoggingService {
         originalError: errorMessage,
         dbError: dbError instanceof Error ? dbError.message : String(dbError),
         traceId,
+        contextSerializationError: dbError instanceof Error && dbError.message.includes('JSON') ? 'Context contains non-serializable data' : undefined,
       })
     }
   }
