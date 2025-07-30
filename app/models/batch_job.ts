@@ -80,23 +80,39 @@ export default class BatchJob extends BaseModel {
 
   @column({
     prepare: (value: BatchResult[]) => JSON.stringify(value || []),
-    consume: (value: string) => {
-      if (!value || typeof value !== 'string') return []
+    consume: (value: any) => {
+      // Handle null/undefined
+      if (!value) return []
 
-      // Handle invalid JSON data that might exist in the database
-      try {
-        const parsed = JSON.parse(value)
-        // Ensure the parsed value is an array
-        return Array.isArray(parsed) ? parsed : []
-      } catch (error) {
-        // Log the error and return empty array for corrupted data
-        logger.warn('Failed to parse batch job results from database', {
-          value: typeof value === 'string' ? value.substring(0, 100) : String(value), // Log first 100 chars for debugging
-          valueType: typeof value,
-          error: error.message
-        })
-        return []
+      // If it's already an array (parsed by database), return it
+      if (Array.isArray(value)) return value
+
+      // If it's an object but not an array, wrap it or return empty
+      if (typeof value === 'object') {
+        return Array.isArray(value) ? value : []
       }
+
+      // If it's a string, try to parse it
+      if (typeof value === 'string') {
+        try {
+          const parsed = JSON.parse(value)
+          return Array.isArray(parsed) ? parsed : []
+        } catch (error) {
+          logger.warn('Failed to parse batch job results from database', {
+            value: value.substring(0, 100),
+            valueType: typeof value,
+            error: error.message
+          })
+          return []
+        }
+      }
+
+      // For any other type, return empty array
+      logger.warn('Unexpected value type for batch job results', {
+        valueType: typeof value,
+        value: String(value).substring(0, 100)
+      })
+      return []
     },
   })
   declare results: BatchResult[]
