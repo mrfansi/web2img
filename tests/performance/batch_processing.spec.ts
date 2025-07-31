@@ -78,7 +78,7 @@ test.group('Batch Processing - Performance Tests', (group) => {
         },
       })
 
-    batchResponse.assertStatus(202)
+    assert.equal(batchResponse.status(), 202)
     const jobId = batchResponse.body().job_id
     const jobCreationTime = Date.now() - startTime
 
@@ -161,7 +161,7 @@ test.group('Batch Processing - Performance Tests', (group) => {
         },
       })
 
-    batchResponse.assertStatus(202)
+    assert.equal(batchResponse.status(), 202)
     const jobId = batchResponse.body().job_id
     const jobCreationTime = Date.now() - startTime
 
@@ -255,7 +255,7 @@ test.group('Batch Processing - Performance Tests', (group) => {
         },
       })
 
-    batchResponse.assertStatus(202)
+    assert.equal(batchResponse.status(), 202)
     const jobId = batchResponse.body().job_id
     const jobCreationTime = Date.now() - startTime
 
@@ -363,7 +363,7 @@ test.group('Batch Processing - Performance Tests', (group) => {
 
     // Verify all batches were created
     batchResponses.forEach((response) => {
-      response.assertStatus(202)
+      assert.equal(response.status(), 202)
     })
 
     const jobIds = batchResponses.map((r) => r.body().job_id)
@@ -464,7 +464,7 @@ test.group('Batch Processing - Performance Tests', (group) => {
           },
         })
 
-      batchResponse.assertStatus(202)
+      assert.equal(batchResponse.status(), 202)
       const jobId = batchResponse.body().job_id
 
       // Wait for completion

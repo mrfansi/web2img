@@ -1,4 +1,5 @@
 import logger from '@adonisjs/core/services/logger'
+import env from '#start/env'
 import { getCentralRedisManager } from '#services/central_redis_manager'
 import { getScreenshotQueueWorker } from '#services/screenshot_queue_worker'
 import { getBatchQueueWorker } from '#services/batch_queue_worker'
@@ -89,7 +90,7 @@ export class ApplicationBootstrap {
       }
 
       // Step 6: Initialize queue service
-      if (!env.get('SKIP_REDIS_INITIALIZATION', false)) {
+      if (env.get('NODE_ENV') !== 'test') {
         logger.info('Initializing queue service')
         try {
           // Queue service is already initialized via its constructor
@@ -109,7 +110,7 @@ export class ApplicationBootstrap {
       }
 
       // Step 7: Initialize job scheduler service
-      if (!env.get('SKIP_JOB_SCHEDULER', false)) {
+      if (env.get('NODE_ENV') !== 'test') {
         logger.info('Initializing job scheduler service')
         try {
           await jobSchedulerService.initialize()
@@ -124,7 +125,7 @@ export class ApplicationBootstrap {
       }
 
       // Step 8: Initialize queue workers
-      if (!env.get('SKIP_QUEUE_WORKERS', false)) {
+      if (env.get('NODE_ENV') !== 'test') {
         logger.info('Initializing queue workers')
         try {
           const screenshotWorker = getScreenshotQueueWorker()

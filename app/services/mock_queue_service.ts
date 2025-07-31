@@ -1,5 +1,5 @@
 import logger from '@adonisjs/core/services/logger'
-import type { ScreenshotJobData, BatchJobData, JobResult } from '#services/queue_service'
+import type { ScreenshotJobData, BatchJobData } from '#services/queue_service'
 
 /**
  * Mock Queue Service for testing environments
@@ -25,10 +25,10 @@ export class MockQueueService {
       opts: options,
       timestamp: Date.now(),
     }
-    
+
     this.jobs.set(jobId, job)
     logger.info('Mock screenshot job added', { jobId, data })
-    
+
     return {
       id: jobId,
       data,
@@ -48,10 +48,10 @@ export class MockQueueService {
       opts: options,
       timestamp: Date.now(),
     }
-    
+
     this.jobs.set(jobId, job)
     logger.info('Mock batch job added', { jobId, data })
-    
+
     return {
       id: jobId,
       data,
@@ -69,7 +69,7 @@ export class MockQueueService {
   ): Promise<any> {
     const delay = scheduledTime.getTime() - Date.now()
     logger.info('Mock job scheduled', { queueName, delay })
-    
+
     if (queueName === 'screenshot') {
       return await this.addScreenshotJob(data as ScreenshotJobData, { delay })
     } else {
@@ -81,10 +81,10 @@ export class MockQueueService {
    * Get queue metrics (mock implementation)
    */
   async getQueueMetrics(queueName: 'screenshot' | 'batch'): Promise<any> {
-    const queueJobs = Array.from(this.jobs.values()).filter(job => 
+    const queueJobs = Array.from(this.jobs.values()).filter(job =>
       queueName === 'screenshot' ? job.name === 'screenshot' : job.name === 'batch'
     )
-    
+
     return {
       waiting: queueJobs.length,
       active: 0,
@@ -97,7 +97,7 @@ export class MockQueueService {
   /**
    * Get job by ID (mock implementation)
    */
-  async getJob(queueName: 'screenshot' | 'batch', jobId: string): Promise<any> {
+  async getJob(_queueName: 'screenshot' | 'batch', jobId: string): Promise<any> {
     const job = this.jobs.get(jobId)
     return job || null
   }

@@ -54,11 +54,11 @@ export interface QueueMetrics {
 }
 
 export class QueueService {
-  private screenshotQueue: Queue<ScreenshotJobData, JobResult>
-  private batchQueue: Queue<BatchJobData, any>
-  private screenshotQueueEvents: QueueEvents
-  private batchQueueEvents: QueueEvents
-  private redisConnection: Redis
+  private screenshotQueue!: Queue<ScreenshotJobData, JobResult>
+  private batchQueue!: Queue<BatchJobData, any>
+  private screenshotQueueEvents!: QueueEvents
+  private batchQueueEvents!: QueueEvents
+  private redisConnection!: Redis
 
   constructor() {
     try {
