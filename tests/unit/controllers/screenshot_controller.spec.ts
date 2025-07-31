@@ -164,6 +164,10 @@ test.group('ScreenshotController - Single Screenshot', (group) => {
           format: 'invalid-format',
         }),
         input: (key: string) => (key === 'url' ? 'invalid-url' : undefined),
+        url: () => '/api/screenshot',
+        method: () => 'POST',
+        header: (name: string) => name === 'user-agent' ? 'test-agent' : undefined,
+        ip: () => '127.0.0.1',
       },
       response: {
         status: (code: number) => {
@@ -207,6 +211,10 @@ test.group('ScreenshotController - Single Screenshot', (group) => {
           cache: true,
         }),
         input: (key: string) => (key === 'url' ? 'https://slow-website.com' : undefined),
+        url: () => '/api/screenshot',
+        method: () => 'POST',
+        header: (name: string) => name === 'user-agent' ? 'test-agent' : undefined,
+        ip: () => '127.0.0.1',
       },
       response: {
         status: (code: number) => {
@@ -250,6 +258,10 @@ test.group('ScreenshotController - Single Screenshot', (group) => {
           cache: true,
         }),
         input: (key: string) => (key === 'url' ? 'https://example.com/not-found' : undefined),
+        url: () => '/api/screenshot',
+        method: () => 'POST',
+        header: (name: string) => name === 'user-agent' ? 'test-agent' : undefined,
+        ip: () => '127.0.0.1',
       },
       response: {
         status: (code: number) => {
@@ -307,6 +319,10 @@ test.group('ScreenshotController - Single Screenshot', (group) => {
           cache: true,
         }),
         input: (key: string) => (key === 'url' ? 'https://example.com' : undefined),
+        url: () => '/api/screenshot',
+        method: () => 'POST',
+        header: (name: string) => name === 'user-agent' ? 'test-agent' : undefined,
+        ip: () => '127.0.0.1',
       },
       response: {
         status: (code: number) => {
@@ -566,6 +582,12 @@ test.group('ScreenshotController - Active Batch Jobs', (group) => {
     let responseBody: any = null
 
     const ctx = {
+      request: {
+        url: () => '/api/batch/active',
+        method: () => 'GET',
+        header: (name: string) => name === 'user-agent' ? 'test-agent' : undefined,
+        ip: () => '127.0.0.1',
+      },
       response: {
         status: (code: number) => {
           responseStatus = code
@@ -1544,6 +1566,12 @@ test.group('ScreenshotController - Cache Statistics', (group) => {
     let responseBody: any = null
 
     const ctx = {
+      request: {
+        url: () => '/api/cache/stats',
+        method: () => 'GET',
+        header: (name: string) => name === 'user-agent' ? 'test-agent' : undefined,
+        ip: () => '127.0.0.1',
+      },
       response: {
         status: (code: number) => {
           responseStatus = code
@@ -1608,6 +1636,12 @@ test.group('ScreenshotController - Cache Clear', (group) => {
     let responseBody: any = null
 
     const ctx = {
+      request: {
+        url: () => '/api/cache/clear',
+        method: () => 'DELETE',
+        header: (name: string) => name === 'user-agent' ? 'test-agent' : undefined,
+        ip: () => '127.0.0.1',
+      },
       response: {
         status: (code: number) => {
           responseStatus = code
@@ -1755,6 +1789,10 @@ test.group('ScreenshotController - Cache URL Invalidation', (group) => {
     const ctx = {
       request: {
         input: (key: string) => key === 'url' ? 'https://example.com' : undefined,
+        url: () => '/api/cache/invalidate',
+        method: () => 'DELETE',
+        header: (name: string) => name === 'user-agent' ? 'test-agent' : undefined,
+        ip: () => '127.0.0.1',
       },
       response: {
         status: (code: number) => {

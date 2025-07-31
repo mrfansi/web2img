@@ -4,6 +4,36 @@ import BatchJob, { BatchJobStatus, BatchConfig, BatchResult } from '#models/batc
 import db from '@adonisjs/lucid/services/db'
 
 test.group('BatchJob Model', (group) => {
+  group.setup(async () => {
+    // Ensure the BatchJob model is properly loaded and table exists
+    try {
+      const hasTable = await db.connection().schema.hasTable('batch_jobs')
+      if (!hasTable) {
+        // If table doesn't exist, create it with the exact schema the model expects
+        await db.connection().schema.createTable('batch_jobs', (table) => {
+          table.increments('id').notNullable()
+          table.string('status').notNullable()
+          table.integer('total_items').notNullable()
+          table.integer('completed_items').notNullable().defaultTo(0)
+          table.integer('failed_items').notNullable().defaultTo(0)
+          table.json('config').notNullable()
+          table.json('results').notNullable()
+          table.timestamp('created_at').notNullable()
+          table.timestamp('updated_at').nullable()
+          table.timestamp('scheduled_at').nullable()
+          table.timestamp('completed_at').nullable()
+          table.timestamp('next_scheduled_time').nullable()
+          table.json('recurrence_config').nullable()
+          table.string('webhook_url').nullable()
+          table.string('webhook_auth').nullable()
+          table.timestamp('processing_started_at').nullable()
+        })
+      }
+    } catch (error) {
+      console.warn('Failed to ensure batch_jobs table exists:', error)
+    }
+  })
+
   group.each.setup(async () => {
     // Clean up database before each test
     try {

@@ -31,7 +31,7 @@ test.group('Health Check Service', (group) => {
     assert.isNumber(health.summary.unhealthy)
     assert.isNumber(health.summary.degraded)
     assert.isNumber(health.summary.total)
-    assert.equal(health.summary.total, 5) // 5 components
+    assert.equal(health.summary.total, 6) // 6 components: database, redis, browser, storage, imgproxy, queues
 
     // Check timestamp and uptime
     assert.instanceOf(health.timestamp, Date)

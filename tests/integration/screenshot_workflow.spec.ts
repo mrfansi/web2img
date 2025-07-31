@@ -3,6 +3,7 @@ import { ApiClient } from '@japa/api-client'
 import ApiKey from '#models/api_key'
 import User from '#models/user'
 import { cleanupRedisConnections } from '#tests/utils/redis_test_utils'
+import { screenshotWorkerService } from '#services/screenshot_worker_service'
 
 test.group('Screenshot Workflow - Integration Tests', (group) => {
   let apiClient: ApiClient
@@ -11,6 +12,21 @@ test.group('Screenshot Workflow - Integration Tests', (group) => {
 
   group.setup(async () => {
     apiClient = new ApiClient()
+
+    // Mock the screenshot worker service to avoid external HTTP requests
+    const originalProcessScreenshotJob = screenshotWorkerService.processScreenshotJob
+    screenshotWorkerService.processScreenshotJob = async function (jobData: any) {
+      // Return a mock screenshot result
+      return {
+        buffer: Buffer.from('mock-screenshot-data'),
+        format: jobData.options.format || 'png',
+        width: jobData.options.width || 1280,
+        height: jobData.options.height || 720,
+        processingTime: Math.random() * 1000 + 500,
+        finalUrl: jobData.url,
+        wasTransformed: false
+      }
+    }
 
     // Create test user
     testUser = await User.create({
@@ -87,7 +103,7 @@ test.group('Screenshot Workflow - Integration Tests', (group) => {
       .json({
         items: [
           { id: 'item1', url: 'https://example.com', format: 'png' },
-          { id: 'item2', url: 'https://httpbin.org/html', format: 'jpeg' },
+          { id: 'item2', url: 'https://example.org', format: 'jpeg' },
         ],
         config: {
           parallel: 2,
@@ -199,7 +215,7 @@ test.group('Screenshot Workflow - Integration Tests', (group) => {
     assert.isDefined(validResponse.headers()['x-ratelimit-remaining'])
   })
 
-  test('error handling workflow', async ({}) => {
+  test('error handling workflow', async ({ }) => {
     // Test invalid URL
     const invalidUrlResponse = await apiClient
       .post('/screenshot')
@@ -257,7 +273,7 @@ test.group('Screenshot Workflow - Integration Tests', (group) => {
     })
   })
 
-  test('batch job not found workflow', async ({}) => {
+  test('batch job not found workflow', async ({ }) => {
     const notFoundResponse = await apiClient
       .get('/batch/screenshots/999999')
       .header('X-API-Key', testApiKey.key)

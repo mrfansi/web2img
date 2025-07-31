@@ -66,6 +66,17 @@ export const runnerHooks: Required<Pick<Config, 'setup' | 'teardown'>> = {
         }
 
         // Create other required tables
+        const hasUsersTable = await db.connection().schema.hasTable('users')
+        if (!hasUsersTable) {
+          await db.connection().schema.createTable('users', (table) => {
+            table.increments('id').notNullable()
+            table.string('email').notNullable().unique()
+            table.string('password').notNullable()
+            table.timestamp('created_at').notNullable()
+            table.timestamp('updated_at').nullable()
+          })
+        }
+
         const hasApiKeysTable = await db.connection().schema.hasTable('api_keys')
         if (!hasApiKeysTable) {
           await db.connection().schema.createTable('api_keys', (table) => {
@@ -180,6 +191,7 @@ export const configureSuite: Config['configureSuite'] = (suite) => {
         await db.from('error_logs').del()
         await db.from('batch_jobs').del()
         await db.from('api_keys').del()
+        await db.from('users').del()
       } catch (error) {
         console.warn('Database cleanup failed:', error)
       }
@@ -191,6 +203,7 @@ export const configureSuite: Config['configureSuite'] = (suite) => {
         await db.from('error_logs').del()
         await db.from('batch_jobs').del()
         await db.from('api_keys').del()
+        await db.from('users').del()
       } catch (error) {
         console.warn('Database cleanup failed:', error)
       }
