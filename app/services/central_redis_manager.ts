@@ -22,7 +22,7 @@ export class CentralRedisManager {
   private isShuttingDown = false
   private openConnections: Set<RedisConnection | Redis> = new Set()
 
-  private constructor() {}
+  private constructor() { }
 
   /**
    * Get the singleton instance of CentralRedisManager
@@ -39,10 +39,17 @@ export class CentralRedisManager {
    */
   public getClient(): RedisConnection {
     if (!this.client) {
-      // Get the underlying ioredis instance from AdonisJS Redis service
-      this.client = redis.connection()
-      this.setupEventListeners(this.client, 'main')
-      this.trackConnection(this.client)
+      try {
+        // Get the underlying ioredis instance from AdonisJS Redis service
+        this.client = redis.connection()
+        this.setupEventListeners(this.client, 'main')
+        this.trackConnection(this.client)
+      } catch (error) {
+        logger.warn('Failed to create Redis client, Redis may not be available', {
+          error: error.message,
+        })
+        throw error
+      }
     }
     return this.client
   }
@@ -85,25 +92,32 @@ export class CentralRedisManager {
    * BullMQ manages its own prefixing and doesn't support ioredis keyPrefix
    */
   public duplicateForBullMQ(): Redis {
-    // For BullMQ, we need the raw ioredis instance, not the AdonisJS wrapper
-    // Create a new Redis connection using ioredis directly with the same config
-    const redisConfig = config.get<any>('redis')
-    const connectionConfig = redisConfig.connections.main
+    try {
+      // For BullMQ, we need the raw ioredis instance, not the AdonisJS wrapper
+      // Create a new Redis connection using ioredis directly with the same config
+      const redisConfig = config.get<any>('redis')
+      const connectionConfig = redisConfig.connections.main
 
-    const bullmqClient = new Redis({
-      host: connectionConfig.host,
-      port: connectionConfig.port,
-      password: connectionConfig.password,
-      db: connectionConfig.db,
-      // BullMQ specific settings - no keyPrefix
-      keyPrefix: '',
-      maxRetriesPerRequest: null, // Required by BullMQ
-      lazyConnect: true, // Don't connect immediately, wait for first command
-    })
+      const bullmqClient = new Redis({
+        host: connectionConfig.host,
+        port: connectionConfig.port,
+        password: connectionConfig.password,
+        db: connectionConfig.db,
+        // BullMQ specific settings - no keyPrefix
+        keyPrefix: '',
+        maxRetriesPerRequest: null, // Required by BullMQ
+        lazyConnect: true, // Don't connect immediately, wait for first command
+      })
 
-    this.setupEventListenersForIORedis(bullmqClient, 'bullmq-duplicate')
-    this.trackConnection(bullmqClient)
-    return bullmqClient
+      this.setupEventListenersForIORedis(bullmqClient, 'bullmq-duplicate')
+      this.trackConnection(bullmqClient)
+      return bullmqClient
+    } catch (error) {
+      logger.warn('Failed to create BullMQ Redis client, Redis may not be available', {
+        error: error.message,
+      })
+      throw error
+    }
   }
 
   /**

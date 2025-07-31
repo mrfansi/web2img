@@ -96,9 +96,9 @@ export const runnerHooks: Required<Pick<Config, 'setup' | 'teardown'>> = {
           })
         }
 
-        const hasApiKeyUsageTable = await db.connection().schema.hasTable('api_key_usages')
+        const hasApiKeyUsageTable = await db.connection().schema.hasTable('api_key_usage')
         if (!hasApiKeyUsageTable) {
-          await db.connection().schema.createTable('api_key_usages', (table) => {
+          await db.connection().schema.createTable('api_key_usage', (table) => {
             table.increments('id').notNullable()
             table.integer('api_key_id').notNullable()
             table.string('endpoint').notNullable()
@@ -129,11 +129,13 @@ export const runnerHooks: Required<Pick<Config, 'setup' | 'teardown'>> = {
         console.warn('Database table creation failed in tests:', error)
       }
 
-      // Initialize Redis service for tests
+      // Initialize Redis service for tests (optional)
       try {
         await redisService.initialize()
+        console.log('Redis service initialized successfully for tests')
       } catch (error) {
-        console.warn('Redis service initialization failed in tests:', error)
+        console.warn('Redis service initialization failed in tests, continuing without Redis:', error.message)
+        // Don't throw error - tests should be able to run without Redis
       }
     },
   ],
@@ -182,7 +184,7 @@ export const runnerHooks: Required<Pick<Config, 'setup' | 'teardown'>> = {
  * Learn more - https://japa.dev/docs/test-suites#lifecycle-hooks
  */
 export const configureSuite: Config['configureSuite'] = (suite) => {
-  if (['browser', 'functional', 'e2e'].includes(suite.name)) {
+  if (['browser', 'functional', 'e2e', 'integration', 'performance'].includes(suite.name)) {
     return suite.setup(() => testUtils.httpServer().start())
   }
 
@@ -192,7 +194,7 @@ export const configureSuite: Config['configureSuite'] = (suite) => {
       // Clean up database tables before each test suite
       try {
         // Delete in reverse order to avoid foreign key constraints
-        await db.from('api_key_usages').del()
+        await db.from('api_key_usage').del()
         await db.from('error_logs').del()
         await db.from('batch_jobs').del()
         await db.from('api_keys').del()
@@ -204,7 +206,7 @@ export const configureSuite: Config['configureSuite'] = (suite) => {
       // Clean up database tables after each test suite
       try {
         // Delete in reverse order to avoid foreign key constraints
-        await db.from('api_key_usages').del()
+        await db.from('api_key_usage').del()
         await db.from('error_logs').del()
         await db.from('batch_jobs').del()
         await db.from('api_keys').del()

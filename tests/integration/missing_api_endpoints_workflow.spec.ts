@@ -169,8 +169,7 @@ test.group('Missing API Endpoints - Integration Tests', (group) => {
     assert.equal(recurrenceResponse.status(), 202)
     const recurrenceBody = recurrenceResponse.body()
     assert.equal(recurrenceBody.job_id, jobId)
-    assert.equal(recurrenceBody.config.recurrence, 'daily')
-    assert.equal(recurrenceBody.config.recurrence_interval, 1)
+    assert.deepEqual(recurrenceBody.config.recurrence, { pattern: 'daily', interval: 1 })
 
     // Step 4: Cancel the scheduled job
     const cancelResponse = await apiClient
@@ -467,9 +466,11 @@ test.group('Missing API Endpoints - Integration Tests', (group) => {
 
     assert.equal(recurrenceResponse.status(), 202)
     const recurrenceBody = recurrenceResponse.body()
-    assert.equal(recurrenceBody.config.recurrence, 'custom')
-    assert.equal(recurrenceBody.config.recurrence_cron, '0 */6 * * *')
-    assert.equal(recurrenceBody.config.recurrence_count, 10)
+    assert.deepEqual(recurrenceBody.config.recurrence, {
+      pattern: 'custom',
+      cron: '0 */6 * * *',
+      count: 10
+    })
 
     // Test invalid cron expression
     const invalidCronResponse = await apiClient

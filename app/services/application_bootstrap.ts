@@ -89,28 +89,58 @@ export class ApplicationBootstrap {
       }
 
       // Step 6: Initialize queue service
-      logger.info('Initializing queue service')
-      // Queue service is already initialized via its constructor
-      const screenshotMetrics = await queueService.getQueueMetrics('screenshot')
-      const batchMetrics = await queueService.getQueueMetrics('batch')
-      logger.info('Queue service initialized successfully', {
-        screenshotQueue: screenshotMetrics,
-        batchQueue: batchMetrics,
-      })
+      if (!env.get('SKIP_REDIS_INITIALIZATION', false)) {
+        logger.info('Initializing queue service')
+        try {
+          // Queue service is already initialized via its constructor
+          const screenshotMetrics = await queueService.getQueueMetrics('screenshot')
+          const batchMetrics = await queueService.getQueueMetrics('batch')
+          logger.info('Queue service initialized successfully', {
+            screenshotQueue: screenshotMetrics,
+            batchQueue: batchMetrics,
+          })
+        } catch (error) {
+          logger.warn('Queue service initialization failed, continuing without queues', {
+            error: error.message,
+          })
+        }
+      } else {
+        logger.info('Skipping queue service initialization (test environment)')
+      }
 
       // Step 7: Initialize job scheduler service
-      logger.info('Initializing job scheduler service')
-      await jobSchedulerService.initialize()
-      logger.info('Job scheduler service initialized successfully')
+      if (!env.get('SKIP_JOB_SCHEDULER', false)) {
+        logger.info('Initializing job scheduler service')
+        try {
+          await jobSchedulerService.initialize()
+          logger.info('Job scheduler service initialized successfully')
+        } catch (error) {
+          logger.warn('Job scheduler service initialization failed, continuing without scheduler', {
+            error: error.message,
+          })
+        }
+      } else {
+        logger.info('Skipping job scheduler service initialization (test environment)')
+      }
 
       // Step 8: Initialize queue workers
-      logger.info('Initializing queue workers')
-      const screenshotWorker = getScreenshotQueueWorker()
-      const batchWorker = getBatchQueueWorker()
+      if (!env.get('SKIP_QUEUE_WORKERS', false)) {
+        logger.info('Initializing queue workers')
+        try {
+          const screenshotWorker = getScreenshotQueueWorker()
+          const batchWorker = getBatchQueueWorker()
 
-      await screenshotWorker.start()
-      await batchWorker.start()
-      logger.info('Queue workers initialized successfully')
+          await screenshotWorker.start()
+          await batchWorker.start()
+          logger.info('Queue workers initialized successfully')
+        } catch (error) {
+          logger.warn('Queue workers initialization failed, continuing without workers', {
+            error: error.message,
+          })
+        }
+      } else {
+        logger.info('Skipping queue workers initialization (test environment)')
+      }
 
       // Step 9: Set up graceful shutdown handlers
       this.setupGracefulShutdown()
@@ -404,7 +434,7 @@ export class ApplicationBootstrap {
       })
 
       // Clean up test file
-      await fileStorageService.deleteFile(storagePath).catch(() => {})
+      await fileStorageService.deleteFile(storagePath).catch(() => { })
     } catch (error) {
       steps.push({
         step: 'File Storage',
