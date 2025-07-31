@@ -1,6 +1,7 @@
 import { Browser, BrowserContext, Page, chromium } from 'playwright'
 import logger from '@adonisjs/core/services/logger'
 import ErrorLoggingService from '#services/error_logging_service'
+import { ConfigService } from '#services/config_service'
 
 export interface PageOptions {
   width: number
@@ -30,11 +31,12 @@ export class BrowserService {
   private creatingBrowsers: Set<string> = new Set() // Track browsers being created
 
   constructor(options: Partial<BrowserPoolOptions> = {}) {
+    const poolConfig = ConfigService.getBrowserPoolConfig()
     this.poolOptions = {
-      maxBrowsers: options.maxBrowsers || 3,
-      maxPagesPerBrowser: options.maxPagesPerBrowser || 5,
-      browserTimeout: options.browserTimeout || 300000, // 5 minutes
-      pageTimeout: options.pageTimeout || 30000, // 30 seconds
+      maxBrowsers: options.maxBrowsers || poolConfig.maxBrowsers,
+      maxPagesPerBrowser: options.maxPagesPerBrowser || poolConfig.maxPagesPerBrowser,
+      browserTimeout: options.browserTimeout || poolConfig.browserTimeout,
+      pageTimeout: options.pageTimeout || poolConfig.pageTimeout,
     }
 
     // Start cleanup interval

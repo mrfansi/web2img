@@ -46,6 +46,12 @@ services:
       # Browser
       BROWSER_HEADLESS: true
       BROWSER_TIMEOUT: 30000
+
+      # Browser Pool
+      BROWSER_POOL_MAX_BROWSERS: 3
+      BROWSER_POOL_MAX_PAGES_PER_BROWSER: 5
+      BROWSER_POOL_BROWSER_TIMEOUT: 300000
+      BROWSER_POOL_PAGE_TIMEOUT: 30000
     volumes:
       - screenshot_storage:/app/storage
     depends_on:

@@ -67,6 +67,18 @@ export class ConfigService {
   }
 
   /**
+   * Get browser pool configuration
+   */
+  static getBrowserPoolConfig() {
+    return {
+      maxBrowsers: env.get('BROWSER_POOL_MAX_BROWSERS', 3),
+      maxPagesPerBrowser: env.get('BROWSER_POOL_MAX_PAGES_PER_BROWSER', 5),
+      browserTimeout: env.get('BROWSER_POOL_BROWSER_TIMEOUT', 300000),
+      pageTimeout: env.get('BROWSER_POOL_PAGE_TIMEOUT', 30000),
+    }
+  }
+
+  /**
    * Validate all configurations at startup
    */
   static validateAll() {
@@ -75,6 +87,7 @@ export class ConfigService {
       this.getStorageConfig()
       this.getScreenshotConfig()
       this.getBrowserConfig()
+      this.getBrowserPoolConfig()
     } catch (error) {
       throw new Error(`Configuration validation failed: ${error.message}`)
     }

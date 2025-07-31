@@ -75,6 +75,12 @@ SCREENSHOT_QUEUE_CONCURRENCY=5       # Queue worker concurrency
 # Playwright browser settings
 BROWSER_HEADLESS=true                # Run browser in headless mode
 BROWSER_TIMEOUT=30000               # Browser operation timeout (ms)
+
+# Browser pool settings
+BROWSER_POOL_MAX_BROWSERS=3         # Maximum number of browser instances
+BROWSER_POOL_MAX_PAGES_PER_BROWSER=5 # Maximum pages per browser instance
+BROWSER_POOL_BROWSER_TIMEOUT=300000 # Browser instance timeout (ms, 5 minutes)
+BROWSER_POOL_PAGE_TIMEOUT=30000     # Page operation timeout (ms, 30 seconds)
 ```
 
 ## Development Environment
@@ -120,6 +126,12 @@ SCREENSHOT_QUEUE_CONCURRENCY=3
 # Browser
 BROWSER_HEADLESS=true
 BROWSER_TIMEOUT=30000
+
+# Browser Pool
+BROWSER_POOL_MAX_BROWSERS=3
+BROWSER_POOL_MAX_PAGES_PER_BROWSER=5
+BROWSER_POOL_BROWSER_TIMEOUT=300000
+BROWSER_POOL_PAGE_TIMEOUT=30000
 ```
 
 ## Production Environment
@@ -335,6 +347,12 @@ SCREENSHOT_MAX_CONCURRENT=100
 SCREENSHOT_QUEUE_CONCURRENCY=50
 SCREENSHOT_CACHE_TTL=7200  # 2 hours
 REDIS_DB=0
+
+# Browser pool for high traffic
+BROWSER_POOL_MAX_BROWSERS=10
+BROWSER_POOL_MAX_PAGES_PER_BROWSER=10
+BROWSER_POOL_BROWSER_TIMEOUT=600000  # 10 minutes
+BROWSER_POOL_PAGE_TIMEOUT=60000      # 1 minute
 ```
 
 ### Memory-Constrained Configuration
@@ -344,6 +362,12 @@ REDIS_DB=0
 SCREENSHOT_MAX_CONCURRENT=5
 SCREENSHOT_QUEUE_CONCURRENCY=2
 SCREENSHOT_CACHE_TTL=1800  # 30 minutes
+
+# Reduced browser pool for memory constraints
+BROWSER_POOL_MAX_BROWSERS=2
+BROWSER_POOL_MAX_PAGES_PER_BROWSER=3
+BROWSER_POOL_BROWSER_TIMEOUT=180000  # 3 minutes
+BROWSER_POOL_PAGE_TIMEOUT=20000      # 20 seconds
 ```
 
 ### CPU-Constrained Configuration
@@ -353,6 +377,12 @@ SCREENSHOT_CACHE_TTL=1800  # 30 minutes
 SCREENSHOT_MAX_CONCURRENT=10
 SCREENSHOT_QUEUE_CONCURRENCY=3
 BROWSER_TIMEOUT=60000  # Longer timeout for slower processing
+
+# Conservative browser pool for CPU constraints
+BROWSER_POOL_MAX_BROWSERS=2
+BROWSER_POOL_MAX_PAGES_PER_BROWSER=4
+BROWSER_POOL_BROWSER_TIMEOUT=240000  # 4 minutes
+BROWSER_POOL_PAGE_TIMEOUT=45000      # 45 seconds
 ```
 
 ## Monitoring and Observability

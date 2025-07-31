@@ -1,5 +1,6 @@
 import { test } from '@japa/runner'
 import { BrowserService } from '#services/browser_service'
+import env from '#start/env'
 
 test.group('BrowserService', (group) => {
   let browserService: BrowserService
@@ -34,6 +35,35 @@ test.group('BrowserService', (group) => {
 
     assert.equal(stats.maxBrowsers, 2)
     assert.equal(stats.maxPagesPerBrowser, 3)
+  })
+
+  test('should use environment variables for configuration when no options provided', async ({ assert }) => {
+    // Create a new service without options to test environment variable usage
+    const service = new BrowserService()
+    const stats = service.getPoolStats()
+
+    // Should use environment variables or defaults
+    const expectedMaxBrowsers = env.get('BROWSER_POOL_MAX_BROWSERS', 3)
+    const expectedMaxPagesPerBrowser = env.get('BROWSER_POOL_MAX_PAGES_PER_BROWSER', 5)
+
+    assert.equal(stats.maxBrowsers, expectedMaxBrowsers)
+    assert.equal(stats.maxPagesPerBrowser, expectedMaxPagesPerBrowser)
+
+    await service.shutdown()
+  })
+
+  test('should prioritize constructor options over environment variables', async ({ assert }) => {
+    // Constructor options should override environment variables
+    const service = new BrowserService({
+      maxBrowsers: 10,
+      maxPagesPerBrowser: 8,
+    })
+    const stats = service.getPoolStats()
+
+    assert.equal(stats.maxBrowsers, 10)
+    assert.equal(stats.maxPagesPerBrowser, 8)
+
+    await service.shutdown()
   })
 
   test('should create a page with specified options', async ({ assert }) => {

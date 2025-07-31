@@ -90,4 +90,14 @@ export default await Env.create(new URL('../', import.meta.url), {
   */
   BROWSER_HEADLESS: Env.schema.boolean(),
   BROWSER_TIMEOUT: Env.schema.number(),
+
+  /*
+  |----------------------------------------------------------
+  | Variables for configuring browser pool
+  |----------------------------------------------------------
+  */
+  BROWSER_POOL_MAX_BROWSERS: Env.schema.number.optional(),
+  BROWSER_POOL_MAX_PAGES_PER_BROWSER: Env.schema.number.optional(),
+  BROWSER_POOL_BROWSER_TIMEOUT: Env.schema.number.optional(),
+  BROWSER_POOL_PAGE_TIMEOUT: Env.schema.number.optional(),
 })
