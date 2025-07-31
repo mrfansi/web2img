@@ -40,11 +40,11 @@ export const plugins: Config['plugins'] = [assert(), apiClient(), pluginAdonisJS
 export const runnerHooks: Required<Pick<Config, 'setup' | 'teardown'>> = {
   setup: [
     async () => {
-      // Create database tables for tests
+      // Create database tables for tests (since we're using :memory: database)
       try {
-        // Create batch_jobs table if it doesn't exist
-        const hasTable = await db.connection().schema.hasTable('batch_jobs')
-        if (!hasTable) {
+        // Create batch_jobs table with the exact schema from migrations
+        const hasBatchJobsTable = await db.connection().schema.hasTable('batch_jobs')
+        if (!hasBatchJobsTable) {
           await db.connection().schema.createTable('batch_jobs', (table) => {
             table.increments('id').notNullable()
             table.string('status').notNullable().defaultTo('pending')
@@ -62,6 +62,11 @@ export const runnerHooks: Required<Pick<Config, 'setup' | 'teardown'>> = {
             table.string('webhook_url', 2048).nullable()
             table.string('webhook_auth', 512).nullable()
             table.timestamp('processing_started_at').nullable()
+
+            // Indexes
+            table.index(['status'])
+            table.index(['created_at'])
+            table.index(['scheduled_at'])
           })
         }
 

@@ -14,7 +14,6 @@ test.group('Screenshot Workflow - Integration Tests', (group) => {
     apiClient = new ApiClient()
 
     // Mock the screenshot worker service to avoid external HTTP requests
-    const originalProcessScreenshotJob = screenshotWorkerService.processScreenshotJob
     screenshotWorkerService.processScreenshotJob = async function (jobData: any) {
       // Return a mock screenshot result
       return {

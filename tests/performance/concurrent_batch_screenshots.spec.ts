@@ -3,6 +3,7 @@ import { ApiClient } from '@japa/api-client'
 import ApiKey from '#models/api_key'
 import User from '#models/user'
 import { cleanupRedisConnections } from '#tests/utils/redis_test_utils'
+import db from '@adonisjs/lucid/services/db'
 
 test.group('Concurrent Batch Screenshots - Performance Tests', (group) => {
   let apiClient: ApiClient
@@ -28,7 +29,23 @@ test.group('Concurrent Batch Screenshots - Performance Tests', (group) => {
     })
   })
 
+  group.each.teardown(async () => {
+    // Clean up batch jobs after each test
+    try {
+      await db.from('batch_jobs').del()
+    } catch (error) {
+      console.warn('Failed to clean up batch jobs in concurrent batch screenshots performance test:', error)
+    }
+  })
+
   group.teardown(async () => {
+    // Clean up batch jobs before final cleanup
+    try {
+      await db.from('batch_jobs').del()
+    } catch (error) {
+      console.warn('Failed to clean up batch jobs in concurrent batch screenshots performance teardown:', error)
+    }
+
     // Clean up test data
     if (testApiKey) {
       await testApiKey.delete()

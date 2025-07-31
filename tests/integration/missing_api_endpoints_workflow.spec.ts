@@ -4,6 +4,7 @@ import ApiKey from '#models/api_key'
 import User from '#models/user'
 import { cleanupRedisConnections } from '#tests/utils/redis_test_utils'
 import { DateTime } from 'luxon'
+import db from '@adonisjs/lucid/services/db'
 
 test.group('Missing API Endpoints - Integration Tests', (group) => {
   let apiClient: ApiClient
@@ -29,8 +30,23 @@ test.group('Missing API Endpoints - Integration Tests', (group) => {
     })
   })
 
+  group.each.teardown(async () => {
+    // Clean up batch jobs after each test
+    try {
+      await db.from('batch_jobs').del()
+    } catch (error) {
+      console.warn('Failed to clean up batch jobs in integration test:', error)
+    }
+  })
+
   group.teardown(async () => {
     // Clean up test data
+    try {
+      await db.from('batch_jobs').del()
+    } catch (error) {
+      console.warn('Failed to clean up batch jobs in integration test teardown:', error)
+    }
+
     if (testApiKey) {
       await testApiKey.delete()
     }

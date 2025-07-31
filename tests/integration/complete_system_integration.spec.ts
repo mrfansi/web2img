@@ -8,6 +8,7 @@ import imgProxyService from '#services/imgproxy_service'
 import webhookService from '#services/webhook_service'
 import jobSchedulerService from '#services/job_scheduler_service'
 import BatchJob from '#models/batch_job'
+import db from '@adonisjs/lucid/services/db'
 
 test.group('Complete System Integration', (group) => {
   group.setup(async () => {
@@ -15,7 +16,23 @@ test.group('Complete System Integration', (group) => {
     await applicationBootstrap.initialize()
   })
 
+  group.each.teardown(async () => {
+    // Clean up batch jobs after each test
+    try {
+      await db.from('batch_jobs').del()
+    } catch (error) {
+      console.warn('Failed to clean up batch jobs in complete system integration test:', error)
+    }
+  })
+
   group.teardown(async () => {
+    // Clean up batch jobs before shutdown
+    try {
+      await db.from('batch_jobs').del()
+    } catch (error) {
+      console.warn('Failed to clean up batch jobs in complete system integration teardown:', error)
+    }
+
     // Clean shutdown after tests
     await applicationBootstrap.shutdown()
   })
