@@ -1,0 +1,92 @@
+<!-- Error Logs -->
+<div class="bg-white overflow-hidden shadow rounded-lg mb-6">
+  <div class="px-4 py-5 sm:p-6">
+    <div class="flex justify-between items-center mb-4">
+      <h3 class="text-lg leading-6 font-medium text-gray-900">
+        Recent Error Logs
+      </h3>
+      <div class="flex space-x-2">
+        <select id="error-level" class="border border-gray-300 rounded-md px-3 py-1 text-sm">
+          <option value="">
+            All Levels
+          </option>
+          <option value="error">
+            Error
+          </option>
+          <option value="warn">
+            Warning
+          </option>
+          <option value="fatal">
+            Fatal
+          </option>
+        </select>
+        <button
+          onclick="testErrorLog()"
+          class="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded-md text-sm"
+        >
+          Test Error
+                </button>
+        <button
+          onclick="loadErrorLogs()"
+          class="bg-gray-600 hover:bg-gray-700 text-white px-3 py-1 rounded-md text-sm"
+        >
+          Refresh
+                </button>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+      <div class="text-center">
+        <div class="text-2xl font-bold text-red-600" id="error-count">
+          -
+        </div>
+        <p class="text-sm text-gray-500">
+          Total Errors
+        </p>
+      </div>
+      <div class="text-center">
+        <div class="text-2xl font-bold text-yellow-600" id="warning-count">
+          -
+        </div>
+        <p class="text-sm text-gray-500">
+          Warnings
+        </p>
+      </div>
+      <div class="text-center">
+        <div class="text-2xl font-bold text-red-800" id="fatal-count">
+          -
+        </div>
+        <p class="text-sm text-gray-500">
+          Fatal Errors
+        </p>
+      </div>
+    </div>
+
+    <div class="overflow-x-auto">
+      <table class="min-w-full divide-y divide-gray-200">
+        <thead class="bg-gray-50">
+          <tr>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              Level
+            </th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              Message
+            </th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              Endpoint
+            </th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              IP Address
+            </th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              Time
+            </th>
+          </tr>
+        </thead>
+        <tbody id="error-logs-table" class="bg-white divide-y divide-gray-200">
+          <!-- Error logs will be loaded here -->
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>

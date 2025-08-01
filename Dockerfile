@@ -1,55 +1,104 @@
-FROM python:3.12-slim
+# Multi-stage Dockerfile for Website Screenshot API
+
+FROM node:22.16.0-alpine3.22 AS base
+
+# Install system dependencies for Playwright and Chromium
+RUN apk add --no-cache \
+    chromium \
+    nss \
+    freetype \
+    freetype-dev \
+    harfbuzz \
+    ca-certificates \
+    ttf-freefont \
+    ttf-dejavu \
+    ttf-droid \
+    ttf-liberation \
+    font-noto \
+    python3 \
+    make \
+    g++ \
+    git \
+    dbus \
+    xvfb \
+    && rm -rf /var/cache/apk/*
+
+# Set up Chromium environment
+ENV CHROMIUM_PATH=/usr/bin/chromium-browser
+ENV CHROME_BIN=/usr/bin/chromium-browser
+ENV CHROME_PATH=/usr/bin/chromium-browser
+
+# All deps stage
+FROM base AS deps
+WORKDIR /app
+ADD package.json package-lock.json ./
+RUN npm ci
+
+# Production only deps stage
+FROM base AS production-deps
+WORKDIR /app
+ADD package.json package-lock.json ./
+RUN npm ci --omit=dev
+
+# Build stage
+FROM base AS build
+WORKDIR /app
+COPY --from=deps /app/node_modules /app/node_modules
+ADD . .
+RUN node ace build
+
+# Production stage
+FROM base AS production
+ENV NODE_ENV=production
+
+# Set default environment variables for queue workers
+ENV SCREENSHOT_QUEUE_REMOVE_ON_COMPLETE=1000
+ENV SCREENSHOT_QUEUE_REMOVE_ON_FAIL=500
+ENV SCREENSHOT_QUEUE_CONCURRENCY=3
+ENV SCREENSHOT_TIMEOUT=30000
+ENV SCREENSHOT_CACHE_TTL=3600
+ENV SCREENSHOT_MAX_CONCURRENT=10
+
+# Create app user
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S web2img -u 1001
 
 WORKDIR /app
 
-# Install system dependencies required for Playwright browsers
-RUN apt-get update && apt-get install -y \
-    wget \
-    gnupg \
-    ca-certificates \
-    libnss3 \
-    libnspr4 \
-    libatk1.0-0 \
-    libatk-bridge2.0-0 \
-    libcups2 \
-    libdrm2 \
-    libdbus-1-3 \
-    libxcb1 \
-    libxkbcommon0 \
-    libx11-6 \
-    libxcomposite1 \
-    libxdamage1 \
-    libxext6 \
-    libxfixes3 \
-    libxrandr2 \
-    libgbm1 \
-    libpango-1.0-0 \
-    libcairo2 \
-    libasound2 \
-    libglib2.0-0 \
-    libgtk-3-0 \
-    libgdk-pixbuf-2.0-0 \
-    libxss1 \
-    libxtst6 \
-    fonts-liberation \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+# Copy production dependencies and built application
+COPY --from=production-deps --chown=web2img:nodejs /app/node_modules /app/node_modules
+COPY --from=build --chown=web2img:nodejs /app/build /app
 
-# Copy requirements file
-COPY requirements.txt .
+# Copy test scripts for debugging
+COPY --chown=web2img:nodejs test_browser.js /app/test_browser.js
+COPY --chown=web2img:nodejs scripts/docker-entrypoint.sh /app/docker-entrypoint.sh
+COPY --chown=web2img:nodejs scripts/debug-batch-workers.js /app/debug-batch-workers.js
 
-# Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+# Create storage directories and set permissions as root
+RUN mkdir -p storage/screenshots/cache storage/screenshots/screenshots storage/screenshots/temp && \
+    chmod +x /app/docker-entrypoint.sh && \
+    chmod +x /app/debug-batch-workers.js && \
+    chown -R web2img:nodejs /app
 
-# Install Playwright browsers with system dependencies (all three engines for multi-browser support)
-RUN playwright install --with-deps chromium firefox webkit
+# Switch to non-root user
+USER web2img
 
-# Copy application code
-COPY . .
+# Set Playwright environment variables
+ENV PLAYWRIGHT_BROWSERS_PATH=/usr/bin
+ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+ENV PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium-browser
 
-# Create directory for temporary screenshots
-RUN mkdir -p /tmp/web2img
+# Additional environment variables for headless operation
+ENV DISPLAY=:99
+ENV DBUS_SESSION_BUS_ADDRESS=/dev/null
 
+# Expose port
+EXPOSE 3333
 
-# Uses the WORKERS environment variable for the number of workers
-CMD ["python", "main.py"]
+# Health check - use the liveness endpoint which is more forgiving
+HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=3 \
+    CMD node -e "require('http').get('http://localhost:3333/health/live', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"
+
+# Start the application
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
+CMD ["node", "./bin/server.js"]

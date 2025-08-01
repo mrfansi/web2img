@@ -1,0 +1,36 @@
+@layouts.main({ title: 'Web2Img Dashboard', header: 'Web2Img Dashboard' })
+  @slot('main')
+    <!-- Loading indicator -->
+    <div id="loading" class="text-center py-8">
+      <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600">
+      </div>
+      <p class="mt-2 text-gray-600">
+        Loading dashboard data...
+      </p>
+    </div>
+
+    <!-- Dashboard content -->
+    <div id="dashboard-content" class="hidden">
+      @include('dashboard/components/system_status')
+      @include('dashboard/components/metrics_grid')
+      @include('dashboard/components/usage_overview')
+      @include('dashboard/components/error_logs')
+      @include('dashboard/components/api_key_management')
+      @include('dashboard/components/user_management')
+    </div>
+
+    <!-- Error message -->
+    <div
+      id="error-message"
+      class="hidden bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4"
+    >
+      <span id="error-text"></span>
+    </div>
+
+    @include('dashboard/components/modals')
+  @end
+  
+  @slot('scripts')
+    @include('dashboard/components/dashboard_scripts')
+  @end
+@end

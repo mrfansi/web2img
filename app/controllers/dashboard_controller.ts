@@ -1,0 +1,1167 @@
+import { HttpContext } from '@adonisjs/core/http'
+import { HealthCheckService } from '#services/health_check_service'
+import { MetricsService } from '#services/metrics_service'
+import ApiKey from '#models/api_key'
+import User from '#models/user'
+import ApiKeyUsage from '#models/api_key_usage'
+import ErrorLog, { ErrorLevel } from '#models/error_log'
+import vine from '@vinejs/vine'
+import { changePasswordValidator } from '#validators/auth_validators'
+import hash from '@adonisjs/core/services/hash'
+import ErrorLoggingService from '#services/error_logging_service'
+
+/**
+ * Dashboard controller for web interface and API key management
+ */
+export default class DashboardController {
+  private healthCheckService = new HealthCheckService()
+  private metricsService = new MetricsService()
+
+  /**
+   * Create API key validator
+   */
+  private createApiKeyValidator = vine.compile(
+    vine.object({
+      name: vine.string().minLength(1).maxLength(100),
+      rateLimit: vine.number().min(1).max(10000).optional(),
+    })
+  )
+
+  /**
+   * @swagger
+   * /dashboard:
+   *   get:
+   *     summary: Dashboard web interface
+   *     description: Returns the main dashboard HTML interface for system monitoring and API key management
+   *     tags:
+   *       - Dashboard
+   *     responses:
+   *       200:
+   *         description: Dashboard HTML interface
+   *         content:
+   *           text/html:
+   *             schema:
+   *               type: string
+   */
+  /**
+   * Dashboard home page
+   * GET /dashboard
+   */
+  public async index({ view }: HttpContext) {
+    return view.render('dashboard/index')
+  }
+
+  /**
+   * @swagger
+   * /dashboard/api/data:
+   *   get:
+   *     summary: Get dashboard data
+   *     description: Returns complete dashboard data including system health, metrics, and statistics
+   *     tags:
+   *       - Dashboard
+   *     responses:
+   *       200:
+   *         description: Dashboard data
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 health:
+   *                   type: object
+   *                   properties:
+   *                     status:
+   *                       type: string
+   *                       enum: [healthy, unhealthy, degraded]
+   *                     uptime:
+   *                       type: number
+   *                     components:
+   *                       type: object
+   *                 metrics:
+   *                   type: object
+   *                   properties:
+   *                     requests:
+   *                       $ref: '#/components/schemas/RequestMetrics'
+   *                     processing:
+   *                       $ref: '#/components/schemas/ProcessingMetrics'
+   *                     system:
+   *                       $ref: '#/components/schemas/SystemMetrics'
+   *                 stats:
+   *                   type: object
+   *                   properties:
+   *                     totalApiKeys:
+   *                       type: integer
+   *                     activeApiKeys:
+   *                       type: integer
+   *                     totalUsers:
+   *                       type: integer
+   *       500:
+   *         description: Failed to fetch dashboard data
+   *         content:
+   *           application/json:
+   *             schema:
+   *               $ref: '#/components/schemas/ErrorResponse'
+   */
+  /**
+   * API endpoint to get dashboard data
+   * GET /dashboard/api/data
+   */
+  public async getDashboardData({ request, response }: HttpContext) {
+    try {
+      // Get system health
+      const health = await this.healthCheckService.checkSystemHealth()
+
+      // Get metrics
+      const requestMetrics = await this.metricsService.getRequestMetrics()
+      const processingMetrics = await this.metricsService.getProcessingMetrics()
+      const systemMetrics = await this.metricsService.getSystemMetrics()
+
+      // Get API key stats
+      const totalApiKeys = await ApiKey.query().count('* as total').first()
+      const activeApiKeys = await ApiKey.query()
+        .where('is_active', true)
+        .count('* as total')
+        .first()
+      const totalUsers = await User.query().count('* as total').first()
+
+      return {
+        health: {
+          status: health.status,
+          uptime: health.uptime,
+          components: health.components,
+        },
+        metrics: {
+          requests: requestMetrics,
+          processing: processingMetrics,
+          system: systemMetrics,
+        },
+        stats: {
+          totalApiKeys: totalApiKeys?.$extras.total || 0,
+          activeApiKeys: activeApiKeys?.$extras.total || 0,
+          totalUsers: totalUsers?.$extras.total || 0,
+        },
+      }
+    } catch (error) {
+      // Log error to both application logger and database
+      await ErrorLoggingService.logControllerError(
+        'DashboardController',
+        'index',
+        error,
+        {
+          endpoint: request.url(),
+          method: request.method(),
+          userAgent: request.header('user-agent'),
+          ipAddress: request.ip(),
+        }
+      )
+
+      response.status(500)
+      return {
+        detail: {
+          error: 'dashboard_data_fetch_failed',
+          message: 'Failed to fetch dashboard data',
+        },
+      }
+    }
+  }
+
+  /**
+   * @swagger
+   * /dashboard/api/keys:
+   *   get:
+   *     summary: Get all API keys
+   *     description: Returns a list of all API keys with masked key values for security
+   *     tags:
+   *       - Dashboard
+   *       - API Keys
+   *     responses:
+   *       200:
+   *         description: List of API keys
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 data:
+   *                   type: array
+   *                   items:
+   *                     $ref: '#/components/schemas/ApiKeyResponse'
+   *       500:
+   *         description: Failed to fetch API keys
+   *         content:
+   *           application/json:
+   *             schema:
+   *               $ref: '#/components/schemas/ErrorResponse'
+   *   post:
+   *     summary: Create a new API key
+   *     description: Creates a new API key with specified name and rate limit
+   *     tags:
+   *       - Dashboard
+   *       - API Keys
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             required:
+   *               - name
+   *             properties:
+   *               name:
+   *                 type: string
+   *                 minLength: 1
+   *                 maxLength: 100
+   *                 description: Name for the API key
+   *               rateLimit:
+   *                 type: integer
+   *                 minimum: 1
+   *                 maximum: 10000
+   *                 default: 1000
+   *                 description: Rate limit in requests per hour
+   *           examples:
+   *             basic:
+   *               summary: Basic API key
+   *               value:
+   *                 name: "Production API Key"
+   *             withRateLimit:
+   *               summary: API key with custom rate limit
+   *               value:
+   *                 name: "High Volume API Key"
+   *                 rateLimit: 5000
+   *     responses:
+   *       200:
+   *         description: API key created successfully
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 data:
+   *                   allOf:
+   *                     - $ref: '#/components/schemas/ApiKeyResponse'
+   *                     - type: object
+   *                       properties:
+   *                         key:
+   *                           type: string
+   *                           description: Full API key (only shown on creation)
+   *       422:
+   *         description: Validation failed
+   *         content:
+   *           application/json:
+   *             schema:
+   *               $ref: '#/components/schemas/ValidationErrorResponse'
+   *       500:
+   *         description: Failed to create API key
+   *         content:
+   *           application/json:
+   *             schema:
+   *               $ref: '#/components/schemas/ErrorResponse'
+   */
+  /**
+   * Get all API keys for dashboard
+   * GET /dashboard/api/keys
+   */
+  public async getApiKeys({ request, response }: HttpContext) {
+    try {
+      const apiKeys = await ApiKey.query().preload('user').orderBy('created_at', 'desc').limit(50) // Limit to last 50 keys
+
+      return {
+        data: apiKeys.map((key) => ({
+          id: key.id,
+          name: key.name,
+          key: `${key.key.substring(0, 8)}...${key.key.substring(key.key.length - 8)}`, // Masked key
+          rateLimit: key.rateLimit,
+          isActive: key.isActive,
+          createdAt: key.createdAt,
+          user: {
+            id: key.user.id,
+            fullName: key.user.fullName,
+            email: key.user.email,
+          },
+        })),
+      }
+    } catch (error) {
+      // Log error to both application logger and database
+      await ErrorLoggingService.logControllerError(
+        'DashboardController',
+        'getApiKeys',
+        error,
+        {
+          endpoint: request.url(),
+          method: request.method(),
+          userAgent: request.header('user-agent'),
+          ipAddress: request.ip(),
+        }
+      )
+
+      response.status(500)
+      return {
+        detail: {
+          error: 'api_keys_fetch_failed',
+          message: 'Failed to fetch API keys',
+        },
+      }
+    }
+  }
+
+  /**
+   * Create a new API key
+   * POST /dashboard/api/keys
+   */
+  public async createApiKey({ request, response }: HttpContext) {
+    try {
+      const data = await request.validateUsing(this.createApiKeyValidator)
+
+      // For demo purposes, create a default user if none exists
+      let user = await User.first()
+      if (!user) {
+        user = await User.create({
+          fullName: 'Dashboard User',
+          email: 'dashboard@web2img.local',
+          password: 'dashboard-password', // This will be hashed automatically
+        })
+      }
+
+      const apiKey = await ApiKey.createForUser(user.id, data.name, data.rateLimit || 1000)
+
+      await apiKey.load('user')
+
+      return {
+        data: {
+          id: apiKey.id,
+          name: apiKey.name,
+          key: apiKey.key, // Show full key only on creation
+          rateLimit: apiKey.rateLimit,
+          isActive: apiKey.isActive,
+          createdAt: apiKey.createdAt,
+          user: {
+            id: apiKey.user.id,
+            fullName: apiKey.user.fullName,
+            email: apiKey.user.email,
+          },
+        },
+      }
+    } catch (error) {
+
+
+      // Log error to both application logger and database
+      await ErrorLoggingService.logControllerError(
+        'DashboardController',
+        'createApiKey',
+        error,
+        {
+          endpoint: request.url(),
+          method: request.method(),
+          userAgent: request.header('user-agent'),
+          ipAddress: request.ip(),
+        }
+      )
+
+      if (error.messages) {
+        response.status(422)
+        return {
+          detail: {
+            error: 'validation_failed',
+            message: 'Validation failed',
+            errors: error.messages,
+          },
+        }
+      }
+
+      response.status(500)
+      return {
+        detail: {
+          error: 'api_key_creation_failed',
+          message: 'Failed to create API key',
+        },
+      }
+    }
+  }
+
+  /**
+   * Toggle API key active status
+   * PATCH /dashboard/api/keys/:id/toggle
+   */
+  public async toggleApiKey({ request, params, response }: HttpContext) {
+    try {
+      const apiKey = await ApiKey.find(params.id)
+
+      if (!apiKey) {
+        response.status(404)
+        return {
+          detail: {
+            error: 'api_key_not_found',
+            message: 'API key not found',
+          },
+        }
+      }
+
+      if (apiKey.isActive) {
+        await apiKey.deactivate()
+      } else {
+        await apiKey.activate()
+      }
+
+      await apiKey.load('user')
+
+      return {
+        data: {
+          id: apiKey.id,
+          name: apiKey.name,
+          key: `${apiKey.key.substring(0, 8)}...${apiKey.key.substring(apiKey.key.length - 8)}`,
+          rateLimit: apiKey.rateLimit,
+          isActive: apiKey.isActive,
+          createdAt: apiKey.createdAt,
+          user: {
+            id: apiKey.user.id,
+            fullName: apiKey.user.fullName,
+            email: apiKey.user.email,
+          },
+        },
+      }
+    } catch (error) {
+      // Log error to both application logger and database
+      await ErrorLoggingService.logControllerError(
+        'DashboardController',
+        'toggleApiKey',
+        error,
+        {
+          context: {
+            apiKeyId: params.id,
+          },
+          endpoint: request.url(),
+          method: request.method(),
+          userAgent: request.header('user-agent'),
+          ipAddress: request.ip(),
+        }
+      )
+
+      response.status(500)
+      return {
+        detail: {
+          error: 'api_key_toggle_failed',
+          message: 'Failed to toggle API key status',
+        },
+      }
+    }
+  }
+
+  /**
+   * Delete an API key
+   * DELETE /dashboard/api/keys/:id
+   */
+  public async deleteApiKey({ request, params, response }: HttpContext) {
+    try {
+      const apiKey = await ApiKey.find(params.id)
+
+      if (!apiKey) {
+        response.status(404)
+        return {
+          detail: {
+            error: 'api_key_not_found',
+            message: 'API key not found',
+          },
+        }
+      }
+
+      await apiKey.delete()
+
+      return {
+        data: {
+          id: apiKey.id,
+          deleted: true,
+        },
+      }
+    } catch (error) {
+      // Log error to both application logger and database
+      await ErrorLoggingService.logControllerError(
+        'DashboardController',
+        'deleteApiKey',
+        error,
+        {
+          context: {
+            apiKeyId: params.id,
+          },
+          endpoint: request.url(),
+          method: request.method(),
+          userAgent: request.header('user-agent'),
+          ipAddress: request.ip(),
+        }
+      )
+
+      response.status(500)
+      return {
+        detail: {
+          error: 'api_key_deletion_failed',
+          message: 'Failed to delete API key',
+        },
+      }
+    }
+  }
+
+  /**
+   * @swagger
+   * /dashboard/api/usage/{id}:
+   *   get:
+   *     summary: Get API key usage statistics
+   *     description: Retrieve detailed usage statistics for a specific API key
+   *     tags:
+   *       - Dashboard
+   *     parameters:
+   *       - in: path
+   *         name: id
+   *         required: true
+   *         schema:
+   *           type: integer
+   *         description: API key ID
+   *       - in: query
+   *         name: timeframe
+   *         required: false
+   *         schema:
+   *           type: string
+   *           enum: [hour, day, week]
+   *           default: day
+   *         description: Time period for statistics
+   *     responses:
+   *       200:
+   *         description: API key usage statistics retrieved successfully
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 data:
+   *                   type: object
+   *                   properties:
+   *                     apiKey:
+   *                       type: object
+   *                       properties:
+   *                         id:
+   *                           type: integer
+   *                         name:
+   *                           type: string
+   *                         rateLimit:
+   *                           type: integer
+   *                         user:
+   *                           type: string
+   *                     stats:
+   *                       type: object
+   *                       properties:
+   *                         totalRequests:
+   *                           type: integer
+   *                         successfulRequests:
+   *                           type: integer
+   *                         errorRequests:
+   *                           type: integer
+   *                         errorRate:
+   *                           type: number
+   *                         avgResponseTime:
+   *                           type: number
+   *                         endpointStats:
+   *                           type: object
+   *                           additionalProperties:
+   *                             type: object
+   *                             properties:
+   *                               totalRequests:
+   *                                 type: integer
+   *                               errorRequests:
+   *                                 type: integer
+   *                               avgResponseTime:
+   *                                 type: number
+   *                         timeframe:
+   *                           type: string
+   *                         periodStart:
+   *                           type: string
+   *                         periodEnd:
+   *                           type: string
+   *                     recentUsage:
+   *                       type: array
+   *                       items:
+   *                         type: object
+   *                         properties:
+   *                           id:
+   *                             type: integer
+   *                           endpoint:
+   *                             type: string
+   *                           method:
+   *                             type: string
+   *                           statusCode:
+   *                             type: integer
+   *                           responseTime:
+   *                             type: number
+   *                           ipAddress:
+   *                             type: string
+   *                           userAgent:
+   *                             type: string
+   *                           createdAt:
+   *                             type: string
+   *       404:
+   *         description: API key not found
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 detail:
+   *                   type: object
+   *                   properties:
+   *                     error:
+   *                       type: string
+   *                       example: api_key_not_found
+   *                     message:
+   *                       type: string
+   *                       example: API key not found
+   *       500:
+   *         description: Failed to fetch usage statistics
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 detail:
+   *                   type: object
+   *                   properties:
+   *                     error:
+   *                       type: string
+   *                       example: usage_stats_fetch_failed
+   *                     message:
+   *                       type: string
+   *                       example: Failed to fetch usage statistics
+   *     security:
+   *       - ApiKeyAuth: []
+   */
+  /**
+   * Get API key usage statistics
+   * GET /dashboard/api/usage/:id
+   */
+  public async getApiKeyUsage({ params, request, response }: HttpContext) {
+    try {
+      const apiKey = await ApiKey.query().where('id', params.id).preload('user').first()
+
+      if (!apiKey) {
+        response.status(404)
+        return {
+          detail: {
+            error: 'api_key_not_found',
+            message: 'API key not found',
+          },
+        }
+      }
+
+      const timeframe = request.input('timeframe', 'day') as 'hour' | 'day' | 'week'
+      const stats = await ApiKeyUsage.getUsageStats(apiKey.id, timeframe)
+      const recentUsage = await ApiKeyUsage.getRecentUsage(apiKey.id, 20)
+
+      return {
+        data: {
+          apiKey: {
+            id: apiKey.id,
+            name: apiKey.name,
+            rateLimit: apiKey.rateLimit,
+            user: apiKey.user.fullName || apiKey.user.email,
+          },
+          stats,
+          recentUsage: recentUsage.map((usage) => ({
+            id: usage.id,
+            endpoint: usage.endpoint,
+            method: usage.method,
+            statusCode: usage.statusCode,
+            responseTime: usage.responseTime,
+            ipAddress: usage.ipAddress,
+            userAgent: usage.userAgent,
+            createdAt: usage.createdAt,
+          })),
+        },
+      }
+    } catch (error) {
+      // Log error to both application logger and database
+      await ErrorLoggingService.logControllerError(
+        'DashboardController',
+        'getApiKeyUsage',
+        error,
+        {
+          context: {
+            apiKeyId: params.id,
+            timeframe: request.input('timeframe', 'day'),
+          },
+          endpoint: request.url(),
+          method: request.method(),
+          userAgent: request.header('user-agent'),
+          ipAddress: request.ip(),
+        }
+      )
+
+      response.status(500)
+      return {
+        detail: {
+          error: 'usage_stats_fetch_failed',
+          message: 'Failed to fetch usage statistics',
+        },
+      }
+    }
+  }
+
+  /**
+   * Get error logs
+   * GET /dashboard/api/errors
+   */
+  public async getErrorLogs({ request, response }: HttpContext) {
+    const level = request.input('level') as ErrorLevel | undefined
+    const limit = request.input('limit', 100)
+    const timeframe = request.input('timeframe', 'day') as 'hour' | 'day' | 'week'
+
+    try {
+
+      const errors = await ErrorLog.getRecentErrors(limit, level)
+      const stats = await ErrorLog.getErrorStats(timeframe)
+
+      return {
+        data: {
+          errors: errors.map((error) => ({
+            id: error.id,
+            level: error.level,
+            message: error.message,
+            endpoint: error.endpoint,
+            method: error.method,
+            ipAddress: error.ipAddress,
+            correlationId: error.correlationId,
+            apiKeyId: error.apiKeyId,
+            createdAt: error.createdAt,
+            context: error.parsedContext,
+          })),
+          stats,
+        },
+      }
+    } catch (error) {
+      // Log the error to both application logger and database
+      await ErrorLoggingService.logControllerError(
+        'DashboardController',
+        'getErrorLogs',
+        error,
+        {
+          context: {
+            level,
+            limit,
+            timeframe,
+          },
+          endpoint: request.url(),
+          method: request.method(),
+          userAgent: request.header('user-agent'),
+          ipAddress: request.ip(),
+        }
+      )
+
+      response.status(500)
+      return {
+        detail: {
+          error: 'error_logs_fetch_failed',
+          message: 'Failed to fetch error logs',
+        },
+      }
+    }
+  }
+
+  /**
+   * Create a test error (for testing purposes)
+   * POST /dashboard/api/errors
+   */
+  public async createTestError({ request, response }: HttpContext) {
+    try {
+      const { level, message, context, testType } = request.only(['level', 'message', 'context', 'testType'])
+
+      // Generate different types of test errors
+      if (testType === 'exception') {
+        // Test exception handling
+        throw new Error('Test exception to verify error logging')
+      }
+
+      if (testType === 'controller_error') {
+        // Test controller error logging
+        await ErrorLoggingService.logControllerError(
+          'DashboardController',
+          'createTestError',
+          'Test controller error via ErrorLoggingService',
+          {
+            context: { testType: 'controller_error', source: 'dashboard' },
+            endpoint: request.url(),
+            method: request.method(),
+            userAgent: request.header('user-agent'),
+            ipAddress: request.ip(),
+          }
+        )
+      } else if (testType === 'http_error') {
+        // Test HTTP error logging
+        await ErrorLoggingService.logHttpError(
+          500,
+          'Test HTTP error via ErrorLoggingService',
+          {
+            context: { testType: 'http_error', source: 'dashboard' },
+            endpoint: request.url(),
+            method: request.method(),
+            userAgent: request.header('user-agent'),
+            ipAddress: request.ip(),
+          }
+        )
+      } else {
+        // Test direct error log creation
+        const errorLog = await ErrorLog.logError({
+          level: level || ErrorLevel.ERROR,
+          message: message || 'Test error from dashboard',
+          context: context || { source: 'dashboard', test: true },
+          endpoint: '/dashboard/api/errors',
+          method: 'POST',
+          ipAddress: request.ip(),
+          userAgent: request.header('user-agent'),
+        })
+
+        return {
+          data: {
+            id: errorLog.id,
+            level: errorLog.level,
+            message: errorLog.message,
+            createdAt: errorLog.createdAt,
+          },
+        }
+      }
+
+      return {
+        data: {
+          message: 'Test error logged successfully',
+          testType: testType || 'direct',
+        },
+      }
+    } catch (error) {
+      // This catch block will test the ErrorLoggingService
+      await ErrorLoggingService.logControllerError(
+        'DashboardController',
+        'createTestError',
+        error,
+        {
+          context: {
+            originalRequest: {
+              level: request.input('level'),
+              message: request.input('message'),
+              testType: request.input('testType'),
+            },
+          },
+          endpoint: request.url(),
+          method: request.method(),
+          userAgent: request.header('user-agent'),
+          ipAddress: request.ip(),
+        }
+      )
+
+      response.status(500)
+      return {
+        detail: {
+          error: 'error_log_creation_failed',
+          message: 'Failed to create error log',
+        },
+      }
+    }
+  }
+
+  /**
+   * Get overall API usage statistics
+   * GET /dashboard/api/usage-overview
+   */
+  public async getUsageOverview({ request, response }: HttpContext) {
+    try {
+      const timeframe = request.input('timeframe', 'day') as 'hour' | 'day' | 'week'
+
+      // Get all API keys and their usage stats
+      const apiKeys = await ApiKey.query().preload('user')
+      const usageData = await Promise.all(
+        apiKeys.map(async (key) => {
+          const stats = await ApiKeyUsage.getUsageStats(key.id, timeframe)
+          return {
+            apiKey: {
+              id: key.id,
+              name: key.name,
+              user: key.user.fullName || key.user.email,
+            },
+            ...stats,
+          }
+        })
+      )
+
+      // Calculate totals
+      const totalRequests = usageData.reduce((sum, data) => sum + data.totalRequests, 0)
+      const totalErrors = usageData.reduce((sum, data) => sum + data.errorRequests, 0)
+      const avgResponseTime =
+        totalRequests > 0
+          ? usageData.reduce((sum, data) => sum + data.avgResponseTime * data.totalRequests, 0) /
+          totalRequests
+          : 0
+
+      return {
+        data: {
+          overview: {
+            totalRequests,
+            totalErrors,
+            errorRate: totalRequests > 0 ? (totalErrors / totalRequests) * 100 : 0,
+            avgResponseTime,
+            timeframe,
+          },
+          apiKeyUsage: usageData.filter((data) => data.totalRequests > 0),
+        },
+      }
+    } catch (error) {
+      // Log error to both application logger and database
+      await ErrorLoggingService.logControllerError(
+        'DashboardController',
+        'getUsageOverview',
+        error,
+        {
+          context: {
+            timeframe: request.input('timeframe', 'day'),
+          },
+          endpoint: request.url(),
+          method: request.method(),
+          userAgent: request.header('user-agent'),
+          ipAddress: request.ip(),
+        }
+      )
+
+      response.status(500)
+      return {
+        detail: {
+          error: 'usage_overview_fetch_failed',
+          message: 'Failed to fetch usage overview',
+        },
+      }
+    }
+  }
+
+  /**
+   * @swagger
+   * /dashboard/api/user:
+   *   get:
+   *     summary: Get current user information
+   *     description: Returns the current authenticated user's information
+   *     tags:
+   *       - Dashboard
+   *       - User
+   *     responses:
+   *       200:
+   *         description: Current user information
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 data:
+   *                   type: object
+   *                   properties:
+   *                     id:
+   *                       type: integer
+   *                     fullName:
+   *                       type: string
+   *                     email:
+   *                       type: string
+   *                     createdAt:
+   *                       type: string
+   *                       format: date-time
+   *       401:
+   *         description: Unauthorized
+   */
+  /**
+   * Get current user information
+   * GET /dashboard/api/user
+   */
+  public async getCurrentUser({ request, user, response }: HttpContext) {
+    try {
+      if (!user) {
+        response.status(401)
+        return {
+          detail: {
+            error: 'unauthorized',
+            message: 'User not authenticated',
+          },
+        }
+      }
+
+      return {
+        data: {
+          id: user.id,
+          fullName: user.fullName,
+          email: user.email,
+          createdAt: user.createdAt,
+        },
+      }
+    } catch (error) {
+      // Log error to both application logger and database
+      await ErrorLoggingService.logControllerError(
+        'DashboardController',
+        'getUser',
+        error,
+        {
+          endpoint: request.url(),
+          method: request.method(),
+          userAgent: request.header('user-agent'),
+          ipAddress: request.ip(),
+        }
+      )
+
+      response.status(500)
+      return {
+        detail: {
+          error: 'user_fetch_failed',
+          message: 'Failed to fetch user information',
+        },
+      }
+    }
+  }
+
+  /**
+   * @swagger
+   * /dashboard/api/change-password:
+   *   post:
+   *     summary: Change user password
+   *     description: Change the current user's password
+   *     tags:
+   *       - Dashboard
+   *       - User
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             required:
+   *               - currentPassword
+   *               - newPassword
+   *               - confirmPassword
+   *             properties:
+   *               currentPassword:
+   *                 type: string
+   *                 description: Current password
+   *               newPassword:
+   *                 type: string
+   *                 minLength: 6
+   *                 maxLength: 100
+   *                 description: New password
+   *               confirmPassword:
+   *                 type: string
+   *                 description: Confirm new password
+   *     responses:
+   *       200:
+   *         description: Password changed successfully
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 data:
+   *                   type: object
+   *                   properties:
+   *                     message:
+   *                       type: string
+   *       400:
+   *         description: Invalid current password
+   *       422:
+   *         description: Validation failed
+   *       401:
+   *         description: Unauthorized
+   */
+  /**
+   * Change user password
+   * POST /dashboard/api/change-password
+   */
+  public async changePassword({ request, response, user }: HttpContext) {
+    try {
+      if (!user) {
+        response.status(401)
+        return {
+          detail: {
+            error: 'unauthorized',
+            message: 'User not authenticated',
+          },
+        }
+      }
+
+      const data = await request.validateUsing(changePasswordValidator)
+
+      // Verify current password
+      const isCurrentPasswordValid = await hash.verify(user.password, data.currentPassword)
+      if (!isCurrentPasswordValid) {
+        response.status(400)
+        return {
+          detail: {
+            error: 'invalid_current_password',
+            message: 'Current password is incorrect',
+          },
+        }
+      }
+
+      // Update password
+      user.password = data.newPassword
+      await user.save()
+
+      return {
+        data: {
+          message: 'Password changed successfully',
+        },
+      }
+    } catch (error) {
+
+
+      // Log error to both application logger and database
+      await ErrorLoggingService.logControllerError(
+        'DashboardController',
+        'changePassword',
+        error,
+        {
+          endpoint: request.url(),
+          method: request.method(),
+          userAgent: request.header('user-agent'),
+          ipAddress: request.ip(),
+        }
+      )
+
+      if (error.messages) {
+        response.status(422)
+        return {
+          detail: {
+            error: 'validation_failed',
+            message: 'Validation failed',
+            errors: error.messages,
+          },
+        }
+      }
+
+      response.status(500)
+      return {
+        detail: {
+          error: 'password_change_failed',
+          message: 'Failed to change password',
+        },
+      }
+    }
+  }
+
+  /**
+   * @swagger
+   * /dashboard/logout:
+   *   post:
+   *     summary: Logout from dashboard
+   *     description: Clear authentication and redirect to login
+   *     tags:
+   *       - Dashboard
+   *       - Authentication
+   *     responses:
+   *       302:
+   *         description: Redirect to login page
+   */
+  /**
+   * Handle dashboard logout
+   * POST /dashboard/logout
+   */
+  public async logout({ response }: HttpContext) {
+    // Clear authentication cookie
+    response.clearCookie('auth_token')
+
+    // Redirect to login page
+    return response.redirect('/auth/login')
+  }
+}

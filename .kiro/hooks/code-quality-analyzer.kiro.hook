@@ -1,0 +1,22 @@
+{
+  "enabled": true,
+  "name": "Code Quality Analyzer",
+  "description": "Monitors source code files for changes and analyzes modified code for potential improvements including code smells, design patterns, and best practices. Provides suggestions for improving code quality while maintaining existing functionality.",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "app/**/*.ts",
+      "config/**/*.ts",
+      "start/**/*.ts",
+      "database/**/*.ts",
+      "tests/**/*.ts",
+      "*.ts",
+      "*.js"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "Analyze the modified code in the changed files for potential improvements. Focus on:\n\n1. **Code Smells**: Identify any code smells like long methods, large classes, duplicate code, or complex conditionals\n2. **Design Patterns**: Suggest appropriate design patterns that could improve the code structure\n3. **Best Practices**: Check adherence to TypeScript/AdonisJS best practices, proper error handling, and security considerations\n4. **Performance**: Look for potential performance optimizations\n5. **Readability & Maintainability**: Suggest improvements for code clarity, naming conventions, and documentation\n6. **AdonisJS Specific**: Ensure proper use of AdonisJS patterns like middleware, controllers, models, and services\n\nProvide specific, actionable suggestions with code examples where helpful. Maintain the existing functionality while improving code quality. Consider the project's tech stack (AdonisJS v6, TypeScript, MySQL) and existing architecture patterns."
+  }
+}

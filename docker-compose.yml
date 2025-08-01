@@ -1,0 +1,143 @@
+version: '3.8'
+
+services:
+  # Main application
+  web2img:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - '3333:3333'
+    environment:
+      NODE_ENV: production
+      PORT: 3333
+      HOST: 0.0.0.0
+      APP_KEY: ${APP_KEY:-your-32-character-app-key-here}
+      LOG_LEVEL: info
+
+      # Database
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_USER: web2img
+      DB_PASSWORD: ${DB_PASSWORD:-web2img_password}
+      DB_DATABASE: web2img
+
+      # Redis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      REDIS_DB: 0
+
+      # ImgProxy
+      IMGPROXY_BASE_URL: ${IMGPROXY_BASE_URL:-http://imgproxy:8080}
+      IMGPROXY_KEY: ${IMGPROXY_KEY:-}
+      IMGPROXY_SALT: ${IMGPROXY_SALT:-}
+
+      # Storage
+      STORAGE_PATH: /app/storage
+      STORAGE_BASE_URL: ${STORAGE_BASE_URL:-http://localhost:3333/storage}
+
+      # Screenshot settings
+      SCREENSHOT_TIMEOUT: 30000
+      SCREENSHOT_CACHE_TTL: 3600
+      SCREENSHOT_MAX_CONCURRENT: 10
+      SCREENSHOT_QUEUE_CONCURRENCY: 5
+
+      # Browser
+      BROWSER_HEADLESS: true
+      BROWSER_TIMEOUT: 30000
+
+      # Browser Pool
+      BROWSER_POOL_MAX_BROWSERS: 3
+      BROWSER_POOL_MAX_PAGES_PER_BROWSER: 5
+      BROWSER_POOL_BROWSER_TIMEOUT: 300000
+      BROWSER_POOL_PAGE_TIMEOUT: 30000
+    volumes:
+      - screenshot_storage:/app/storage
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "require('http').get('http://localhost:3333/health/live', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+
+  # MySQL Database
+  mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root_password}
+      MYSQL_DATABASE: web2img
+      MYSQL_USER: web2img
+      MYSQL_PASSWORD: ${DB_PASSWORD:-web2img_password}
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./database/init:/docker-entrypoint-initdb.d
+    ports:
+      - '3306:3306'
+    restart: unless-stopped
+    healthcheck:
+      test: ['CMD', 'mysqladmin', 'ping', '-h', 'localhost']
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes ${REDIS_PASSWORD:+--requirepass $REDIS_PASSWORD}
+    volumes:
+      - redis_data:/data
+    ports:
+      - '6379:6379'
+    restart: unless-stopped
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ImgProxy (optional)
+  imgproxy:
+    image: darthsim/imgproxy:latest
+    environment:
+      IMGPROXY_BIND: 0.0.0.0:8080
+      IMGPROXY_KEY: ${IMGPROXY_KEY:-}
+      IMGPROXY_SALT: ${IMGPROXY_SALT:-}
+      IMGPROXY_LOCAL_FILESYSTEM_ROOT: /app/storage
+      IMGPROXY_USE_ETAG: true
+      IMGPROXY_TTL: 3600
+    volumes:
+      - screenshot_storage:/app/storage:ro
+    ports:
+      - '8080:8080'
+    restart: unless-stopped
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:8080/health']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  mysql_data:
+    driver: local
+  redis_data:
+    driver: local
+  screenshot_storage:
+    driver: local
+
+networks:
+  default:
+    name: web2img_network

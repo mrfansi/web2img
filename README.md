@@ -1,539 +1,450 @@
-# web2img
+# Web2Img - Website Screenshot Service
 
-A high-performance FastAPI service that captures website screenshots, uploads them to Cloudflare R2, and generates signed imgproxy URLs for image transformations.
+A high-performance website screenshot service built with AdonisJS, providing REST APIs for capturing website screenshots and converting them to various image formats.
+
+## 📚 API Documentation
+
+**🎯 Complete Interactive API Documentation:**
+Visit the Swagger UI for comprehensive API documentation with interactive testing:
+
+```
+http://localhost:3333/docs
+```
+
+Features:
+
+- Complete API reference for all endpoints
+- Interactive request testing
+- Authentication setup
+- Request/response examples
+- Parameter validation
+- Error handling documentation
 
 ## Features
 
-- Capture website screenshots using Playwright
-- Upload screenshots to Cloudflare R2 storage
-- Generate signed imgproxy URLs for image transformations
-- Handle concurrent requests reliably
-- Validate inputs and provide appropriate error responses
-- Clean up temporary files automatically
+- **RESTful API**: Clean API endpoints for screenshot generation
+- **Multiple Formats**: Support for PNG, JPEG, WebP formats
+- **Queue Processing**: Background job processing with BullMQ
+- **Caching**: Redis-based caching for improved performance
+- **Rate Limiting**: Built-in rate limiting and API key authentication
+- **Batch Processing**: Support for bulk screenshot operations
+- **Error Handling**: Comprehensive error handling and logging
+- **OpenAPI Documentation**: Interactive API documentation with Swagger UI
+- **Dashboard Interface**: Web-based dashboard for monitoring and API key management
 
-## Requirements
+## Dashboard
 
-- Python 3.9+
-- FastAPI
-- Playwright
-- boto3 (for R2 storage)
-- imgproxy (external service)
+The Web2Img service includes a built-in dashboard for system monitoring and API key management.
 
-## Installation
+### Access the Dashboard
 
-1. Clone the repository
-2. Create a virtual environment: `python -m venv .venv`
-3. Activate the virtual environment:
-   - Windows: `.venv\Scripts\activate`
-   - Unix/macOS: `source .venv/bin/activate`
-4. Install dependencies: `pip install -r requirements.txt`
-5. Install Playwright browsers: `playwright install`
-6. Copy `.env.example` to `.env` and configure your environment variables
+Visit `http://localhost:57304/dashboard` when your server is running to access:
 
-## Configuration
+- **System Health Monitoring** - Real-time system status and component health
+- **Performance Metrics** - Request rates, processing times, and system resource usage
+- **API Key Management** - Create, view, toggle, and delete API keys
+- **Statistics Overview** - Quick stats on API keys, users, and system uptime
 
-Create a `.env` file with the following variables:
+### Dashboard Features
 
-```
-# R2 Storage Configuration
-R2_ACCESS_KEY_ID=your_access_key_id
-R2_SECRET_ACCESS_KEY=your_secret_access_key
-R2_ENDPOINT=https://<accountid>.r2.cloudflarestorage.com
-R2_BUCKET=your_bucket_name
-R2_PUBLIC_URL=https://your-public-url.example.com
-R2_OBJECT_EXPIRATION_DAYS=3  # Number of days before objects are automatically deleted
+- **Real-time Updates** - Dashboard automatically refreshes every 30 seconds
+- **Responsive Design** - Works on desktop and mobile devices
+- **API Key Creation** - Generate new API keys with custom names and rate limits
+- **Security** - API keys are masked in listings for security
+- **Health Checks** - Monitor database, Redis, browser, and storage services
 
-# imgproxy Configuration
-IMGPROXY_BASE_URL=https://your-imgproxy-url.example.com
-IMGPROXY_KEY=your_imgproxy_key
-IMGPROXY_SALT=your_imgproxy_salt
+### API Key Management
 
-# Server Configuration
-WORKERS=4
+Through the dashboard, you can:
 
-# Cache Configuration
-CACHE_ENABLED=True
-CACHE_TTL_SECONDS=3600
-CACHE_MAX_ITEMS=100
+1. Create new API keys with custom rate limits (1-10,000 requests/hour)
+2. View all existing API keys (with masked values for security)
+3. Activate/deactivate API keys as needed
+4. Delete unused API keys
+5. Monitor API key usage statistics
 
-# Browser Pool Configuration
-BROWSER_POOL_MIN_SIZE=2
-BROWSER_POOL_MAX_SIZE=10
-BROWSER_POOL_IDLE_TIMEOUT=300
-BROWSER_POOL_MAX_AGE=3600
-BROWSER_POOL_CLEANUP_INTERVAL=60
+For more details, see the [Dashboard Documentation](docs/DASHBOARD.md).
 
-# Timeout Configuration (in milliseconds)
-NAVIGATION_TIMEOUT_REGULAR=30000
-NAVIGATION_TIMEOUT_COMPLEX=60000
-BROWSER_LAUNCH_TIMEOUT=60000
-CONTEXT_CREATION_TIMEOUT=30000
-PAGE_CREATION_TIMEOUT=30000
-SCREENSHOT_TIMEOUT=30000
+## Architecture
 
-# Retry Configuration
-MAX_RETRIES_REGULAR=3
-MAX_RETRIES_COMPLEX=5
-RETRY_BASE_DELAY=0.5
-RETRY_MAX_DELAY=10.0
-RETRY_JITTER=0.1
+This application uses a modern, scalable architecture with:
 
-# Circuit Breaker Configuration
-CIRCUIT_BREAKER_THRESHOLD=5
-CIRCUIT_BREAKER_RESET_TIME=300
-```
+- **AdonisJS v6**: Modern Node.js framework
+- **Redis**: For caching and queue management
+- **MySQL**: Primary database
+- **Playwright**: For browser automation and screenshot capture
+- **BullMQ**: For background job processing
+- **OpenAPI 3.0**: API documentation and specification
 
-### R2 Storage Configuration Options
+## CentralRedisManager Usage Guide
 
-- `R2_ACCESS_KEY_ID`: Your Cloudflare R2 access key ID
-- `R2_SECRET_ACCESS_KEY`: Your Cloudflare R2 secret access key
-- `R2_ENDPOINT`: Your Cloudflare R2 endpoint URL (https://<accountid>.r2.cloudflarestorage.com)
-- `R2_BUCKET`: The name of your R2 bucket for storing screenshots
-- `R2_PUBLIC_URL`: The public URL for accessing your R2 bucket
-- `R2_OBJECT_EXPIRATION_DAYS`: Number of days before screenshots are automatically deleted (default: `3`)
+The `CentralRedisManager` is a singleton class that provides centralized Redis connection management with leak detection and proper resource cleanup. It's designed to prevent connection leaks and ensure all Redis connections are properly tracked and closed.
 
-> **Important**: To use the automatic R2 expiration policy, your R2 API token must have the `PutBucketLifecycleConfiguration` permission. If this permission is missing, the application will still function, but you'll need to configure the lifecycle policy manually through the Cloudflare dashboard.
+### Basic Usage
 
-### Cache Configuration Options
+#### Getting a Shared Connection
 
-- `CACHE_ENABLED`: Enable or disable the caching system (default: `True`)
-- `CACHE_TTL_SECONDS`: Time-to-live for cache items in seconds (default: `3600` - 1 hour)
-- `CACHE_MAX_ITEMS`: Maximum number of items to store in the cache (default: `100`)
+For most use cases, use the shared Redis client:
 
-### Browser Pool Configuration Options
+```typescript
+import { getCentralRedisManager } from '#services/central_redis_manager'
 
-- `BROWSER_POOL_MIN_SIZE`: Minimum number of browser instances to keep in the pool (default: `2`)
-- `BROWSER_POOL_MAX_SIZE`: Maximum number of browser instances allowed in the pool (default: `10`)
-- `BROWSER_POOL_IDLE_TIMEOUT`: Time in seconds before idle browsers are cleaned up (default: `300` - 5 minutes)
-- `BROWSER_POOL_MAX_AGE`: Maximum age in seconds for a browser instance before recycling (default: `3600` - 1 hour)
-- `BROWSER_POOL_CLEANUP_INTERVAL`: Interval in seconds for running the cleanup task (default: `60` - 1 minute)
+// Get the singleton instance
+const redisManager = getCentralRedisManager()
 
-### Timeout Configuration Options
+// Get the shared Redis client (lazily initialized)
+const client = redisManager.getClient()
 
-- `NAVIGATION_TIMEOUT_REGULAR`: Timeout in milliseconds for regular site navigation (default: `30000` - 30 seconds)
-- `NAVIGATION_TIMEOUT_COMPLEX`: Timeout in milliseconds for complex site navigation (default: `60000` - 60 seconds)
-- `BROWSER_LAUNCH_TIMEOUT`: Timeout in milliseconds for browser launch operations (default: `60000` - 60 seconds)
-- `CONTEXT_CREATION_TIMEOUT`: Timeout in milliseconds for browser context creation (default: `30000` - 30 seconds)
-- `PAGE_CREATION_TIMEOUT`: Timeout in milliseconds for page creation (default: `30000` - 30 seconds)
-- `SCREENSHOT_TIMEOUT`: Timeout in milliseconds for screenshot capture (default: `30000` - 30 seconds)
-
-### Retry Configuration Options
-
-- `MAX_RETRIES_REGULAR`: Maximum number of retry attempts for regular sites (default: `3`)
-- `MAX_RETRIES_COMPLEX`: Maximum number of retry attempts for complex sites (default: `5`)
-- `RETRY_BASE_DELAY`: Base delay in seconds between retries (default: `0.5`)
-- `RETRY_MAX_DELAY`: Maximum delay in seconds between retries (default: `10.0`)
-- `RETRY_JITTER`: Jitter factor (0-1) to add randomness to delay (default: `0.1`)
-
-### Circuit Breaker Configuration Options
-
-- `CIRCUIT_BREAKER_THRESHOLD`: Number of failures before opening the circuit (default: `5`)
-- `CIRCUIT_BREAKER_RESET_TIME`: Time in seconds before attempting to close the circuit (default: `300` - 5 minutes)
-
-## Usage
-
-### API Documentation
-
-The API is documented using OpenAPI and can be accessed through the Swagger UI at `/docs` or ReDoc at `/redoc`. These interactive documentation pages provide detailed information about all endpoints, including:
-
-- Request parameters and schemas
-- Response formats and status codes
-- Example requests and responses
-- Detailed descriptions of each endpoint
-
-The Swagger UI allows you to test the API directly from the browser, making it easy to explore and understand the service's capabilities.
-
-### Running the Server
-
-```bash
-python main.py
+// Use the client for Redis operations
+await client.set('key', 'value')
+const value = await client.get('key')
 ```
 
-The server configuration is controlled by environment variables:
+#### Creating Duplicate Connections
 
-- `WORKERS`: The number of worker processes (default: 4)
+When you need dedicated connections (e.g., for blocking operations):
 
-You can also run with uvicorn directly, specifying the environment variables:
+```typescript
+import { getCentralRedisManager } from '#services/central_redis_manager'
 
-```bash
-WORKERS=8 PORT=9000 uvicorn app.main:app --host 0.0.0.0 --port $PORT --workers $WORKERS
+const redisManager = getCentralRedisManager()
+
+// Create a duplicate connection for dedicated use
+const duplicateClient = redisManager.duplicate()
+
+// Use for blocking operations or isolated transactions
+await duplicateClient.blpop('queue', 0)
+
+// Remember to close when done
+await duplicateClient.quit()
 ```
 
-For production, use gunicorn with uvicorn workers:
+#### BullMQ Connections
 
-```bash
-WORKERS=8 PORT=9000 gunicorn app.main:app -k uvicorn.workers.UvicornWorker -w $WORKERS -b 0.0.0.0:$PORT
+For BullMQ workers and queues, use the dedicated BullMQ method:
+
+```typescript
+import { getCentralRedisManager } from '#services/central_redis_manager'
+
+const redisManager = getCentralRedisManager()
+
+// Create a connection specifically for BullMQ (no keyPrefix)
+const bullmqClient = redisManager.duplicateForBullMQ()
+
+// Use with BullMQ
+const queue = new Queue('screenshots', { connection: bullmqClient })
+const worker = new Worker('screenshots', processor, { connection: bullmqClient })
 ```
 
-Note: `PORT` and `RELOAD` are handled directly in `main.py` and don't need to be defined in the config.
+### Connection Sharing vs Duplication
 
-### API Endpoints
+#### When to Share (getClient())
 
-#### Capture Screenshot
+Use the shared client for:
 
-**POST /screenshot**
+- ✅ Simple get/set operations
+- ✅ Short-lived operations
+- ✅ Cache operations
+- ✅ General Redis commands
 
-Capture a screenshot of a website, upload it to R2, and return a signed imgproxy URL.
+```typescript
+// ✅ Good: Simple cache operations
+const client = redisManager.getClient()
+await client.setex('session:123', 3600, 'user-data')
+```
 
-Request body:
+#### When to Duplicate
 
-```json
-{
-  "url": "https://example.com",
-  "format": "png",
-  "width": 1280,
-  "height": 720
+Create duplicate connections for:
+
+- ✅ Blocking operations (`BLPOP`, `BRPOP`, etc.)
+- ✅ Long-running operations
+- ✅ Pub/Sub subscribers
+- ✅ BullMQ workers and queues
+- ✅ Database-like transactions
+
+```typescript
+// ✅ Good: Blocking operation with dedicated connection
+const blockingClient = redisManager.duplicate()
+try {
+  const result = await blockingClient.blpop('work-queue', 30)
+  // Process result...
+} finally {
+  await blockingClient.quit() // Always clean up!
 }
 ```
 
-Query parameters:
+### Required shutdown() in Application Lifecycles
 
-- `cache`: Whether to use cache (if available). Set to `false` to bypass cache and force a fresh screenshot. Default: `true`
+The `CentralRedisManager` **must** be properly shut down in all application lifecycles to prevent connection leaks and ensure graceful cleanup.
 
-Response:
+#### Application/Server Lifecycle
 
-```json
-{
-  "url": "https://your-imgproxy-url.example.com/<signed_imgproxy_path>"
-}
+In your main application startup file:
+
+```typescript
+// start/app.ts or similar
+import { getCentralRedisManager } from '#services/central_redis_manager'
+
+// During application shutdown
+process.on('SIGTERM', async () => {
+  console.log('Shutting down gracefully...')
+
+  // Shutdown Redis connections first
+  const redisManager = getCentralRedisManager()
+  await redisManager.shutdown()
+
+  // Then shutdown other services
+  // ...
+
+  process.exit(0)
+})
+
+process.on('SIGINT', async () => {
+  console.log('Received SIGINT, shutting down...')
+
+  const redisManager = getCentralRedisManager()
+  await redisManager.shutdown()
+
+  process.exit(0)
+})
 ```
 
-#### Batch Screenshot Processing
+#### Test Lifecycle
 
-**POST /batch/screenshots**
+The test bootstrap already includes automatic connection leak detection:
 
-Submit multiple screenshot requests to be processed as a batch. The batch job will be processed asynchronously, and you can check the status of the job using the returned job ID.
-
-Request body:
-
-```json
-{
-  "items": [
-    {
-      "url": "https://example.com",
-      "width": 1280,
-      "height": 720,
-      "format": "png",
-      "id": "example-home"
+```typescript
+// tests/bootstrap.ts (already configured)
+export const runnerHooks = {
+  teardown: [
+    async () => {
+      // Shutdown Redis manager after all tests
+      const redisManager = getCentralRedisManager()
+      await redisManager.shutdown()
     },
-    {
-      "url": "https://example.com/about",
-      "width": 1280,
-      "height": 720,
-      "format": "png",
-      "id": "example-about"
-    }
   ],
-  "config": {
-    "parallel": 3,
-    "timeout": 30,
-    "webhook": "https://api.example.com/callbacks/screenshots",
-    "webhook_auth": "Bearer token123",
-    "fail_fast": false,
-    "cache": true
-  }
 }
+
+// Automatic leak detection after each test
+suite.each.teardown(async ({ assert }) => {
+  const redisManager = getCentralRedisManager()
+  const openConnectionsCount = redisManager.getOpenConnectionsCount()
+
+  // This will fail the test if connections are leaked
+  assert.equal(0, openConnectionsCount, 'Redis connection leak detected!')
+})
 ```
 
-Configuration options:
+#### Individual Test Cleanup
 
-- `parallel`: Maximum number of screenshots to process in parallel (default: 3, max: 10)
-- `timeout`: Timeout in seconds for each screenshot (default: 30, max: 60)
-- `webhook`: Webhook URL to call when batch processing is complete
-- `webhook_auth`: Authorization header value for webhook
-- `fail_fast`: Whether to stop processing on first failure (default: false)
-- `cache`: Whether to use cache for screenshots (default: true)
+For tests that create duplicate connections:
 
-Response (Status 202 Accepted):
+```typescript
+import { test } from '@japa/runner'
+import { getCentralRedisManager } from '#services/central_redis_manager'
 
-```json
-{
-  "job_id": "batch-123456",
-  "status": "processing",
-  "total": 2,
-  "completed": 0,
-  "failed": 0,
-  "created_at": "2025-05-23T00:30:00Z",
-  "updated_at": "2025-05-23T00:30:00Z",
-  "estimated_completion": "2025-05-23T00:30:10Z"
-}
-```
+test.group('Redis Operations', (group) => {
+  let duplicateClient: IORedis
 
-**GET /batch/screenshots/{job_id}**
-
-Get the status of a batch screenshot job.
-
-Response:
-
-```json
-{
-  "job_id": "batch-123456",
-  "status": "processing",
-  "total": 2,
-  "completed": 1,
-  "failed": 0,
-  "created_at": "2025-05-23T00:30:00Z",
-  "updated_at": "2025-05-23T00:30:02Z",
-  "estimated_completion": "2025-05-23T00:30:05Z"
-}
-```
-
-**GET /batch/screenshots/{job_id}/results**
-
-Get the results of a batch screenshot job.
-
-Response:
-
-```json
-{
-  "job_id": "batch-123456",
-  "status": "completed",
-  "total": 2,
-  "succeeded": 2,
-  "failed": 0,
-  "processing_time": 3.45,
-  "results": [
-    {
-      "id": "example-home",
-      "status": "success",
-      "url": "https://your-imgproxy-url.example.com/signed_path/resize:fit:1280:720/format:png/base64_encoded_url",
-      "cached": true
-    },
-    {
-      "id": "example-about",
-      "status": "success",
-      "url": "https://your-imgproxy-url.example.com/signed_path/resize:fit:1280:720/format:png/base64_encoded_url",
-      "cached": false
+  group.teardown(async () => {
+    // Clean up any duplicate connections created in tests
+    if (duplicateClient) {
+      await duplicateClient.quit()
     }
-  ]
-}
+  })
+
+  test('should handle blocking operations', async ({ assert }) => {
+    const redisManager = getCentralRedisManager()
+    duplicateClient = redisManager.duplicate()
+
+    // Use duplicate client for test
+    await duplicateClient.lpush('test-queue', 'item')
+    const result = await duplicateClient.brpop('test-queue', 1)
+
+    assert.equal(result[1], 'item')
+    // Connection will be cleaned up in group teardown
+  })
+})
 ```
 
-#### Health Check
+#### Worker Process Lifecycle
 
-**GET /health**
+For background workers or queue processors:
 
-Check the health status of the service and its dependencies.
+```typescript
+// workers/screenshot-worker.ts
+import { getCentralRedisManager } from '#services/central_redis_manager'
 
-Response:
+class ScreenshotWorker {
+  private redisClient: IORedis
 
-```json
-{
-  "status": "ok",
-  "version": "1.0.0",
-  "services": {
-    "screenshot": "ok",
-    "storage": "ok",
-    "imgproxy": "ok",
-    "cache": {
-      "status": "ok",
-      "enabled": true,
-      "size": 42,
-      "hit_rate": 0.87
-    },
-    "system": {
-      "python": "3.12.8",
-      "platform": "macOS-15.4.1-arm64-arm-64bit"
+  async start() {
+    const redisManager = getCentralRedisManager()
+    this.redisClient = redisManager.duplicateForBullMQ()
+
+    // Set up worker with dedicated connection
+    // ...
+  }
+
+  async stop() {
+    // Always clean up the connection
+    if (this.redisClient) {
+      await this.redisClient.quit()
     }
   }
 }
+
+// Graceful shutdown handling
+process.on('SIGTERM', async () => {
+  await worker.stop()
+
+  // Final cleanup of all Redis connections
+  const redisManager = getCentralRedisManager()
+  await redisManager.shutdown()
+})
 ```
 
-Possible status values:
+### Connection Leak Detection
 
-- `ok`: All services are functioning properly
-- `degraded`: Some services have issues but the API is still operational
-- `error`: Critical services are not functioning
+The `CentralRedisManager` includes built-in connection tracking and leak detection:
 
-## Performance
+```typescript
+const redisManager = getCentralRedisManager()
 
-The service is designed to handle high volumes of concurrent requests reliably. The following optimizations are in place:
+// Check how many connections are currently open
+const count = redisManager.getOpenConnectionsCount()
+console.log(`Open connections: ${count}`)
 
-### Batch Processing
+// Get detailed information about open connections
+const info = redisManager.getOpenConnectionsInfo()
+console.log('Connection details:', info)
+```
 
-- Efficient parallel processing of multiple screenshot requests
-- Configurable concurrency limits to optimize resource usage
-- Job management system with status tracking and results aggregation
-- Webhook notifications for asynchronous processing
-- Automatic job cleanup to prevent memory leaks
-- Integration with the caching system for maximum performance
+### Best Practices
 
-### Caching System
+1. **Always use the singleton**: Never instantiate `CentralRedisManager` directly
+2. **Prefer shared connections**: Use `getClient()` for most operations
+3. **Clean up duplicates**: Always call `quit()` on duplicate connections when done
+4. **Implement shutdown handlers**: Ensure `shutdown()` is called during application termination
+5. **Monitor in tests**: The automatic leak detection will catch connection leaks
+6. **Use BullMQ method for queues**: Use `duplicateForBullMQ()` for BullMQ connections
 
-- In-memory caching of screenshot results for frequently requested URLs
-- Configurable TTL (Time-To-Live) for cache items (default: 1 hour)
-- LRU (Least Recently Used) eviction policy when cache is full
-- Cache control parameters for bypassing cache when needed
-- Detailed cache statistics for monitoring performance
-- Cache management API for administrators
+### Common Pitfalls
 
-### Browser Instance Management
+```typescript
+// ❌ BAD: Creating duplicate without cleanup
+const client = redisManager.duplicate()
+await client.set('key', 'value')
+// Missing: await client.quit()
 
-- Browser context pooling for efficient resource reuse
-- Optimized browser launch settings for reduced resource consumption
-- Intelligent resource limiting to prevent memory exhaustion
-- Efficient page configuration to block unnecessary resources
-- Automatic cleanup of browser resources
-- Site-specific handling for complex websites (LinkedIn, YouTube, etc.)
-- Visual content handling for image-rich websites
-
-### Site-Specific Optimizations
-
-- **Complex Site Detection**: Automatically detects complex websites that need special handling
-- **Adaptive Navigation Strategies**: Uses different navigation strategies based on site complexity
-  - Complex sites: Uses 'domcontentloaded' event with extended timeout (configurable, default: 60s)
-  - Regular sites: Uses 'networkidle' event with standard timeout (configurable, default: 30s)
-- **Visual Content Handling**: Selectively loads images for websites where visual content is important
-  - Visual content sites (e.g., Instagram, TikTok): Loads images but blocks audio/video
-  - Complex sites (e.g., LinkedIn, YouTube): Blocks only media files
-  - Regular sites: Blocks images, fonts, and media files for maximum performance
-- **Resource Optimization**: Intelligently blocks or allows resources based on site type
-- **Error Recovery**: Enhanced error handling and retry logic for problematic sites
-
-### Connection Pooling
-
-- Boto3 connection pooling for R2 storage operations (50 connections)
-- Proper timeout management for connections (connect: 5s, read: 10s)
-- Automatic retry logic with exponential backoff
-- Rate limiting detection and handling
-- Efficient connection cleanup
-
-### Browser Pool Management
-
-- Efficient reuse of browser instances through a managed pool
-- Automatic scaling of pool size based on demand (min/max configurable)
-- Intelligent browser recycling based on age and idle time
-- Background cleanup task to prevent resource leaks
-- Thread-safe implementation for concurrent access
-
-### Resilience Features
-
-- **Retry System**: Comprehensive retry system with exponential backoff and jitter
-  - Configurable retry attempts based on site complexity
-  - Progressive delay between retries to prevent overwhelming services
-  - Jitter to prevent retry storms in high-concurrency scenarios
-- **Circuit Breaker Pattern**: Prevents cascading failures during outages
-  - Automatically detects persistent failures and stops retry attempts
-  - Self-healing with half-open state to test recovery
-  - Configurable failure threshold and reset timing
-- **Timeout Management**: Granular timeout controls for different operations
-  - Navigation timeouts adjusted based on site complexity
-  - Separate timeouts for browser launch, context creation, and screenshot capture
-  - All timeouts configurable via environment variables
-
-### Temporary File Management
-
-- Automatic periodic cleanup of temporary screenshot files (older than 1 hour)
-- Efficient resource release to prevent memory leaks
-- Robust error handling during cleanup operations
-
-### Asynchronous Processing
-
-- Non-blocking I/O operations throughout the service
-- Efficient worker configuration for optimal concurrency
-- Proper resource sharing between worker processes
-
-### Cache Management API
-
-#### Get Cache Statistics
-
-**GET /cache/stats**
-
-Get statistics about the cache, including hit rate, size, and configuration.
-
-Response:
-
-```json
-{
-  "enabled": true,
-  "size": 42,
-  "max_size": 100,
-  "ttl": 3600,
-  "hits": 156,
-  "misses": 89,
-  "hit_rate": 0.637,
-  "cleanup_interval": 300
+// ❌ BAD: Not handling shutdown in workers
+class Worker {
+  start() {
+    this.client = redisManager.duplicate()
+    // Missing shutdown handling
+  }
 }
-```
 
-#### Clear Cache
-
-**DELETE /cache**
-
-Clear all items from the cache.
-
-Response: 204 No Content
-
-#### Invalidate Cache for URL
-
-**DELETE /cache/url**
-
-Invalidate all cache entries for a specific URL.
-
-Query parameters:
-
-- `url`: URL to invalidate in the cache (required)
-
-Response:
-
-```json
-{
-  "invalidated": 3
+// ✅ GOOD: Proper cleanup pattern
+const client = redisManager.duplicate()
+try {
+  await client.blpop('queue', 0)
+} finally {
+  await client.quit() // Always clean up
 }
+
+// ✅ GOOD: Shared client for simple operations
+const client = redisManager.getClient() // No cleanup needed
+await client.get('key')
 ```
 
-### Testing
+## Installation & Setup
 
-#### Load Testing
+1. **Clone the repository**
 
-A load testing script is included in the `tests` directory to verify performance:
+   ```bash
+   git clone <repository-url>
+   cd web2img
+   ```
+
+2. **Install dependencies**
+
+   ```bash
+   npm install
+   ```
+
+3. **Set up environment variables**
+
+   ```bash
+   cp .env.example .env
+   # Edit .env with your configuration
+   ```
+
+4. **Start Redis server**
+
+   ```bash
+   redis-server
+   ```
+
+5. **Run migrations**
+
+   ```bash
+   node ace migration:run
+   ```
+
+6. **Start the development server**
+   ```bash
+   npm run dev
+   ```
+
+## Testing
+
+Run the test suite with automatic connection leak detection:
 
 ```bash
-python tests/load_test.py --concurrency 10 --requests 50
+npm test
 ```
 
-The script supports the following options:
+The test framework includes automatic Redis connection leak detection that will fail tests if connections are not properly closed.
 
-- `--url`: API base URL (default: <http://localhost:8000>)
-- `--concurrency`: Number of concurrent requests (default: 10)
-- `--requests`: Total number of requests to make (default: 50)
-- `--output`: Optional JSON file to save detailed results
+## API Documentation
 
-#### Batch Testing
+### Screenshot Endpoints
 
-A batch testing script is included to verify the batch processing API performance:
+- `POST /screenshots` - Generate a single screenshot
+- `POST /screenshots/batch` - Generate multiple screenshots
+- `GET /screenshots/:id` - Get screenshot status/result
+
+### Authentication
+
+All API endpoints require authentication via API key:
 
 ```bash
-python tests/test_batch.py --parallel 3
+curl -H "X-API-Key: your-api-key" \
+     -H "Content-Type: application/json" \
+     -d '{"url": "https://example.com"}' \
+     http://localhost:3333/screenshots
 ```
 
-The script supports the following options:
+## Deployment
 
-- `--url`: API base URL (default: <http://localhost:8000>)
-- `--parallel`: Number of parallel requests (default: 3)
-- `--no-cache`: Disable caching
+For production deployment, ensure:
 
-The test includes a diverse set of URLs to validate the service's capabilities:
+1. **Redis is properly configured** with persistence and appropriate memory settings
+2. **Database connections** are optimized for your load
+3. **Process management** includes proper signal handling for graceful shutdowns
+4. **Health checks** monitor Redis connectivity
+5. **Monitoring** tracks connection counts and potential leaks
 
-- Regular websites (example.com, google.com)
-- Complex websites (LinkedIn, YouTube, Facebook)
-- Visual content websites (Instagram, TikTok)
+## Contributing
 
-This comprehensive test suite ensures that the service can handle all types of websites, including those that require special handling for complex layouts or visual content.
-
-#### Cache Testing
-
-A cache testing script is included to verify the caching system performance:
-
-```bash
-python tests/test_cache.py --iterations 3
-```
-
-The script supports the following options:
-
-- `--url`: API base URL (default: <http://localhost:8000>)
-- `--iterations`: Number of times to request each URL (default: 3)
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Ensure all tests pass (including connection leak detection)
+5. Submit a pull request
 
 ## License
 
-MIT
+[Your License Here]
