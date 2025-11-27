@@ -8,7 +8,7 @@ export default class extends BaseSchema {
     const hasItems = await this.schema.hasColumn(this.tableName, 'items')
 
     if (!hasItems) {
-      this.schema.alterTable(this.tableName, (table) => {
+      await this.schema.alterTable(this.tableName, (table) => {
         // Add items column to store the original batch items for scheduling
         table.json('items').nullable()
       })
@@ -19,7 +19,7 @@ export default class extends BaseSchema {
     const hasItems = await this.schema.hasColumn(this.tableName, 'items')
 
     if (hasItems) {
-      this.schema.alterTable(this.tableName, (table) => {
+      await this.schema.alterTable(this.tableName, (table) => {
         table.dropColumn('items')
       })
     }

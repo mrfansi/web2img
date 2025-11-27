@@ -944,7 +944,7 @@ export default class ScreenshotController {
 
       const batchJobData = {
         id: batchJob.id.toString(),
-        items: items,
+        items,
         config: queueConfig,
         apiKeyId: ctx.apiKey?.id?.toString() || 'unknown',
       }
