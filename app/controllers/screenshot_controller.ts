@@ -217,22 +217,17 @@ export default class ScreenshotController {
       const processingTime = Date.now() - startTime
 
       // Log error to both application logger and database
-      await ErrorLoggingService.logControllerError(
-        'ScreenshotController',
-        'single',
-        error,
-        {
-          context: {
-            url: request.input('url'),
-            processingTime,
-            errorCode: error.code,
-          },
-          endpoint: request.url(),
-          method: request.method(),
-          userAgent: request.header('user-agent'),
-          ipAddress: request.ip(),
-        }
-      )
+      await ErrorLoggingService.logControllerError('ScreenshotController', 'single', error, {
+        context: {
+          url: request.input('url'),
+          processingTime,
+          errorCode: error.code,
+        },
+        endpoint: request.url(),
+        method: request.method(),
+        userAgent: request.header('user-agent'),
+        ipAddress: request.ip(),
+      })
 
       // Handle validation errors
       if (error.messages) {
@@ -383,12 +378,14 @@ export default class ScreenshotController {
         cache: validatedData.config?.cache !== false, // Default to true
         priority: validatedData.config?.priority || 'normal',
         scheduled_time: validatedData.config?.scheduled_time,
-        recurrence: validatedData.config?.recurrence ? {
-          pattern: validatedData.config.recurrence,
-          interval: validatedData.config.recurrence_interval,
-          count: validatedData.config.recurrence_count,
-          cron: validatedData.config.recurrence_cron,
-        } : undefined,
+        recurrence: validatedData.config?.recurrence
+          ? {
+              pattern: validatedData.config.recurrence,
+              interval: validatedData.config.recurrence_interval,
+              count: validatedData.config.recurrence_count,
+              cron: validatedData.config.recurrence_cron,
+            }
+          : undefined,
         rate_limit: validatedData.config?.rate_limit,
       }
 
@@ -412,8 +409,6 @@ export default class ScreenshotController {
         batchConfig,
         scheduledAt
       )
-
-
 
       // Initialize results array with pending status for all items
       const initialResults = validatedData.items.map((item) => ({
@@ -454,7 +449,6 @@ export default class ScreenshotController {
         apiKeyId: ctx.apiKey?.id?.toString() || 'unknown',
       }
 
-
       // Add job to queue (scheduled or immediate)
 
       if (scheduledAt) {
@@ -494,7 +488,6 @@ export default class ScreenshotController {
         })
       }
 
-
       const processingTime = Date.now() - startTime
 
       logger.info('Batch job created successfully', {
@@ -521,21 +514,16 @@ export default class ScreenshotController {
       const processingTime = Date.now() - startTime
 
       // Log error to both application logger and database
-      await ErrorLoggingService.logControllerError(
-        'ScreenshotController',
-        'batch',
-        error,
-        {
-          context: {
-            processingTime,
-            errorCode: error.code,
-          },
-          endpoint: request.url(),
-          method: request.method(),
-          userAgent: request.header('user-agent'),
-          ipAddress: request.ip(),
-        }
-      )
+      await ErrorLoggingService.logControllerError('ScreenshotController', 'batch', error, {
+        context: {
+          processingTime,
+          errorCode: error.code,
+        },
+        endpoint: request.url(),
+        method: request.method(),
+        userAgent: request.header('user-agent'),
+        ipAddress: request.ip(),
+      })
 
       // Handle validation errors
       if (error.messages) {
@@ -849,7 +837,7 @@ export default class ScreenshotController {
   async scheduleBatchJob({ params, request, response }: HttpContext) {
     try {
       const jobId = params.job_id
-      const { scheduled_time } = request.only(['scheduled_time'])
+      const { scheduled_time: scheduledTime } = request.only(['scheduled_time'])
 
       if (!jobId) {
         return response.status(400).json({
@@ -860,7 +848,7 @@ export default class ScreenshotController {
         })
       }
 
-      if (!scheduled_time) {
+      if (!scheduledTime) {
         return response.status(422).json({
           detail: {
             error: 'validation_failed',
@@ -870,7 +858,7 @@ export default class ScreenshotController {
       }
 
       // Find batch job by ID
-      const batchJob = await BatchJob.find(parseInt(jobId))
+      const batchJob = await BatchJob.find(Number.parseInt(jobId))
 
       if (!batchJob) {
         return response.status(404).json({
@@ -882,7 +870,7 @@ export default class ScreenshotController {
       }
 
       // Validate scheduled_time format and ensure it's in the future
-      const scheduledDateTime = DateTime.fromISO(scheduled_time)
+      const scheduledDateTime = DateTime.fromISO(scheduledTime)
       if (!scheduledDateTime.isValid) {
         return response.status(422).json({
           detail: {
@@ -949,27 +937,31 @@ export default class ScreenshotController {
         estimated_completion: batchJob.estimatedCompletion?.toISO(),
         next_scheduled_time: batchJob.nextScheduledTime?.toISO(),
         config: batchJob.config,
-        results: (batchJob.results || []).map(r => ({
+        results: (batchJob.results || []).map((r) => ({
           itemId: r.itemId,
           status: r.status,
           url: r.url,
           error: r.error,
           cached: r.cached,
-          processingTime: r.processingTime
+          processingTime: r.processingTime,
         })),
-        successful_results: (batchJob.results || []).filter(r => r.status === 'success').map(r => ({
-          itemId: r.itemId,
-          status: r.status,
-          url: r.url,
-          cached: r.cached,
-          processingTime: r.processingTime
-        })),
-        failed_results: (batchJob.results || []).filter(r => r.status === 'error').map(r => ({
-          itemId: r.itemId,
-          status: r.status,
-          error: r.error,
-          processingTime: r.processingTime
-        })),
+        successful_results: (batchJob.results || [])
+          .filter((r) => r.status === 'success')
+          .map((r) => ({
+            itemId: r.itemId,
+            status: r.status,
+            url: r.url,
+            cached: r.cached,
+            processingTime: r.processingTime,
+          })),
+        failed_results: (batchJob.results || [])
+          .filter((r) => r.status === 'error')
+          .map((r) => ({
+            itemId: r.itemId,
+            status: r.status,
+            error: r.error,
+            processingTime: r.processingTime,
+          })),
       })
     } catch (error) {
       // Log error to both application logger and database
@@ -1086,7 +1078,7 @@ export default class ScreenshotController {
       }
 
       // Find batch job by ID
-      const batchJob = await BatchJob.find(parseInt(jobId))
+      const batchJob = await BatchJob.find(Number.parseInt(jobId))
 
       if (!batchJob) {
         return response.status(404).json({
@@ -1134,27 +1126,31 @@ export default class ScreenshotController {
         estimated_completion: batchJob.estimatedCompletion?.toISO(),
         next_scheduled_time: batchJob.nextScheduledTime?.toISO(),
         config: batchJob.config,
-        results: (batchJob.results || []).map(r => ({
+        results: (batchJob.results || []).map((r) => ({
           itemId: r.itemId,
           status: r.status,
           url: r.url,
           error: r.error,
           cached: r.cached,
-          processingTime: r.processingTime
+          processingTime: r.processingTime,
         })),
-        successful_results: (batchJob.results || []).filter(r => r.status === 'success').map(r => ({
-          itemId: r.itemId,
-          status: r.status,
-          url: r.url,
-          cached: r.cached,
-          processingTime: r.processingTime
-        })),
-        failed_results: (batchJob.results || []).filter(r => r.status === 'error').map(r => ({
-          itemId: r.itemId,
-          status: r.status,
-          error: r.error,
-          processingTime: r.processingTime
-        })),
+        successful_results: (batchJob.results || [])
+          .filter((r) => r.status === 'success')
+          .map((r) => ({
+            itemId: r.itemId,
+            status: r.status,
+            url: r.url,
+            cached: r.cached,
+            processingTime: r.processingTime,
+          })),
+        failed_results: (batchJob.results || [])
+          .filter((r) => r.status === 'error')
+          .map((r) => ({
+            itemId: r.itemId,
+            status: r.status,
+            error: r.error,
+            processingTime: r.processingTime,
+          })),
       })
     } catch (error) {
       // Log error to both application logger and database
@@ -1272,7 +1268,7 @@ export default class ScreenshotController {
       }
 
       // Find batch job by ID
-      const batchJob = await BatchJob.find(parseInt(jobId))
+      const batchJob = await BatchJob.find(Number.parseInt(jobId))
 
       if (!batchJob) {
         return response.status(404).json({
@@ -1347,27 +1343,31 @@ export default class ScreenshotController {
         estimated_completion: batchJob.estimatedCompletion?.toISO(),
         next_scheduled_time: batchJob.nextScheduledTime?.toISO(),
         config: batchJob.config,
-        results: (batchJob.results || []).map(r => ({
+        results: (batchJob.results || []).map((r) => ({
           itemId: r.itemId,
           status: r.status,
           url: r.url,
           error: r.error,
           cached: r.cached,
-          processingTime: r.processingTime
+          processingTime: r.processingTime,
         })),
-        successful_results: (batchJob.results || []).filter(r => r.status === 'success').map(r => ({
-          itemId: r.itemId,
-          status: r.status,
-          url: r.url,
-          cached: r.cached,
-          processingTime: r.processingTime
-        })),
-        failed_results: (batchJob.results || []).filter(r => r.status === 'error').map(r => ({
-          itemId: r.itemId,
-          status: r.status,
-          error: r.error,
-          processingTime: r.processingTime
-        })),
+        successful_results: (batchJob.results || [])
+          .filter((r) => r.status === 'success')
+          .map((r) => ({
+            itemId: r.itemId,
+            status: r.status,
+            url: r.url,
+            cached: r.cached,
+            processingTime: r.processingTime,
+          })),
+        failed_results: (batchJob.results || [])
+          .filter((r) => r.status === 'error')
+          .map((r) => ({
+            itemId: r.itemId,
+            status: r.status,
+            error: r.error,
+            processingTime: r.processingTime,
+          })),
       })
     } catch (error) {
       // Log error to both application logger and database
@@ -1528,7 +1528,7 @@ export default class ScreenshotController {
       }
 
       // Find batch job by ID
-      const batchJob = await BatchJob.find(parseInt(jobId))
+      const batchJob = await BatchJob.find(Number.parseInt(jobId))
 
       if (!batchJob) {
         return response.status(404).json({
@@ -1558,8 +1558,8 @@ export default class ScreenshotController {
       }))
 
       // Calculate counts manually to avoid JSON serialization issues
-      const succeededCount = results.filter(r => r.status === 'success').length
-      const failedCount = results.filter(r => r.status === 'error').length
+      const succeededCount = results.filter((r) => r.status === 'success').length
+      const failedCount = results.filter((r) => r.status === 'error').length
 
       logger.debug('Retrieved batch job results', {
         jobId: batchJob.id,
@@ -1574,7 +1574,7 @@ export default class ScreenshotController {
         total: batchJob.totalItems,
         succeeded: succeededCount,
         failed: failedCount,
-        processing_time: Math.round(processingTime / 1000 * 100) / 100, // Convert to seconds with 2 decimal places
+        processing_time: Math.round((processingTime / 1000) * 100) / 100, // Convert to seconds with 2 decimal places
         results: formattedResults,
       })
     } catch (error) {
@@ -1621,7 +1621,7 @@ export default class ScreenshotController {
       }
 
       // Find batch job by ID
-      const batchJob = await BatchJob.find(parseInt(jobId))
+      const batchJob = await BatchJob.find(Number.parseInt(jobId))
 
       if (!batchJob) {
         return response.status(404).json({
@@ -1653,27 +1653,31 @@ export default class ScreenshotController {
         estimated_completion: batchJob.estimatedCompletion?.toISO(),
         next_scheduled_time: batchJob.nextScheduledTime?.toISO(),
         config: batchJob.config,
-        results: (batchJob.results || []).map(r => ({
+        results: (batchJob.results || []).map((r) => ({
           itemId: r.itemId,
           status: r.status,
           url: r.url,
           error: r.error,
           cached: r.cached,
-          processingTime: r.processingTime
+          processingTime: r.processingTime,
         })),
-        successful_results: (batchJob.results || []).filter(r => r.status === 'success').map(r => ({
-          itemId: r.itemId,
-          status: r.status,
-          url: r.url,
-          cached: r.cached,
-          processingTime: r.processingTime
-        })),
-        failed_results: (batchJob.results || []).filter(r => r.status === 'error').map(r => ({
-          itemId: r.itemId,
-          status: r.status,
-          error: r.error,
-          processingTime: r.processingTime
-        })),
+        successful_results: (batchJob.results || [])
+          .filter((r) => r.status === 'success')
+          .map((r) => ({
+            itemId: r.itemId,
+            status: r.status,
+            url: r.url,
+            cached: r.cached,
+            processingTime: r.processingTime,
+          })),
+        failed_results: (batchJob.results || [])
+          .filter((r) => r.status === 'error')
+          .map((r) => ({
+            itemId: r.itemId,
+            status: r.status,
+            error: r.error,
+            processingTime: r.processingTime,
+          })),
       })
     } catch (error) {
       // Log error to both application logger and database
@@ -1785,17 +1789,12 @@ export default class ScreenshotController {
       return response.json(stats)
     } catch (error) {
       // Log error to both application logger and database
-      await ErrorLoggingService.logControllerError(
-        'ScreenshotController',
-        'getCacheStats',
-        error,
-        {
-          endpoint: request.url(),
-          method: request.method(),
-          userAgent: request.header('user-agent'),
-          ipAddress: request.ip(),
-        }
-      )
+      await ErrorLoggingService.logControllerError('ScreenshotController', 'getCacheStats', error, {
+        endpoint: request.url(),
+        method: request.method(),
+        userAgent: request.header('user-agent'),
+        ipAddress: request.ip(),
+      })
 
       return response.status(500).json({
         detail: {
@@ -1851,17 +1850,12 @@ export default class ScreenshotController {
       return response.status(204).send('')
     } catch (error) {
       // Log error to both application logger and database
-      await ErrorLoggingService.logControllerError(
-        'ScreenshotController',
-        'clearCache',
-        error,
-        {
-          endpoint: request.url(),
-          method: request.method(),
-          userAgent: request.header('user-agent'),
-          ipAddress: request.ip(),
-        }
-      )
+      await ErrorLoggingService.logControllerError('ScreenshotController', 'clearCache', error, {
+        endpoint: request.url(),
+        method: request.method(),
+        userAgent: request.header('user-agent'),
+        ipAddress: request.ip(),
+      })
 
       return response.status(500).json({
         detail: {
