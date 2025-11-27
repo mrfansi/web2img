@@ -46,7 +46,7 @@ echo "  Systemd: sudo systemctl restart web2img"
 echo "  Manual: Kill and restart the process"
 echo ""
 echo "📈 To monitor the service after restart:"
-echo "  python3 scripts/monitor_load.py --interval 10"
+echo "  Use your monitoring tools"
 echo ""
 echo "🔙 To revert to previous configuration:"
 if [ -f "$BACKUP_FILE" ]; then

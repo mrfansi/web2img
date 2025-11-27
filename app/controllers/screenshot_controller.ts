@@ -14,6 +14,22 @@ import { DateTime } from 'luxon'
 import ErrorLoggingService from '#services/error_logging_service'
 
 /**
+ * Interface for formatted active batch job response
+ */
+interface FormattedActiveBatchJob {
+  job_id: string
+  status: BatchJobStatus
+  total: number
+  completed: number
+  failed: number
+  created_at: string | null
+  updated_at: string | null | undefined
+  estimated_completion: string | null | undefined
+  scheduled_time: string | null | undefined
+  next_scheduled_time: string | null | undefined
+}
+
+/**
  * Screenshot controller for handling single and batch screenshot requests
  */
 export default class ScreenshotController {
@@ -217,22 +233,17 @@ export default class ScreenshotController {
       const processingTime = Date.now() - startTime
 
       // Log error to both application logger and database
-      await ErrorLoggingService.logControllerError(
-        'ScreenshotController',
-        'single',
-        error,
-        {
-          context: {
-            url: request.input('url'),
-            processingTime,
-            errorCode: error.code,
-          },
-          endpoint: request.url(),
-          method: request.method(),
-          userAgent: request.header('user-agent'),
-          ipAddress: request.ip(),
-        }
-      )
+      await ErrorLoggingService.logControllerError('ScreenshotController', 'single', error, {
+        context: {
+          url: request.input('url'),
+          processingTime,
+          errorCode: error.code,
+        },
+        endpoint: request.url(),
+        method: request.method(),
+        userAgent: request.header('user-agent'),
+        ipAddress: request.ip(),
+      })
 
       // Handle validation errors
       if (error.messages) {
@@ -383,12 +394,14 @@ export default class ScreenshotController {
         cache: validatedData.config?.cache !== false, // Default to true
         priority: validatedData.config?.priority || 'normal',
         scheduled_time: validatedData.config?.scheduled_time,
-        recurrence: validatedData.config?.recurrence ? {
-          pattern: validatedData.config.recurrence,
-          interval: validatedData.config.recurrence_interval,
-          count: validatedData.config.recurrence_count,
-          cron: validatedData.config.recurrence_cron,
-        } : undefined,
+        recurrence: validatedData.config?.recurrence
+          ? {
+              pattern: validatedData.config.recurrence,
+              interval: validatedData.config.recurrence_interval,
+              count: validatedData.config.recurrence_count,
+              cron: validatedData.config.recurrence_cron,
+            }
+          : undefined,
         rate_limit: validatedData.config?.rate_limit,
       }
 
@@ -412,8 +425,6 @@ export default class ScreenshotController {
         batchConfig,
         scheduledAt
       )
-
-
 
       // Initialize results array with pending status for all items
       const initialResults = validatedData.items.map((item) => ({
@@ -454,7 +465,6 @@ export default class ScreenshotController {
         apiKeyId: ctx.apiKey?.id?.toString() || 'unknown',
       }
 
-
       // Add job to queue (scheduled or immediate)
 
       if (scheduledAt) {
@@ -494,7 +504,6 @@ export default class ScreenshotController {
         })
       }
 
-
       const processingTime = Date.now() - startTime
 
       logger.info('Batch job created successfully', {
@@ -521,21 +530,16 @@ export default class ScreenshotController {
       const processingTime = Date.now() - startTime
 
       // Log error to both application logger and database
-      await ErrorLoggingService.logControllerError(
-        'ScreenshotController',
-        'batch',
-        error,
-        {
-          context: {
-            processingTime,
-            errorCode: error.code,
-          },
-          endpoint: request.url(),
-          method: request.method(),
-          userAgent: request.header('user-agent'),
-          ipAddress: request.ip(),
-        }
-      )
+      await ErrorLoggingService.logControllerError('ScreenshotController', 'batch', error, {
+        context: {
+          processingTime,
+          errorCode: error.code,
+        },
+        endpoint: request.url(),
+        method: request.method(),
+        userAgent: request.header('user-agent'),
+        ipAddress: request.ip(),
+      })
 
       // Handle validation errors
       if (error.messages) {
@@ -740,7 +744,7 @@ export default class ScreenshotController {
       })
 
       // Format jobs for response
-      const formattedJobs = activeJobs.map((job) => ({
+      const formattedJobs: FormattedActiveBatchJob[] = activeJobs.map((job) => ({
         job_id: job.id.toString(),
         status: job.status,
         total: job.totalItems,
@@ -949,27 +953,31 @@ export default class ScreenshotController {
         estimated_completion: batchJob.estimatedCompletion?.toISO(),
         next_scheduled_time: batchJob.nextScheduledTime?.toISO(),
         config: batchJob.config,
-        results: (batchJob.results || []).map(r => ({
+        results: (batchJob.results || []).map((r) => ({
           itemId: r.itemId,
           status: r.status,
           url: r.url,
           error: r.error,
           cached: r.cached,
-          processingTime: r.processingTime
+          processingTime: r.processingTime,
         })),
-        successful_results: (batchJob.results || []).filter(r => r.status === 'success').map(r => ({
-          itemId: r.itemId,
-          status: r.status,
-          url: r.url,
-          cached: r.cached,
-          processingTime: r.processingTime
-        })),
-        failed_results: (batchJob.results || []).filter(r => r.status === 'error').map(r => ({
-          itemId: r.itemId,
-          status: r.status,
-          error: r.error,
-          processingTime: r.processingTime
-        })),
+        successful_results: (batchJob.results || [])
+          .filter((r) => r.status === 'success')
+          .map((r) => ({
+            itemId: r.itemId,
+            status: r.status,
+            url: r.url,
+            cached: r.cached,
+            processingTime: r.processingTime,
+          })),
+        failed_results: (batchJob.results || [])
+          .filter((r) => r.status === 'error')
+          .map((r) => ({
+            itemId: r.itemId,
+            status: r.status,
+            error: r.error,
+            processingTime: r.processingTime,
+          })),
       })
     } catch (error) {
       // Log error to both application logger and database
@@ -1134,27 +1142,31 @@ export default class ScreenshotController {
         estimated_completion: batchJob.estimatedCompletion?.toISO(),
         next_scheduled_time: batchJob.nextScheduledTime?.toISO(),
         config: batchJob.config,
-        results: (batchJob.results || []).map(r => ({
+        results: (batchJob.results || []).map((r) => ({
           itemId: r.itemId,
           status: r.status,
           url: r.url,
           error: r.error,
           cached: r.cached,
-          processingTime: r.processingTime
+          processingTime: r.processingTime,
         })),
-        successful_results: (batchJob.results || []).filter(r => r.status === 'success').map(r => ({
-          itemId: r.itemId,
-          status: r.status,
-          url: r.url,
-          cached: r.cached,
-          processingTime: r.processingTime
-        })),
-        failed_results: (batchJob.results || []).filter(r => r.status === 'error').map(r => ({
-          itemId: r.itemId,
-          status: r.status,
-          error: r.error,
-          processingTime: r.processingTime
-        })),
+        successful_results: (batchJob.results || [])
+          .filter((r) => r.status === 'success')
+          .map((r) => ({
+            itemId: r.itemId,
+            status: r.status,
+            url: r.url,
+            cached: r.cached,
+            processingTime: r.processingTime,
+          })),
+        failed_results: (batchJob.results || [])
+          .filter((r) => r.status === 'error')
+          .map((r) => ({
+            itemId: r.itemId,
+            status: r.status,
+            error: r.error,
+            processingTime: r.processingTime,
+          })),
       })
     } catch (error) {
       // Log error to both application logger and database
@@ -1347,27 +1359,31 @@ export default class ScreenshotController {
         estimated_completion: batchJob.estimatedCompletion?.toISO(),
         next_scheduled_time: batchJob.nextScheduledTime?.toISO(),
         config: batchJob.config,
-        results: (batchJob.results || []).map(r => ({
+        results: (batchJob.results || []).map((r) => ({
           itemId: r.itemId,
           status: r.status,
           url: r.url,
           error: r.error,
           cached: r.cached,
-          processingTime: r.processingTime
+          processingTime: r.processingTime,
         })),
-        successful_results: (batchJob.results || []).filter(r => r.status === 'success').map(r => ({
-          itemId: r.itemId,
-          status: r.status,
-          url: r.url,
-          cached: r.cached,
-          processingTime: r.processingTime
-        })),
-        failed_results: (batchJob.results || []).filter(r => r.status === 'error').map(r => ({
-          itemId: r.itemId,
-          status: r.status,
-          error: r.error,
-          processingTime: r.processingTime
-        })),
+        successful_results: (batchJob.results || [])
+          .filter((r) => r.status === 'success')
+          .map((r) => ({
+            itemId: r.itemId,
+            status: r.status,
+            url: r.url,
+            cached: r.cached,
+            processingTime: r.processingTime,
+          })),
+        failed_results: (batchJob.results || [])
+          .filter((r) => r.status === 'error')
+          .map((r) => ({
+            itemId: r.itemId,
+            status: r.status,
+            error: r.error,
+            processingTime: r.processingTime,
+          })),
       })
     } catch (error) {
       // Log error to both application logger and database
@@ -1558,8 +1574,8 @@ export default class ScreenshotController {
       }))
 
       // Calculate counts manually to avoid JSON serialization issues
-      const succeededCount = results.filter(r => r.status === 'success').length
-      const failedCount = results.filter(r => r.status === 'error').length
+      const succeededCount = results.filter((r) => r.status === 'success').length
+      const failedCount = results.filter((r) => r.status === 'error').length
 
       logger.debug('Retrieved batch job results', {
         jobId: batchJob.id,
@@ -1574,7 +1590,7 @@ export default class ScreenshotController {
         total: batchJob.totalItems,
         succeeded: succeededCount,
         failed: failedCount,
-        processing_time: Math.round(processingTime / 1000 * 100) / 100, // Convert to seconds with 2 decimal places
+        processing_time: Math.round((processingTime / 1000) * 100) / 100, // Convert to seconds with 2 decimal places
         results: formattedResults,
       })
     } catch (error) {
@@ -1653,27 +1669,31 @@ export default class ScreenshotController {
         estimated_completion: batchJob.estimatedCompletion?.toISO(),
         next_scheduled_time: batchJob.nextScheduledTime?.toISO(),
         config: batchJob.config,
-        results: (batchJob.results || []).map(r => ({
+        results: (batchJob.results || []).map((r) => ({
           itemId: r.itemId,
           status: r.status,
           url: r.url,
           error: r.error,
           cached: r.cached,
-          processingTime: r.processingTime
+          processingTime: r.processingTime,
         })),
-        successful_results: (batchJob.results || []).filter(r => r.status === 'success').map(r => ({
-          itemId: r.itemId,
-          status: r.status,
-          url: r.url,
-          cached: r.cached,
-          processingTime: r.processingTime
-        })),
-        failed_results: (batchJob.results || []).filter(r => r.status === 'error').map(r => ({
-          itemId: r.itemId,
-          status: r.status,
-          error: r.error,
-          processingTime: r.processingTime
-        })),
+        successful_results: (batchJob.results || [])
+          .filter((r) => r.status === 'success')
+          .map((r) => ({
+            itemId: r.itemId,
+            status: r.status,
+            url: r.url,
+            cached: r.cached,
+            processingTime: r.processingTime,
+          })),
+        failed_results: (batchJob.results || [])
+          .filter((r) => r.status === 'error')
+          .map((r) => ({
+            itemId: r.itemId,
+            status: r.status,
+            error: r.error,
+            processingTime: r.processingTime,
+          })),
       })
     } catch (error) {
       // Log error to both application logger and database
@@ -1785,17 +1805,12 @@ export default class ScreenshotController {
       return response.json(stats)
     } catch (error) {
       // Log error to both application logger and database
-      await ErrorLoggingService.logControllerError(
-        'ScreenshotController',
-        'getCacheStats',
-        error,
-        {
-          endpoint: request.url(),
-          method: request.method(),
-          userAgent: request.header('user-agent'),
-          ipAddress: request.ip(),
-        }
-      )
+      await ErrorLoggingService.logControllerError('ScreenshotController', 'getCacheStats', error, {
+        endpoint: request.url(),
+        method: request.method(),
+        userAgent: request.header('user-agent'),
+        ipAddress: request.ip(),
+      })
 
       return response.status(500).json({
         detail: {
@@ -1851,17 +1866,12 @@ export default class ScreenshotController {
       return response.status(204).send('')
     } catch (error) {
       // Log error to both application logger and database
-      await ErrorLoggingService.logControllerError(
-        'ScreenshotController',
-        'clearCache',
-        error,
-        {
-          endpoint: request.url(),
-          method: request.method(),
-          userAgent: request.header('user-agent'),
-          ipAddress: request.ip(),
-        }
-      )
+      await ErrorLoggingService.logControllerError('ScreenshotController', 'clearCache', error, {
+        endpoint: request.url(),
+        method: request.method(),
+        userAgent: request.header('user-agent'),
+        ipAddress: request.ip(),
+      })
 
       return response.status(500).json({
         detail: {

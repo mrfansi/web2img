@@ -509,25 +509,27 @@ const batchJob = await client.createBatch({
 const status = await client.getBatchStatus(batchJob.job_id)
 ```
 
-### Python
+### Node.js
 
-```python
-from screenshot_api import ScreenshotClient
+```javascript
+const axios = require('axios');
 
-client = ScreenshotClient(
-    api_key='your-api-key',
-    base_url='https://api.example.com'
-)
+const client = axios.create({
+    baseURL: 'https://api.example.com',
+    headers: {
+        'X-API-Key': 'your-api-key'
+    }
+});
 
-# Single screenshot
-screenshot = client.screenshot(
-    url='https://example.com',
-    format='png',
-    width=1280,
-    height=720
-)
+// Single screenshot
+const screenshot = await client.post('/screenshot', {
+    url: 'https://example.com',
+    format: 'png',
+    width: 1280,
+    height: 720
+});
 
-# Batch job
+// Batch job
 batch_job = client.create_batch(
     items=[
         {'id': 'item1', 'url': 'https://example.com'},
