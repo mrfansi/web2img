@@ -40,6 +40,14 @@ export interface BatchResult {
   processingTime?: number
 }
 
+export interface BatchItem {
+  id: string
+  url: string
+  format?: 'png' | 'jpeg' | 'webp'
+  width?: number
+  height?: number
+}
+
 export default class BatchJob extends BaseModel {
   static table = 'batch_jobs'
 
@@ -117,6 +125,45 @@ export default class BatchJob extends BaseModel {
   })
   declare results: BatchResult[]
 
+  @column({
+    prepare: (value: BatchItem[]) => JSON.stringify(value || []),
+    consume: (value: any) => {
+      // Handle null/undefined
+      if (!value) return []
+
+      // If it's already an array (parsed by database), return it
+      if (Array.isArray(value)) return value
+
+      // If it's an object but not an array, wrap it or return empty
+      if (typeof value === 'object') {
+        return Array.isArray(value) ? value : []
+      }
+
+      // If it's a string, try to parse it
+      if (typeof value === 'string') {
+        try {
+          const parsed = JSON.parse(value)
+          return Array.isArray(parsed) ? parsed : []
+        } catch (error) {
+          logger.warn('Failed to parse batch job items from database', {
+            value: value.substring(0, 100),
+            valueType: typeof value,
+            error: error.message
+          })
+          return []
+        }
+      }
+
+      // For any other type, return empty array
+      logger.warn('Unexpected value type for batch job items', {
+        valueType: typeof value,
+        value: String(value).substring(0, 100)
+      })
+      return []
+    },
+  })
+  declare items: BatchItem[]
+
   @column.dateTime({ autoCreate: true })
   declare createdAt: DateTime
 
@@ -177,7 +224,8 @@ export default class BatchJob extends BaseModel {
   static async createBatchJob(
     totalItems: number,
     config: BatchConfig = {},
-    scheduledAt?: DateTime
+    scheduledAt?: DateTime,
+    items?: BatchItem[]
   ): Promise<BatchJob> {
     const batchJob = await BatchJob.create({
       status: scheduledAt ? BatchJobStatus.SCHEDULED : BatchJobStatus.PENDING,
@@ -186,6 +234,7 @@ export default class BatchJob extends BaseModel {
       failedItems: 0,
       config: config,
       results: [],
+      items: items || [],
       scheduledAt: scheduledAt || null,
     })
 

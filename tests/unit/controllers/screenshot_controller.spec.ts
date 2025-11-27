@@ -4,6 +4,7 @@ import cacheService from '#services/cache_service'
 import { screenshotWorkerService } from '#services/screenshot_worker_service'
 import fileStorageService from '#services/file_storage_service'
 import imgProxyService from '#services/imgproxy_service'
+import queueService from '#services/queue_service'
 import BatchJob from '#models/batch_job'
 import { DateTime } from 'luxon'
 
@@ -615,6 +616,12 @@ test.group('SchedulshotController - Job Scheduling', (group) => {
   })
 
   test('should schedule batch job successfully', async ({ assert }) => {
+    const mockItems = [
+      { id: 'item1', url: 'https://example.com/page1', format: 'png' as const, width: 1280, height: 720 },
+      { id: 'item2', url: 'https://example.com/page2', format: 'png' as const, width: 1280, height: 720 },
+      { id: 'item3', url: 'https://example.com/page3', format: 'png' as const, width: 1280, height: 720 },
+    ]
+
     const mockBatchJob = {
       id: 123,
       status: 'pending',
@@ -630,10 +637,82 @@ test.group('SchedulshotController - Job Scheduling', (group) => {
       nextScheduledTime: null,
       config: { parallel: 3, timeout: 30000 },
       results: [],
+      items: mockItems,
       successfulResults: [],
       failedResults: [],
       save: async () => {
         // Update the mock object when save is called
+        mockBatchJob.status = 'scheduled'
+        mockBatchJob.scheduledAt = DateTime.fromISO('2025-12-31T15:00:00.000Z')
+      },
+    }
+
+    BatchJob.find = async () => mockBatchJob as any
+
+    // Mock queueService.scheduleJob
+    let scheduledJobCalled = false
+    let scheduledJobData: any = null
+    queueService.scheduleJob = async (_queueName, data, _scheduledTime) => {
+      scheduledJobCalled = true
+      scheduledJobData = data
+      return { id: 'mock-job-id' } as any
+    }
+
+    let responseStatus = 200
+    let responseBody: any = null
+
+    const ctx = {
+      params: { job_id: '123' },
+      request: {
+        only: () => ({
+          scheduled_time: '2025-12-31T15:00:00.000Z',
+        }),
+      },
+      response: {
+        status: (code: number) => {
+          responseStatus = code
+          return ctx.response
+        },
+        json: (data: any) => {
+          responseBody = data
+          return ctx.response
+        },
+      },
+      apiKey: { id: 456 },
+    }
+
+    await controller.scheduleBatchJob(ctx as any)
+
+    assert.equal(responseStatus, 202)
+    assert.equal(responseBody.job_id, '123')
+    assert.equal(responseBody.status, 'scheduled')
+    assert.equal(responseBody.scheduled_time, '2025-12-31T15:00:00.000+00:00')
+    assert.isTrue(scheduledJobCalled, 'queueService.scheduleJob should be called')
+    assert.equal(scheduledJobData.id, '123')
+    assert.lengthOf(scheduledJobData.items, 3)
+    assert.equal(scheduledJobData.apiKeyId, '456')
+  })
+
+  test('should return 400 when items are not available', async ({ assert }) => {
+    const mockBatchJob = {
+      id: 123,
+      status: 'pending',
+      totalItems: 3,
+      completedItems: 0,
+      failedItems: 0,
+      progressPercentage: 0,
+      createdAt: DateTime.fromISO('2025-01-26T10:00:00.000Z'),
+      updatedAt: DateTime.fromISO('2025-01-26T10:30:00.000Z'),
+      scheduledAt: null as DateTime | null,
+      completedAt: null,
+      estimatedCompletion: null,
+      nextScheduledTime: null,
+      config: { parallel: 3, timeout: 30000 },
+      results: [],
+      items: [], // No items available
+      successfulResults: [],
+      failedResults: [],
+      save: async () => {
         mockBatchJob.status = 'scheduled'
         mockBatchJob.scheduledAt = DateTime.fromISO('2025-12-31T15:00:00.000Z')
       },
@@ -661,14 +740,13 @@ test.group('SchedulshotController - Job Scheduling', (group) => {
           return ctx.response
         },
       },
+      apiKey: { id: 456 },
     }
 
     await controller.scheduleBatchJob(ctx as any)
 
-    assert.equal(responseStatus, 202)
-    assert.equal(responseBody.job_id, '123')
-    assert.equal(responseBody.status, 'scheduled')
-    assert.equal(responseBody.scheduled_time, '2025-12-31T15:00:00.000+00:00')
+    assert.equal(responseStatus, 400)
+    assert.equal(responseBody.detail.error, 'no_items_available')
   })
 
   test('should return 404 for non-existent job', async ({ assert }) => {

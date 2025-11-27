@@ -9,7 +9,7 @@ import { screenshotWorkerService } from '#services/screenshot_worker_service'
 import fileStorageService from '#services/file_storage_service'
 import imgProxyService from '#services/imgproxy_service'
 import queueService from '#services/queue_service'
-import BatchJob, { BatchJobStatus } from '#models/batch_job'
+import BatchJob, { BatchJobStatus, type BatchItem } from '#models/batch_job'
 import { DateTime } from 'luxon'
 import ErrorLoggingService from '#services/error_logging_service'
 
@@ -403,11 +403,21 @@ export default class ScreenshotController {
         }
       }
 
+      // Prepare batch items for storage
+      const batchItems: BatchItem[] = validatedData.items.map((item) => ({
+        id: item.id,
+        url: item.url,
+        format: (item.format || 'png') as 'png' | 'jpeg' | 'webp',
+        width: item.width || 1280,
+        height: item.height || 720,
+      }))
+
       // Create batch job in database
       const batchJob = await BatchJob.createBatchJob(
         validatedData.items.length,
         batchConfig,
-        scheduledAt
+        scheduledAt,
+        batchItems
       )
 
       // Initialize results array with pending status for all items
@@ -438,13 +448,7 @@ export default class ScreenshotController {
 
       const batchJobData = {
         id: batchJob.id.toString(),
-        items: validatedData.items.map((item) => ({
-          id: item.id,
-          url: item.url,
-          format: item.format || 'png',
-          width: item.width || 1280,
-          height: item.height || 720,
-        })),
+        items: batchItems,
         config: queueConfig,
         apiKeyId: ctx.apiKey?.id?.toString() || 'unknown',
       }
@@ -834,7 +838,8 @@ export default class ScreenshotController {
    * Schedule a batch job for future execution
    * POST /batch/screenshots/:job_id/schedule
    */
-  async scheduleBatchJob({ params, request, response }: HttpContext) {
+  async scheduleBatchJob(ctx: HttpContext) {
+    const { params, request, response } = ctx
     try {
       const jobId = params.job_id
       const { scheduled_time: scheduledTime } = request.only(['scheduled_time'])
@@ -914,8 +919,38 @@ export default class ScreenshotController {
       batchJob.status = BatchJobStatus.SCHEDULED
       await batchJob.save()
 
-      // TODO: Add job to queue with scheduled time
-      // await queueService.scheduleJob('batch', batchJobData, scheduledDateTime.toJSDate())
+      // Check if items are available for scheduling
+      const items = batchJob.items || []
+      if (items.length === 0) {
+        return response.status(400).json({
+          detail: {
+            error: 'no_items_available',
+            message: 'Cannot schedule job: no items available. This job may have been created before items storage was implemented.',
+          },
+        })
+      }
+
+      // Prepare batch job data for queue
+      const config = batchJob.config || {}
+      const queueConfig = {
+        parallel: config.parallel,
+        timeout: config.timeout,
+        webhook: config.webhook_url,
+        webhook_auth: config.webhook_auth,
+        fail_fast: config.fail_fast,
+        cache: config.cache,
+        priority: config.priority,
+      }
+
+      const batchJobData = {
+        id: batchJob.id.toString(),
+        items: items,
+        config: queueConfig,
+        apiKeyId: ctx.apiKey?.id?.toString() || 'unknown',
+      }
+
+      // Add job to queue with scheduled time
+      await queueService.scheduleJob('batch', batchJobData, scheduledDateTime.toJSDate())
 
       logger.info('Batch job scheduled successfully', {
         jobId: batchJob.id,
